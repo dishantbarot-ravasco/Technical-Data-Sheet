@@ -24,3 +24,6 @@ Thumbs.db
 
 # Archived / not part of the deployed app
 backend_archived/
+*.db
+*.db-wal
+*.db-shm
