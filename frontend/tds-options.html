@@ -1,0 +1,388 @@
+<!--
+  tds-options.html - Standalone "choose which parameter groups/rows to
+  include in the PDF" page, keyed off ?tds_id=&tds_number=&splicing= in the
+  URL and ending by redirecting to tds-preview.html with the resulting
+  exclude_groups/exclude_params query params.
+
+  STATUS: appears to be DEAD / orphaned. A repo-wide search of
+  frontend/*.html and frontend/js/*.js for the string "tds-options" found no
+  other file that links or redirects here - nothing in generate-tds.html or
+  generate-tds.js currently sends the user to this page. The equivalent
+  functionality (hide/show groups and individual rows before download) is
+  implemented independently, and reachably, inside tds-preview.html via
+  injectCheckboxes() (checkboxes injected directly into the live PDF-preview
+  iframe rather than a separate pre-preview options screen - see that file's
+  header comment). This page's logic still works in isolation and is kept
+  documented here in case a future flow intentionally links to it again, but
+  do not assume it is part of the current user journey.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TDS Options - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .options-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .options-card-header {
+      background: var(--bg-section);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .options-card-header h3 {
+      font-family: var(--font-head);
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-muted); margin: 0;
+    }
+    .options-card-body { padding: 18px 20px; }
+
+    .group-block {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .group-block-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: var(--bg-section);
+      cursor: pointer;
+      user-select: none;
+    }
+    .group-block-header label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; font-weight: 600; color: var(--text);
+      cursor: pointer; flex: 1;
+    }
+    .group-toggle {
+      font-size: 11px; color: var(--text-muted); margin-left: auto;
+    }
+    .param-list {
+      padding: 8px 14px 12px 36px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .param-list label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text-muted); cursor: pointer;
+      padding: 2px 0;
+    }
+    @media (max-width: 600px) {
+      .param-list { grid-template-columns: 1fr; }
+    }
+
+    .display-toggles {
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+    .display-toggles label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; cursor: pointer;
+    }
+
+    .proceed-bar {
+      position: sticky; bottom: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      box-shadow: 0 -4px 16px rgba(0,0,0,.06);
+    }
+    .proceed-bar-info {
+      font-size: 12px; color: var(--text-muted);
+    }
+    .proceed-bar-info strong { color: var(--navy); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Ravasco" class="nav-logo"
+           onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html"         class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html"   class="nav-link">Search TDS</a>
+      <a href="admin.html"        class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap narrow" style="padding-bottom:100px;">
+
+    <div class="page-header" style="margin-bottom:18px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <a href="generate-tds.html">Generate TDS</a>
+        <span>›</span>
+        <span>PDF Options</span>
+      </div>
+      <h2>Configure PDF Output</h2>
+      <p id="page-subtitle" style="color:var(--text-muted);font-size:13px;">
+        Select which parameter groups and individual parameters to include in the TDS PDF.
+      </p>
+    </div>
+
+    <!-- TDS Identity -->
+    <div class="options-card">
+      <div class="options-card-header">
+        <h3>TDS Created</h3>
+      </div>
+      <div class="options-card-body" style="display:flex;align-items:center;gap:16px;">
+        <div style="width:40px;height:40px;background:var(--green-pale);border:1px solid var(--green-border);
+                    border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;">✓</div>
+        <div>
+          <div style="font-family:var(--font-head);font-size:16px;font-weight:800;color:var(--navy);">
+            TDS-<span id="tds-number-display">-</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+            Now configure which parameters to show in the PDF, then preview or download.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Display Toggles -->
+    <div class="options-card">
+      <div class="options-card-header">
+        <h3>Display Options</h3>
+      </div>
+      <div class="options-card-body">
+        <div class="display-toggles">
+          <label>
+            <input type="checkbox" id="opt-show-section" checked />
+            Show Section Column
+          </label>
+          <label>
+            <input type="checkbox" id="opt-show-testmethod" checked />
+            Show Test Method Column
+          </label>
+          <label>
+            <input type="checkbox" id="opt-show-reference" checked />
+            Show Reference Column
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parameter Groups -->
+    <div class="options-card">
+      <div class="options-card-header">
+        <h3>Parameter Groups &amp; Parameters</h3>
+        <div style="display:flex;gap:10px;margin-left:auto;">
+          <button type="button" id="btn-select-all" class="btn btn-ghost btn-sm">Select All</button>
+          <button type="button" id="btn-deselect-all" class="btn btn-ghost btn-sm">Deselect All</button>
+        </div>
+      </div>
+      <div class="options-card-body" id="group-container">
+        <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;" id="loading-msg">
+          Loading parameters…
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sticky proceed bar -->
+  <div class="proceed-bar">
+    <div class="proceed-bar-info">
+      <strong id="selected-count">-</strong> parameters selected
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="generate-tds.html" class="btn btn-outline">← Back to Form</a>
+      <button class="btn btn-primary" id="btn-proceed" style="padding:11px 28px;">
+        Preview TDS →
+      </button>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser, showToast } from './js/auth.js';
+    import { getParameters } from './js/api.js';
+
+    const session = requireAuth();
+    if (session) populateNavUser();
+
+    // ── Read URL params ──────────────────────────────────────────
+    const params        = new URLSearchParams(location.search);
+    const tdsId         = params.get('tds_id');
+    const tdsNumber     = params.get('tds_number') || '0000';
+    const splicingOn    = params.get('splicing') === 'true';
+
+    if (!tdsId) {
+      // No TDS ID - redirect back to form
+      window.location.href = 'generate-tds.html';
+    }
+
+    document.getElementById('tds-number-display').textContent = tdsNumber;
+
+    const ALL_PARAM_GROUPS = [
+      'General Information',
+      'Dimensional Parameters',
+      'Belt Construction Parameters',
+      'Fabric Parameters',
+      'Cover Rubber Properties',
+      'After Ageing Cover Rubber Properties',
+      'Belt Breaking Strength',
+      'Adhesion Values',
+      'Troughability',
+      'Recommended Minimum Pulley Diameter',
+      'Sampling and Testing',
+      'Packing and Logistics',
+      'Splicing Parameters',
+    ];
+
+    const visibleGroups = splicingOn
+      ? ALL_PARAM_GROUPS
+      : ALL_PARAM_GROUPS.filter(g => g !== 'Splicing Parameters');
+
+    // ── Load parameters and build UI ─────────────────────────────
+    let allParameters = {};
+
+    async function loadParameters() {
+      try {
+        const data = await getParameters(1);
+        // data is { groupName: [{parameter_id, parameter_name}] }
+        allParameters = data;
+      } catch (e) {
+        // Parameters failed to load - still show group-level controls
+        console.warn('Could not load parameters:', e);
+      }
+      buildUI();
+    }
+
+    function buildUI() {
+      const container = document.getElementById('group-container');
+      document.getElementById('loading-msg')?.remove();
+
+      container.innerHTML = visibleGroups.map(group => {
+        const groupParams = allParameters[group] || [];
+        const paramRows   = groupParams.map(p => `
+          <label>
+            <input type="checkbox" class="pdf-param-cb" value="${p.parameter_id}" data-group="${group}" checked />
+            ${p.parameter_name}
+          </label>`).join('');
+
+        return `
+          <div class="group-block" data-group="${group}">
+            <div class="group-block-header" onclick="toggleParamList(this)">
+              <label onclick="event.stopPropagation()">
+                <input type="checkbox" class="pdf-group-cb" value="${group}" checked
+                       onchange="onGroupChange(this)" />
+                ${group}
+              </label>
+              ${groupParams.length ? `<span class="group-toggle">▾ ${groupParams.length} params</span>` : ''}
+            </div>
+            ${groupParams.length ? `
+              <div class="param-list">
+                ${paramRows}
+              </div>` : ''}
+          </div>`;
+      }).join('');
+
+      // Wire param-level checkboxes to update count
+      container.querySelectorAll('.pdf-param-cb').forEach(cb => {
+        cb.addEventListener('change', updateCount);
+      });
+
+      updateCount();
+    }
+
+    // Toggle param list collapsed/expanded
+    window.toggleParamList = function(header) {
+      const list = header.nextElementSibling;
+      if (!list) return;
+      list.style.display = list.style.display === 'none' ? '' : 'none';
+      const toggle = header.querySelector('.group-toggle');
+      if (toggle) toggle.textContent = toggle.textContent.startsWith('▸')
+        ? toggle.textContent.replace('▸', '▾')
+        : toggle.textContent.replace('▾', '▸');
+    };
+
+    // Group checkbox change: toggle all params in group
+    window.onGroupChange = function(groupCb) {
+      const group    = groupCb.value;
+      const paramList = document.querySelector(`.group-block[data-group="${group}"] .param-list`);
+      if (!paramList) { updateCount(); return; }
+      paramList.querySelectorAll('.pdf-param-cb').forEach(cb => {
+        cb.checked  = groupCb.checked;
+        cb.disabled = !groupCb.checked;
+        cb.parentElement.style.opacity = groupCb.checked ? '1' : '.4';
+      });
+      updateCount();
+    };
+
+    function updateCount() {
+      const checked = document.querySelectorAll(
+        '.pdf-group-cb:checked, .pdf-param-cb:checked:not([disabled])'
+      ).length;
+      document.getElementById('selected-count').textContent = checked;
+    }
+
+    // Select / Deselect All
+    document.getElementById('btn-select-all').addEventListener('click', () => {
+      document.querySelectorAll('.pdf-group-cb, .pdf-param-cb').forEach(cb => {
+        cb.checked = true; cb.disabled = false;
+        cb.parentElement.style.opacity = '1';
+      });
+      updateCount();
+    });
+    document.getElementById('btn-deselect-all').addEventListener('click', () => {
+      document.querySelectorAll('.pdf-group-cb').forEach(cb => { cb.checked = false; });
+      document.querySelectorAll('.pdf-param-cb').forEach(cb => {
+        cb.checked = false; cb.disabled = true;
+        cb.parentElement.style.opacity = '.4';
+      });
+      updateCount();
+    });
+
+    // ── Proceed to preview ───────────────────────────────────────
+    document.getElementById('btn-proceed').addEventListener('click', () => {
+      const excludeGroups = [...document.querySelectorAll('.pdf-group-cb:not(:checked)')]
+        .map(cb => cb.value);
+      const excludeParams = [...document.querySelectorAll('.pdf-param-cb:not(:checked):not([disabled])')]
+        .map(cb => cb.value);
+      const showSection    = document.getElementById('opt-show-section').checked;
+      const showTestMethod = document.getElementById('opt-show-testmethod').checked;
+      const showReference  = document.getElementById('opt-show-reference').checked;
+
+      const qs = new URLSearchParams({ tds_id: tdsId, tds_number: tdsNumber });
+      if (!showSection)                  qs.set('show_section',     'false');
+      if (!showTestMethod)               qs.set('show_test_method', 'false');
+      if (!showReference)                qs.set('show_reference',   'false');
+      excludeGroups.forEach(g => qs.append('exclude_groups', g));
+      excludeParams.forEach(p => qs.append('exclude_params', p));
+
+      window.location.href = `tds-preview.html?${qs.toString()}`;
+    });
+
+    // ── Boot ─────────────────────────────────────────────────────
+    loadParameters();
+  </script>
+
+</body>
+</html>

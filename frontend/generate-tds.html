@@ -1,0 +1,1824 @@
+<!--
+  generate-tds.html - The main TDS-creation form for the Ravasco TDS
+  Automation App. This is the largest and most involved page in the app.
+
+  Two scripts drive this page (see their own header comments for detail):
+    1. js/generate-tds.js (ES module, loaded near the bottom) - the primary
+       single-belt / multi-belt-queue form: dropdown population, EAV lookups,
+       live weight/packing/splicing calculations, and final submission via
+       POST /api/tds or POST /api/tds/batch/.
+    2. A second inline <script> (plain IIFE, not a module) further down this
+       file - the alternate "bulk-text paste" import flow, which posts to
+       POST /api/tds/batch/text-import/. It is a separate mini-module with
+       its own auth/fetch helpers; see the comment directly above that
+       <script> tag for its own reading guide.
+
+  The CSS in <head> below defines the compact "section card" visual style
+  (yellow header bars) used to group the form into logical blocks (General
+  Info, Dimensional Parameters, Fabric, Packing, Splicing, etc.) - purely
+  presentational, no behaviour lives in this <style> block.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generate TDS - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Compact section cards with yellow header ─────────── */
+    .section-card {
+      background: var(--bg-card);
+      border: 1.5px solid #2a2a2a;
+      border-radius: 0;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .section-card-header {
+      background: #F5A623;
+      border-bottom: 1px solid #c47e10;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-card-header h3 {
+      font-family: var(--font-head);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: #fff;
+      margin: 0;
+    }
+    .section-card-header .sub {
+      font-size: 10px;
+      color: rgba(255,255,255,.75);
+    }
+    .section-card-body { padding: 14px 16px; }
+
+    /* ── Auto / readonly fields ───────────────────────────── */
+    .auto-field {
+      background: #FFF8E6 !important;
+      color: #7a5000 !important;
+      border-color: #E8C060 !important;
+      font-weight: 600;
+    }
+    .badge-auto {
+      display: inline-block;
+      font-size: 8.5px;
+      background: #F5A623;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 2px;
+      margin-left: 4px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      vertical-align: middle;
+    }
+
+    /* ── Compact form rows ────────────────────────────────── */
+    .form-row-c { display: grid; gap: 10px; }
+    .frc-4 { grid-template-columns: repeat(4, 1fr); }
+    .frc-3 { grid-template-columns: repeat(3, 1fr); }
+    .frc-6 { grid-template-columns: repeat(6, 1fr); }
+    .frc-mt { margin-top: 10px; }
+    .sp2 { grid-column: span 2; }
+    .sp4 { grid-column: span 4; }
+
+    /* Compact label + input */
+    .flbl {
+      font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--navy);
+      display: block; margin-bottom: 4px;
+    }
+    .flbl .req { color: #F5A623; margin-left: 2px; }
+    .finp {
+      width: 100%; padding: 6px 10px;
+      background: var(--bg-input); border: 1px solid var(--border-mid);
+      border-radius: var(--radius); color: var(--text); font-size: 12.5px;
+      font-family: var(--font-body); outline: none; appearance: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .finp:focus { border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
+
+    /* ── Radio inline (breaker) ───────────────────────────── */
+    .radio-il { display: flex; align-items: center; gap: 10px; padding: 6px 0; flex-wrap: wrap; }
+    .radio-il label { display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
+    .radio-il input[type=radio] { width: auto; accent-color: #F5A623; }
+
+    /* ── Autocomplete ─────────────────────────────────────── */
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: var(--bg-card); border: 1px solid #F5A623;
+      border-top: none; border-radius: 0 0 var(--radius) var(--radius);
+      max-height: 200px; overflow-y: auto; z-index: 100;
+      display: none; box-shadow: var(--shadow);
+    }
+    .autocomplete-list.open { display: block; }
+    .autocomplete-item {
+      padding: 9px 12px; cursor: pointer; font-size: 12.5px; color: var(--text);
+      border-bottom: 1px solid var(--border); transition: background .12s;
+    }
+    .autocomplete-item:hover { background: var(--gold-pale); }
+    .autocomplete-item small { color: var(--text-muted); font-size: 10.5px; display: block; }
+    .autocomplete-item.new-customer { color: #D4940A; }
+    .new-customer-form {
+      background: var(--bg-section); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 14px; margin-top: 8px; display: none;
+    }
+    .new-customer-form.open { display: block; }
+
+    /* ── Computed chips ───────────────────────────────────── */
+    .comp-row {
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+      padding: 10px 14px; background: var(--gold-pale);
+      border: 1px solid var(--gold-border); border-radius: var(--radius); margin-top: 8px;
+    }
+    .cv { display: flex; flex-direction: column; gap: 1px; }
+    .cv label { font-size: 9px; color: var(--text-muted); letter-spacing: .07em; text-transform: uppercase; }
+    .cv .num { font-family: var(--font-head); font-size: 18px; font-weight: 900; color: var(--navy); }
+    .cv .unit { font-size: 10px; color: var(--text-muted); }
+    .cv-sep { width: 1px; height: 30px; background: var(--gold-border); }
+
+    /* ── Splicing toggle in yellow header ─────────────────── */
+    .spl-toggle-wrap { display: flex; align-items: center; gap: 8px; }
+    .spl-toggle-wrap .toggle-label { font-size: 10px; color: rgba(255,255,255,.85); font-weight: 600; letter-spacing: .05em; }
+    .spl-toggle-text { font-size: 10px; color: rgba(255,255,255,.65); min-width: 20px; }
+
+    /* ── Sticky footer ────────────────────────────────────── */
+    .form-footer-bar {
+      position: sticky; bottom: 0; z-index: 100;
+      background: var(--bg-card); border-top: 1.5px solid #2a2a2a;
+      padding: 10px 16px; display: flex; align-items: center; gap: 12px;
+    }
+    .ftr-chip {
+      padding: 3px 10px; border-radius: 3px; font-size: 10.5px; font-weight: 700;
+      text-transform: uppercase; background: #fff3cd; color: #856404;
+      border: 1px solid #e0a800; font-family: var(--font-head); letter-spacing: .05em;
+    }
+    .ftr-info { font-size: 11px; color: var(--text-muted); }
+    .ftr-info strong { color: var(--text); }
+    .ftr-actions { margin-left: auto; display: flex; gap: 8px; }
+    .nav-err { font-size: 11.5px; color: var(--red); font-weight: 500; }
+
+    /* ── Success screen ───────────────────────────────────── */
+    .success-screen { display: none; text-align: center; padding: 60px 40px; }
+    .success-screen.show { display: block; }
+    .success-icon { font-size: 64px; margin-bottom: 20px; animation: popIn .5s ease; }
+    @keyframes popIn { 0%{transform:scale(.5);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+    .success-tds-number {
+      font-family: var(--font-head); font-size: 36px; font-weight: 900;
+      color: var(--gold-light); letter-spacing: .08em; margin-bottom: 8px;
+    }
+    .success-screen h2 { font-family: var(--font-head); font-size: 22px; font-weight: 900; color: var(--navy); margin-bottom: 8px; }
+    .success-screen > p { color: var(--text-muted); font-size: 13px; margin-bottom: 32px; }
+
+    /* ── Searchable Select ─────────────────────────────────── */
+    .ss-wrap { position: relative; }
+    .ss-input { cursor: pointer; }
+    .ss-input:focus { cursor: text; }
+    .ss-list { z-index: 200; }
+    .ss-list .autocomplete-item.ss-active {
+      font-weight: 700;
+      background: var(--gold-pale);
+    }
+    .ss-list .autocomplete-item:focus {
+      outline: none;
+      background: var(--gold-pale);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       MULTI-BELT MODE STYLES
+       ══════════════════════════════════════════════════════ */
+
+    /* ── Mode toggle bar ─────────────────────────────────── */
+    .mode-bar {
+      display: flex; gap: 0; margin-bottom: 14px;
+      background: var(--bg-card); border: 1.5px solid #2a2a2a;
+      border-radius: 4px; overflow: hidden;
+    }
+    .mode-btn {
+      flex: 1; padding: 10px 0; cursor: pointer; border: none;
+      background: transparent; color: var(--text-muted);
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      transition: background .15s, color .15s;
+    }
+    .mode-btn.active { background: #F5A623; color: #fff; }
+    .mode-btn:not(.active):hover { background: var(--gold-pale); color: var(--navy); }
+    .mode-btn .mode-icon { margin-right: 6px; }
+
+    /* ── Multi-belt info note (inside section 1) ─────────── */
+    .multi-mode-note {
+      display: none; margin-top: 10px;
+      background: #EFF6FF; border: 1px solid #BFDBFE;
+      border-radius: var(--radius); padding: 8px 12px;
+      font-size: 11px; color: #1D4ED8;
+    }
+
+    /* ── Multi shared config ─────────────────────────────── */
+    .shared-config-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    }
+
+    /* ── Multi-belt table wrap ───────────────────────────── */
+    .mtable-outer {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    .mtable {
+      border-collapse: collapse;
+      min-width: 620px;
+      width: 100%;
+    }
+    .mtable thead th {
+      position: sticky; top: 0;
+      background: #1e3a5f; color: #fff;
+      font-size: 9px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; white-space: nowrap;
+      padding: 7px 6px; border-right: 1px solid rgba(255,255,255,.15);
+    }
+    .mtable thead th.th-cond { background: #162d4a; }
+    .mtable tbody td {
+      padding: 3px 4px; vertical-align: middle;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+    .mtable tbody tr:hover td { background: #fffbf2; }
+    .mtable tbody tr.row-error td { background: #fef2f2; }
+
+    /* ── Cell inputs ─────────────────────────────────────── */
+    .cinp {
+      width: 100%; padding: 4px 6px;
+      background: var(--bg-input); border: 1px solid var(--border-mid);
+      border-radius: 3px; color: var(--text); font-size: 11.5px;
+      font-family: var(--font-body); outline: none; appearance: none;
+      box-sizing: border-box;
+    }
+    .cinp:focus { border-color: #F5A623; box-shadow: 0 0 0 1px rgba(245,166,35,.25); }
+    .cinp.auto-cell { background: #FFF8E6 !important; color: #7a5000 !important; border-color: #E8C060 !important; }
+    .cinp.cell-err { border-color: #EF4444 !important; background: #FEF2F2 !important; }
+
+    /* ── Row controls ────────────────────────────────────── */
+    .row-num {
+      text-align: center; font-size: 9px; font-weight: 700;
+      color: var(--text-muted); padding: 0 4px; white-space: nowrap;
+    }
+    .row-del {
+      background: none; border: none; cursor: pointer;
+      color: #9CA3AF; font-size: 13px; padding: 2px 5px;
+      border-radius: 3px; line-height: 1;
+    }
+    .row-del:hover { background: #FEF2F2; color: #EF4444; }
+
+    /* ── Batch success panel ─────────────────────────────── */
+    .bs-panel {
+      background: var(--bg-card); border: 1.5px solid #2a2a2a;
+      border-radius: 0; padding: 32px;
+    }
+    .bs-header {
+      display: flex; align-items: center; gap: 16px;
+      padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    }
+    .bs-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: #F0FDF4; border: 1px solid #86EFAC;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .bs-title { font-family: var(--font-head); font-size: 16px; font-weight: 800; color: var(--navy); }
+    .bs-sub   { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .bs-table {
+      width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px;
+    }
+    .bs-table th {
+      text-align: left; padding: 8px 12px;
+      background: var(--bg-section); border-bottom: 1px solid var(--border);
+      font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+    .bs-table td {
+      padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text);
+    }
+    .bs-table td.tds-num {
+      font-family: var(--font-head); font-weight: 700; color: var(--navy);
+    }
+
+    /* ── Text parser card ─────────────────────────────────── */
+    .parser-format-box {
+      background: var(--bg-section);
+      border: 1px solid var(--border);
+      border-left: 3px solid #F5A623;
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 0;
+    }
+    .parser-format-label {
+      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
+    }
+    .parser-format-code {
+      font-family: 'Courier New', monospace;
+      font-size: 11px; color: #1e3a5f;
+      background: none; display: block; white-space: pre-wrap; word-break: break-all;
+      line-height: 1.6;
+    }
+    .parser-example-code {
+      font-family: 'Courier New', monospace;
+      font-size: 11px; color: #7a5000;
+      background: #FFF8E6; border: 1px solid #E8C060;
+      border-radius: 3px; padding: 4px 8px;
+      display: block; margin-top: 6px; word-break: break-all;
+    }
+    textarea.finp {
+      resize: vertical; min-height: 120px;
+      font-family: 'Courier New', monospace;
+      font-size: 12.5px; line-height: 1.75;
+    }
+    @media (max-width: 900px) {
+      .frc-4 { grid-template-columns: 1fr 1fr; }
+      .frc-6 { grid-template-columns: repeat(3, 1fr); }
+      .sp2   { grid-column: span 1; }
+      .sp4   { grid-column: span 2; }
+      .shared-config-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 580px) {
+      .frc-4, .frc-6 { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Indus Belts" class="nav-logo"
+           onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html"         class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link active">Generate TDS</a>
+      <a href="search-tds.html"   class="nav-link">Search TDS</a>
+      <a href="admin.html"        class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap narrow" style="padding-bottom:80px;">
+
+    <div class="page-header" style="margin-bottom:14px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <span>Generate TDS</span>
+      </div>
+      <h2>Technical Data Sheet</h2>
+    </div>
+
+    <!-- ════════ MODE TOGGLE ════════ -->
+    <div class="mode-bar" id="mode-bar">
+      <button id="btn-mode-single" class="mode-btn active">
+        <span class="mode-icon">◉</span> Single Belt
+      </button>
+      <button id="btn-mode-multi" class="mode-btn">
+        <span class="mode-icon">⊞</span> Multiple Belts
+      </button>
+    </div>
+
+    <!-- ═══════ FORM WRAP ═══════ -->
+    <div id="tds-form-wrap">
+
+      <!-- ① CUSTOMER & DOCUMENT - shared in both modes -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>Customer &amp; Document Information</h3>
+          <span class="sub" id="sec1-sub">Single Belt</span>
+        </div>
+        <div class="section-card-body">
+
+          <div class="form-row-c frc-4">
+            <div>
+              <label class="flbl">TDS Date <span class="req">*</span></label>
+              <input type="date" id="tds-date" class="finp" />
+            </div>
+            <!-- Doc number: required in single mode, optional/shared in multi mode -->
+            <div id="grp-doc-number">
+              <label class="flbl">TDS Document No.
+                <span id="doc-number-req-mark" class="req">*</span>
+                <span id="doc-number-opt-note" style="display:none;font-weight:400;font-size:9px;
+                             color:var(--text-muted);text-transform:none;letter-spacing:0;margin-left:4px;">
+                  optional - shared across all belts in this batch
+                </span>
+              </label>
+              <input type="text" id="tds-doc-number" class="finp" placeholder="e.g. RTPH/TDS/2026/001" />
+            </div>
+            <div>
+              <label class="flbl">Internal TDS No. <span class="badge-auto">AUTO</span></label>
+              <input type="text" class="finp auto-field" readonly placeholder="Assigned on save" />
+            </div>
+            <div>
+              <label class="flbl">Purpose <span class="req">*</span></label>
+              <select id="purpose-id" class="finp"><option value="">Loading…</option></select>
+            </div>
+            <!-- SINGLE ONLY: belt type + end type (move to table in multi mode) -->
+            <div id="grp-belt-type">
+              <label class="flbl">Belt Type</label>
+              <select id="belt-type-id" class="finp"><option value="">Loading…</option></select>
+            </div>
+            <div id="grp-end-type">
+              <label class="flbl">Belt End Type</label>
+              <select id="construction-type" class="finp">
+                <option value="Open-End">Flat Belt · Open End</option>
+                <option value="Endless">Flat Belt · Endless</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- International logistics - shipping region stays shared; container moves to table in multi mode -->
+          <div id="intl-logistics-row" class="form-row-c frc-4 frc-mt" style="display:none;">
+            <div>
+              <label class="flbl">Shipping Region <span class="req">*</span></label>
+              <select id="shipping-region" class="finp">
+                <option value="">- Select Region -</option>
+                <option value="USA">USA</option>
+                <option value="Rest of World">Rest of World</option>
+              </select>
+            </div>
+            <!-- SINGLE ONLY: container type (moves to per-belt table column in multi mode) -->
+            <!-- Options are populated live from GET /api/bootstrap's container_types
+                 (js/generate-tds.js's loadAllDropdowns) - NOT hardcoded here, so a
+                 renamed/added/removed container type in the database shows up
+                 automatically without editing this file. -->
+            <div id="grp-container-type">
+              <label class="flbl">Container Type <span class="req">*</span></label>
+              <select id="container-type-id" class="finp">
+                <option value="">- Select Container -</option>
+              </select>
+            </div>
+            <div id="intl-constraint-info" class="finp auto-field"
+                 style="font-size:0.78rem;line-height:1.5;background:#f0fdf4;border-color:#86efac;">
+              Select region &amp; container to see limits
+            </div>
+            <div id="intl-weight-warning"
+                 style="display:none;font-size:0.78rem;color:#b91c1c;padding:6px 8px;
+                        background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;">
+              ⚠ Gross weight exceeds container limit
+            </div>
+          </div>
+
+          <div class="form-row-c frc-4 frc-mt">
+            <div class="sp2">
+              <label class="flbl">Customer Name <span class="req">*</span></label>
+              <div class="autocomplete-wrap">
+                <input type="text" id="customer-search" class="finp"
+                       placeholder="Type to search or add new…" autocomplete="off" />
+                <input type="hidden" id="customer-id" />
+                <div class="autocomplete-list" id="customer-list"></div>
+              </div>
+              <div class="new-customer-form" id="new-customer-form">
+                <label class="flbl" style="margin-bottom:5px;">New Company Name <span class="req">*</span></label>
+                <input type="text" id="nc-name" class="finp" placeholder="e.g. Steel Authority of India" />
+              </div>
+            </div>
+            <div>
+              <label class="flbl">Contact Person</label>
+              <input type="text" id="cust-contact" class="finp" placeholder="Mr. Rajesh Sharma" />
+            </div>
+            <div>
+              <label class="flbl">Application</label>
+              <input type="text" id="cust-application" class="finp" placeholder="Coal Conveying" />
+            </div>
+          </div>
+
+          <div class="form-row-c frc-4 frc-mt">
+            <div class="sp2">
+              <label class="flbl">Plant / Factory Location</label>
+              <input type="text" id="cust-location" class="finp" placeholder="Nagpur, Maharashtra" />
+            </div>
+            <div>
+              <label class="flbl">Indus Brand <span class="req">*</span></label>
+              <select id="brand-id" class="finp"><option value="">Loading…</option></select>
+            </div>
+            <div>
+              <label class="flbl">Applicable Standard <span class="req">*</span></label>
+              <select id="standard-id" class="finp"><option value="">Loading…</option></select>
+            </div>
+          </div>
+
+          <!-- SINGLE ONLY: belt description (auto per-belt in multi mode) -->
+          <div id="grp-belt-desc" class="form-row-c frc-4 frc-mt">
+            <div class="sp4">
+              <label class="flbl">
+                Belt Description
+                <span class="badge-auto">AUTO</span>
+                <span style="font-size:9px;color:var(--text-muted);font-weight:400;
+                             text-transform:none;letter-spacing:0;margin-left:6px;">
+                  width × fabric · rating · top+bottom · grade · edge · type
+                </span>
+              </label>
+              <input type="text" id="belt-description" class="finp auto-field" readonly
+                     placeholder="Fill Belt Specification to auto-generate…" />
+            </div>
+          </div>
+
+          <!-- MULTI ONLY: info note -->
+          <div class="multi-mode-note" id="multi-mode-note">
+            ℹ In Multiple Belts mode, enter each belt's full specification as a single line
+            in the text area below - one belt per line, fields separated by
+            <strong>*</strong>. Fill in the shared customer info and standard above first.
+          </div>
+
+        </div>
+      </div><!-- /① -->
+
+
+      <!-- ════════ MULTI: BELT TEXT PARSER ════════ (hidden until multi mode) -->
+      <div class="section-card" id="multi-shared-config" style="display:none;">
+        <div class="section-card-header">
+          <h3>② Belt Specifications</h3>
+          <span class="sub">One belt per line · fields separated by
+            <code style="background:rgba(255,255,255,.2);padding:1px 5px;border-radius:2px;font-size:10px;">*</code>
+          </span>
+        </div>
+        <div class="section-card-body">
+
+          <!-- Format reference - full field guide -->
+          <div style="margin-bottom:16px;">
+            <div style="background:#1e3a5f;color:#fff;padding:9px 14px;border-radius:var(--radius) var(--radius) 0 0;
+                        display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-family:var(--font-head);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;">
+                Belt Line Format Guide - fields separated by *
+              </span>
+              <span style="font-size:10px;color:rgba(255,255,255,.7);">Last 3 fields are optional (fields 11–13)</span>
+            </div>
+            <div style="border:1.5px solid #1e3a5f;border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:hidden;">
+              <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead>
+                  <tr style="background:#f0f4fa;">
+                    <th style="padding:5px 8px;text-align:center;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;font-size:9.5px;color:#1e3a5f;width:28px;">#</th>
+                    <th style="padding:5px 8px;text-align:left;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Full Field Name</th>
+                    <th style="padding:5px 8px;text-align:left;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Example Value</th>
+                    <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Notes / Accepted Values</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">1</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Width (mm)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">1200</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Whole number in millimetres (e.g. 600, 800, 1000, 1200)</td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">2</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Fabric Code</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">EP</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Fabric type code from master data (e.g. EP, NN, Steel)</td>
+                  </tr>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">3</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Rating</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">EP 400/3</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Rating name as in master data (e.g. EP 315/3, EP 630/4)</td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">4</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Top Cover (mm)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">6</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Carrying side cover thickness in millimetres (e.g. 4, 6, 8, 10)</td>
+                  </tr>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">5</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Bottom Cover (mm)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">3</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Pulley side cover thickness in millimetres (e.g. 2, 3, 4)</td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">6</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Cover Grade</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">H</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Grade code from the selected standard (e.g. H, N17, HR, FR)</td>
+                  </tr>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">7</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Edge Type</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Cut</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;"><strong>Cut</strong> or <strong>Moulded</strong></td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">8</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">End Type</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Open-End</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;"><strong>Open-End</strong> or <strong>Endless</strong></td>
+                  </tr>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">9</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Type</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Flat</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Belt type as in master data (e.g. Flat, Troughed, Chevron)</td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">10</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Length (m)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">300</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Total belt length in metres (e.g. 100, 250, 500)</td>
+                  </tr>
+                  <tr style="background:#FFF8E6;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">11</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOT Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">1</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-top plies. Omit or leave blank to use default (1)</td>
+                  </tr>
+                  <tr style="background:#FFF8E6;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">12</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOB Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">1</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-bottom plies. Omit or leave blank to use default (1)</td>
+                  </tr>
+                  <tr style="background:#FFF8E6;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">13</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">Carcass (mm) <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">5.4</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Per-belt carcass thickness override. Leave blank to auto-calculate from rating</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div style="background:#f0f4fa;padding:8px 12px;border-top:1px solid #d0d9e8;font-size:11px;">
+                <strong style="color:#1e3a5f;">Example line:</strong>
+                <code style="font-family:monospace;font-size:11px;color:#7a5000;background:#FFF8E6;
+                             border:1px solid #E8C060;border-radius:3px;padding:3px 8px;margin-left:6px;">
+                  1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300</code>
+                <span style="color:#888;margin-left:8px;">- fields 11–14 omitted (all use defaults)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Belt text input -->
+          <div style="margin-bottom:14px;">
+            <label class="flbl">Belt Lines <span class="req">*</span>
+              <span style="font-weight:400;font-size:9.5px;color:var(--text-muted);
+                           text-transform:none;letter-spacing:0;margin-left:6px;">- one belt per line</span>
+            </label>
+            <textarea id="multi-belt-text" class="finp" rows="6"
+              placeholder="1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300&#10;900 * EP * EP 315/3 * 5 * 3 * H * Cut * Open-End * Flat * 250&#10;&#10;- Carcass override (field 13) is optional per belt:&#10;1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300 * 1 * 1 * 5.4"></textarea>
+          </div>
+
+          <!-- Shared fabric override -->
+          <div class="form-row-c frc-4" style="margin-bottom:0;">
+            <div>
+              <label class="flbl">Make of Fabric</label>
+              <select id="ms-make-of-fabric" class="finp">
+                <option value="MIT">MIT</option>
+                <option value="SRF">SRF</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Live parse preview -->
+          <div id="multi-parse-preview" style="display:none;margin-top:16px;">
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                        letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px;">
+              Parsed Preview - <span id="multi-parse-count">0</span> belt(s)
+            </div>
+            <div class="mtable-outer" style="max-height:220px;overflow-y:auto;">
+              <table class="mtable" id="multi-parse-table">
+                <thead>
+                  <tr>
+                    <th style="width:26px;">#</th>
+                    <th>Width (mm)</th><th>Fabric</th><th>Rating</th>
+                    <th>Top (mm)</th><th>Bot (mm)</th><th>Grade</th>
+                    <th>Edge</th><th>End</th><th>Type</th>
+                    <th>Length (m)</th><th>BOT</th><th>BOB</th>
+                    <th>Carcass (mm)</th>
+                  </tr>
+                </thead>
+                <tbody id="multi-parse-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Parse error box -->
+          <div id="multi-parse-errors"
+               style="display:none;margin-top:10px;padding:10px 14px;
+                      background:#FEF2F2;border:1px solid #FCA5A5;
+                      border-radius:var(--radius);font-size:11.5px;
+                      color:#B91C1C;line-height:1.7;"></div>
+
+        </div>
+      </div><!-- /multi-shared-config -->
+
+
+      <!-- ════════ MULTI: PACKING & SPLICING ════════ (hidden until multi mode) -->
+      <div class="section-card" id="multi-packing-config" style="display:none;">
+        <div class="section-card-header">
+          <h3>③ Packing &amp; Splicing</h3>
+          <span class="sub">Shared - applies to every belt in this batch</span>
+        </div>
+        <div class="section-card-body">
+
+          <!-- Bootstrap error notice (hidden until needed) -->
+          <div id="packing-bootstrap-err" style="display:none;margin-bottom:12px;padding:10px 14px;
+               background:#FEF2F2;border:1px solid #FCA5A5;border-radius:var(--radius);
+               font-size:11.5px;color:#B91C1C;">
+            ⚠ Could not load Reel / Packing options - check your connection or login session.
+            <button type="button" onclick="retryBootstrap()"
+              style="margin-left:10px;padding:3px 10px;font-size:11px;font-weight:700;
+                     border:1px solid #ef4444;border-radius:3px;background:#fff;color:#b91c1c;cursor:pointer;">
+              Retry
+            </button>
+          </div>
+
+          <div class="form-row-c frc-4">
+            <div>
+              <label class="flbl">Reel Type</label>
+              <select id="multi-reel-type-id" class="finp">
+                <option value="">Loading…</option>
+              </select>
+            </div>
+            <div>
+              <label class="flbl">Packing Type</label>
+              <select id="multi-packing-type-id" class="finp">
+                <option value="">Loading…</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Splicing toggle -->
+          <div style="margin-top:12px;padding:12px 14px;background:var(--bg-section);
+                      border:1px solid var(--border);border-radius:var(--radius);">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <label class="flbl" style="margin:0;">Splicing Required</label>
+              <label class="toggle" style="margin:0;">
+                <input type="checkbox" id="multi-splicing-required" />
+                <span class="toggle-slider"></span>
+              </label>
+              <span id="multi-splice-text"
+                    style="font-size:11px;color:var(--text-muted);font-weight:600;">No</span>
+              <span style="font-size:10.5px;color:var(--text-muted);margin-left:4px;">
+                - shared across all belts in this batch
+              </span>
+            </div>
+            <div id="multi-splice-details" style="display:none;margin-top:10px;">
+              <div class="form-row-c frc-4">
+                <div>
+                  <label class="flbl">Vulcanization Type <span class="req">*</span></label>
+                  <select id="multi-vulcanization-method" class="finp">
+                    <option value="Hot">Hot Vulcanisation</option>
+                    <option value="Cold">Cold Vulcanisation</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="flbl">No. of Joints</label>
+                  <input type="number" id="multi-num-joints" class="finp"
+                         min="1" max="50" step="1" value="2" placeholder="2" />
+                  <div class="form-hint" style="margin-top:3px;">Default 2 · shared across batch</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- /multi-packing-config -->
+
+
+      <!-- ════════ SINGLE-BELT SECTIONS ②③④⑤ ════════ -->
+      <div id="single-belt-sections">
+
+        <!-- ② BELT SPECIFICATION -->
+        <div class="section-card">
+          <div class="section-card-header"><h3>Belt Specification</h3></div>
+          <div class="section-card-body">
+
+            <div class="form-row-c frc-4">
+              <div>
+                <label class="flbl">Belt Width (mm) <span class="req">*</span></label>
+                <input type="number" id="belt-width-mm" class="finp"
+                       min="300" max="2200" step="50" placeholder="e.g. 1200" />
+              </div>
+              <div>
+                <label class="flbl">Cover Grade <span class="req">*</span></label>
+                <select id="cover-grade-id" class="finp">
+                  <option value="">Select standard first</option>
+                </select>
+                <div class="form-hint" id="grade-hint" style="margin-top:3px;"></div>
+              </div>
+              <div>
+                <label class="flbl">Fabric Type <span class="req">*</span></label>
+                <select id="fabric-type-id" class="finp"><option value="">Loading…</option></select>
+              </div>
+              <div>
+                <label class="flbl">Belt Rating <span class="req">*</span></label>
+                <select id="belt-rating-id" class="finp">
+                  <option value="">Select fabric first</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row-c frc-4 frc-mt">
+              <div>
+                <label class="flbl">Top Cover (mm) <span class="req">*</span></label>
+                <input type="number" id="top-cover-mm" class="finp"
+                       min="1" max="25" step="0.5" placeholder="e.g. 6" />
+                <div class="form-hint" style="margin-top:3px;">Carrying side</div>
+              </div>
+              <div>
+                <label class="flbl">Bottom Cover (mm) <span class="req">*</span></label>
+                <input type="number" id="bottom-cover-mm" class="finp"
+                       min="1" max="25" step="0.5" placeholder="e.g. 3" />
+                <div class="form-hint" style="margin-top:3px;">Pulley side</div>
+              </div>
+              <div>
+                <label class="flbl" style="display:flex;align-items:center;justify-content:space-between;">
+                  <span>Carcass (mm)
+                    <span style="font-size:9px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">from rating</span>
+                  </span>
+                  <label class="toggle" style="margin:0;" title="Unlock to override">
+                    <input type="checkbox" id="carcass-override-toggle" />
+                    <span class="toggle-slider"></span>
+                  </label>
+                </label>
+                <input type="number" id="carcass-thickness-mm" class="finp auto-field"
+                       readonly min="0.5" max="50" step="0.1" />
+                <div class="form-hint" id="carcass-hint" style="margin-top:3px;">Auto-filled · toggle to override</div>
+              </div>
+              <div>
+                <label class="flbl">Total Thickness (mm) <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="total-thickness-mm" class="finp auto-field" readonly placeholder="-" />
+              </div>
+            </div>
+
+            <div class="form-row-c frc-4 frc-mt">
+              <div>
+                <label class="flbl">No. of Plies <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="cv-plies-field" class="finp auto-field" readonly placeholder="-" />
+              </div>
+              <div>
+                <label class="flbl">Fabric Style <span class="badge-auto">AUTO</span></label>
+                <!-- Auto-selected from the belt rating (server-computed by
+                     auto_select_fabric_style() in apps/services/calculations.py,
+                     returned as lookupData.fabric_style by POST /api/tds/lookup -
+                     see autoSelectFabricStyle() in js/generate-tds.js). The
+                     dropdown stays editable for a manual look-around, but
+                     create_tds always recomputes and saves the server's own
+                     answer regardless of what's shown here, so the saved
+                     record can never disagree with the belt rating. -->
+                <select id="fabric-style-id" class="finp">
+                  <option value="">Select fabric first</option>
+                </select>
+              </div>
+              <div>
+                <label class="flbl">Make of Fabric</label>
+                <select id="make-of-fabric" class="finp">
+                  <option value="MIT">MIT</option>
+                  <option value="SRF">SRF</option>
+                </select>
+              </div>
+              <div>
+                <label class="flbl">Interply Skim (mm) <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="cv-skim-field" class="finp auto-field" readonly placeholder="-" />
+              </div>
+            </div>
+
+            <!-- Computed chips strip -->
+            <div id="lookup-result" style="display:none;margin-top:10px;">
+              <div class="comp-row">
+                <div class="cv"><label>Plies</label><span class="num" id="cv-plies">-</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Carcass</label><span class="num" id="cv-carcass">-</span><span class="unit">mm</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Interply Skim</label><span class="num" id="cv-skim">-</span><span class="unit">mm</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Net Wt / m</label><span class="num" id="cv-weight-pm">-</span><span class="unit">kg/m</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Gross Wt / m</label><span class="num" id="cv-gross-pm">-</span><span class="unit">kg/m</span></div>
+              </div>
+              <div id="cv-weight-formula" style="font-size:9.5px;color:var(--text-muted);margin-top:4px;text-align:center;"></div>
+            </div>
+
+            <input type="hidden" id="cv-total-weight" />
+            <input type="hidden" id="cv-total-gross" />
+
+          </div>
+        </div><!-- /② -->
+
+
+        <!-- ③ BELT CONFIGURATION -->
+        <div class="section-card">
+          <div class="section-card-header"><h3>Belt Configuration</h3></div>
+          <div class="section-card-body">
+
+            <div class="form-row-c frc-4">
+              <div>
+                <label class="flbl">Total Belt Length (m) <span class="req">*</span></label>
+                <input type="number" id="belt-length-m" class="finp"
+                       min="10" max="2000" step="1" placeholder="e.g. 500" />
+                <span id="belt-length-note" class="field-hint"
+                      style="display:none;color:#b91c1c;font-size:0.78rem;">Max 100 m for Endless belts</span>
+              </div>
+              <div>
+                <label class="flbl">Edge Construction <span class="req">*</span></label>
+                <select id="edge-construction" class="finp">
+                  <option value="Cut Edge">Cut Edge</option>
+                  <option value="Moulded Edge">Moulded Edge</option>
+                </select>
+              </div>
+              <div>
+                <label class="flbl">Breaker on Top</label>
+                <div class="radio-il">
+                  <label><input type="radio" name="brk-top" value="no" checked onchange="window._brkTop(false)"/> No</label>
+                  <label><input type="radio" name="brk-top" value="yes" onchange="window._brkTop(true)"/> Yes</label>
+                  <input type="number" id="breaker-top-plies" class="finp" style="width:52px;display:none;"
+                         min="1" max="3" value="1" placeholder="#" />
+                </div>
+                <input type="checkbox" id="breaker-top" style="display:none;" />
+              </div>
+              <div>
+                <label class="flbl">Breaker on Bottom</label>
+                <div class="radio-il">
+                  <label><input type="radio" name="brk-bot" value="no" checked onchange="window._brkBot(false)"/> No</label>
+                  <label><input type="radio" name="brk-bot" value="yes" onchange="window._brkBot(true)"/> Yes</label>
+                  <input type="number" id="breaker-bottom-plies" class="finp" style="width:52px;display:none;"
+                         min="1" max="3" value="1" placeholder="#" />
+                </div>
+                <input type="checkbox" id="breaker-bottom" style="display:none;" />
+              </div>
+            </div>
+
+            <!-- Weight calc chips -->
+            <div id="weight-calc-panel" style="display:none;margin-top:10px;">
+              <div class="comp-row">
+                <div class="cv"><label>Net Wt / m</label><span class="num" id="cv-weight-pm-2">-</span><span class="unit">kg/m</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Total Net</label><span class="num" id="cv-total-weight-2">-</span><span class="unit">kg</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Gross Wt / m</label><span class="num" id="cv-gross-pm-2">-</span><span class="unit">kg/m</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Total Gross</label><span class="num" id="cv-total-gross-2">-</span><span class="unit">kg</span></div>
+              </div>
+            </div>
+
+          </div>
+        </div><!-- /③ -->
+
+
+        <!-- ④ PACKING & LOGISTICS -->
+        <div class="section-card">
+          <div class="section-card-header"><h3>Packing &amp; Logistics</h3></div>
+          <div class="section-card-body">
+
+            <div class="form-row-c frc-6">
+              <div>
+                <label class="flbl">Reel Type</label>
+                <select id="reel-type-id" class="finp"><option value="">Loading…</option></select>
+              </div>
+              <div>
+                <label class="flbl">Packing Type</label>
+                <select id="packing-type-id" class="finp"><option value="">Loading…</option></select>
+              </div>
+              <div>
+                <label class="flbl">No. of Rolls <span class="badge-auto">AUTO</span></label>
+                <input type="number" id="num-rolls" class="finp auto-field" readonly placeholder="Auto" />
+              </div>
+              <div>
+                <label class="flbl">Roll Dimensions <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="roll-dimensions" class="finp auto-field" readonly placeholder="Auto" />
+              </div>
+              <div>
+                <label class="flbl">Net Weight (kg) <span class="badge-auto">AUTO</span></label>
+                <input type="number" id="net-weight-kg" class="finp auto-field" readonly placeholder="Auto" />
+              </div>
+              <div>
+                <label class="flbl">Gross Weight (kg) <span class="badge-auto">AUTO</span></label>
+                <input type="number" id="gross-weight-kg" class="finp auto-field" readonly placeholder="Auto" />
+              </div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-override"
+                      style="font-size:10px;padding:4px 10px;">✏ Manual Override</button>
+              <div id="packing-override-fields" style="display:none;margin-top:10px;">
+                <div class="form-row-c frc-4">
+                  <div>
+                    <label class="flbl">Override No. of Rolls</label>
+                    <input type="number" id="num-rolls-override" class="finp" min="1" placeholder="Auto" />
+                  </div>
+                  <div>
+                    <label class="flbl">Override Length / Roll (m)</label>
+                    <input type="number" id="length-per-roll" class="finp" min="1" step="0.5" placeholder="Auto" />
+                  </div>
+                  <div>
+                    <label class="flbl">Override Net Weight (kg)</label>
+                    <input type="number" id="net-weight-kg-override" class="finp" min="1" placeholder="Auto" />
+                  </div>
+                  <div>
+                    <label class="flbl">Override Gross Weight (kg)</label>
+                    <input type="number" id="gross-weight-kg-override" class="finp" min="1" placeholder="Auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="packing-calc-panel" style="display:none;margin-top:10px;">
+              <div class="comp-row">
+                <div class="cv"><label>Reel Ø</label><span class="num" id="pc-d">-</span><span class="unit">m</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Rolls</label><span class="num" id="pc-rolls">-</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Len / Roll</label><span class="num" id="pc-lpr">-</span><span class="unit">m</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Roll Dims</label><span class="num" id="pc-dims" style="font-size:11px;">-</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Net Wt</label><span class="num" id="pc-net">-</span><span class="unit">kg</span></div>
+                <div class="cv-sep"></div>
+                <div class="cv"><label>Gross Wt</label><span class="num" id="pc-gross">-</span><span class="unit">kg</span></div>
+              </div>
+              <div style="font-size:9.5px;color:var(--text-muted);margin-top:4px;text-align:center;">
+                Preview - final values confirmed by backend at submission
+              </div>
+            </div>
+
+          </div>
+        </div><!-- /④ -->
+
+
+        <!-- ⑤ SPLICING PARAMETERS -->
+        <div class="section-card">
+          <div class="section-card-header">
+            <h3>Splicing Parameters</h3>
+            <div class="spl-toggle-wrap">
+              <span class="toggle-label">Splicing Required</span>
+              <label class="toggle" style="margin:0;">
+                <input type="checkbox" id="splicing-required" />
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="spl-toggle-text" id="splice-toggle-text">No</span>
+            </div>
+          </div>
+          <div class="section-card-body" id="splicing-fields" style="display:none;">
+            <div class="form-row-c frc-4">
+              <div>
+                <label class="flbl">Vulcanization Type <span class="req">*</span></label>
+                <select id="vulcanization-method" class="finp">
+                  <option value="Hot">Hot Vulcanisation</option>
+                  <option value="Cold">Cold Vulcanisation</option>
+                </select>
+              </div>
+              <div>
+                <label class="flbl">No. of Joints <span class="req">*</span></label>
+                <input type="number" id="num-joints" class="finp" min="1" placeholder="e.g. 2" />
+                <div class="form-hint" style="margin-top:3px;">Typically 1 per roll</div>
+              </div>
+              <div>
+                <label class="flbl">Step Length (mm) <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="sp-step-len-field" class="finp auto-field" readonly placeholder="-" />
+              </div>
+              <div>
+                <label class="flbl">Total Splicing Length (m) <span class="badge-auto">AUTO</span></label>
+                <input type="text" id="sp-total-splice-field" class="finp auto-field" readonly placeholder="-" />
+              </div>
+            </div>
+            <div id="splice-preview-panel" style="display:none;">
+              <span id="sp-rating-ply"></span>
+              <span id="sp-step-len"></span>
+              <span id="sp-splice-len"></span>
+              <span id="sp-total-extra"></span>
+            </div>
+            <div id="splice-result-panel" style="display:none;">
+              <span id="sr-step-len"></span>
+              <span id="sr-splice-len"></span>
+              <span id="sr-extra-len"></span>
+            </div>
+          </div>
+        </div><!-- /⑤ -->
+
+      </div><!-- /#single-belt-sections -->
+
+
+
+    </div><!-- /#tds-form-wrap -->
+
+    <!-- BELT QUEUE (single mode) -->
+    <div id="belt-queue-container" style="display:none;margin-bottom:10px;"></div>
+
+    <!-- POST-SUBMIT PANEL (single mode) -->
+    <div class="section-card" id="post-submit-panel" style="display:none;">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;
+                  padding-bottom:20px;border-bottom:1px solid var(--border);">
+        <div style="width:44px;height:44px;background:var(--green-pale);border:1px solid var(--green-border);
+                    border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;
+                    flex-shrink:0;">✓</div>
+        <div>
+          <div style="font-family:var(--font-head);font-size:15px;font-weight:800;color:var(--navy);">
+            TDS Created - <span id="created-tds-number" style="color:var(--gold);">0001</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">
+            Configure which parameters to include, then preview or download.
+          </div>
+        </div>
+      </div>
+
+      <div id="param-select-panel">
+        <div style="background:var(--bg-section);border:1px solid var(--border);border-radius:var(--radius-lg);
+                    padding:14px 18px;margin-bottom:16px;">
+          <div style="font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.1em;
+                      text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Display Options</div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="opt-show-section" checked /> Show Section
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="opt-show-testmethod" checked /> Show Test Method
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="opt-show-reference" checked /> Show Reference
+            </label>
+          </div>
+        </div>
+        <div style="background:var(--bg-section);border:1px solid var(--border);border-radius:var(--radius-lg);
+                    padding:16px 20px;margin-bottom:20px;">
+          <div style="font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.1em;
+                      text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">
+            Include Parameter Groups &amp; Parameters
+          </div>
+          <div id="pdf-group-options" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;"></div>
+        </div>
+        <button class="btn btn-primary" id="btn-load-preview" style="width:100%;padding:14px;">
+          👁 Preview TDS
+        </button>
+      </div>
+
+      <div id="preview-panel" style="display:none;margin-top:20px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+          <button class="btn btn-outline" id="btn-preview-again">↩ Adjust &amp; Preview Again</button>
+          <button class="btn btn-primary" id="post-download-pdf">⬇ Download PDF</button>
+          <button class="btn btn-outline" id="btn-print-pdf">🖨 Print</button>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px;">
+          <div style="background:var(--bg-section);padding:10px 16px;border-bottom:1px solid var(--border);
+                      font-family:var(--font-head);font-size:10px;font-weight:700;
+                      letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
+                      display:flex;align-items:center;gap:8px;">
+            <span>📄</span> TDS Preview
+          </div>
+          <div id="preview-loading"
+               style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;display:none;">
+            Loading preview…
+          </div>
+          <iframe id="tds-preview-iframe" src="about:blank"
+            style="display:block;width:100%;height:780px;border:none;"></iframe>
+        </div>
+        <div style="text-align:center;">
+          <a href="generate-tds.html" class="btn btn-outline" style="margin-right:8px;">Generate Another TDS</a>
+          <a href="search-tds.html"   class="btn btn-ghost">View All TDS</a>
+        </div>
+      </div>
+    </div><!-- /#post-submit-panel -->
+
+
+    <!-- ════════ BATCH SUCCESS PANEL ════════ (shown after batch submit) -->
+    <div id="batch-success-panel" style="display:none;">
+      <div class="bs-panel">
+        <div class="bs-header">
+          <div class="bs-icon">✓</div>
+          <div>
+            <div class="bs-title">
+              Batch Created - <span id="bs-batch-id" style="color:var(--gold);">#-</span>
+            </div>
+            <div class="bs-sub">
+              <span id="bs-count">0</span> TDS documents created as draft · ready for review &amp; approval
+            </div>
+          </div>
+        </div>
+
+        <table class="bs-table">
+          <thead>
+            <tr>
+              <th style="width:36px;">#</th>
+              <th style="width:80px;">TDS No.</th>
+              <th style="width:130px;">Doc No.</th>
+              <th>Belt Description</th>
+            </tr>
+          </thead>
+          <tbody id="bs-records-tbody"></tbody>
+        </table>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+          <a id="bs-preview-link" href="#" class="btn btn-outline btn-sm">
+            👁 Preview Batch
+          </a>
+          <button id="bs-zip-btn" class="btn btn-outline btn-sm"
+                  style="background:var(--gold-pale);border-color:var(--gold-border);color:var(--navy);font-weight:700;">
+            ⬇ Download All PDFs (ZIP)
+          </button>
+          <a href="search-tds.html" class="btn btn-primary btn-sm">View TDS Records</a>
+          <button class="btn btn-ghost btn-sm" id="btn-batch-again"
+                  onclick="location.reload()">Generate Another Batch</button>
+        </div>
+      </div>
+    </div><!-- /#batch-success-panel -->
+
+  </div><!-- .page-wrap -->
+
+
+  <!-- STICKY FOOTER -->
+  <div class="form-footer-bar" id="form-footer-bar">
+    <span class="ftr-chip" id="footer-mode-chip">Draft</span>
+    <span class="ftr-chip" id="belt-queue-badge"
+          style="display:none;background:#1e3a5f;color:#fff;border-color:#1e3a5f;">
+      <span id="belt-queue-count">0</span> belts queued
+    </span>
+    <span class="ftr-info">Prepared by <strong id="footer-user-name">-</strong></span>
+    <span class="nav-err" id="nav-error"></span>
+    <div class="ftr-actions">
+      <button class="btn btn-outline btn-sm" id="btn-add-belt"
+              style="background:var(--gold-pale);border-color:var(--gold-border);
+                     color:var(--navy);font-weight:700;">
+        + Add Belt
+      </button>
+      <button class="btn btn-outline btn-sm" id="btn-save-draft">Save Draft</button>
+      <button class="btn btn-primary btn-sm" id="btn-preview-pdf">
+        <span id="submit-text">Generate &amp; Preview PDF</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Existing single-belt JS module (unchanged) -->
+  <script type="module" src="./js/generate-tds.js?v=7"></script>
+
+  <!-- ════════════════════════════════════════════════════════════
+       MULTI-BELT MODULE  (self-contained, no ES-module dependencies)
+       ════════════════════════════════════════════════════════════ -->
+  <!--
+    Second, inline script (IIFE) - the multi-belt BULK-TEXT import feature.
+
+    This is a separate mini-module from js/generate-tds.js above: it powers
+    only the "paste multiple belt specs as text" workflow (as opposed to the
+    one-belt-at-a-time queue built by captureBeltSpec()/addBeltToQueue() in
+    generate-tds.js). It talks to a different backend endpoint -
+    POST /api/tds/batch/text-import/, handled by
+    django_backend/apps/api/routers/batch_views.py's text_import_batch() -
+    which resolves each pasted line's Standard/Brand/Cover-Grade names to IDs
+    server-side, unlike the queue-based flow which already has IDs from the
+    dropdowns.
+
+    Being an inline <script> (not a module), it duplicates a small amount of
+    logic from auth.js/api.js (see _getAuthHeaders()/apiFetch() below) instead
+    of importing them - kept this way to avoid changing script-loading order
+    during this documentation pass; a future refactor could hoist this into
+    its own js/ file and import the shared helpers instead.
+
+    Reading guide:
+      _getAuthHeaders/apiFetch      - auth + fetch wrapper (mirrors api.js)
+      isMulti/_isIntl               - small UI-state predicates
+      _loadBootstrap                - loads brands/standards/etc. once for
+                                       resolving text-import rows client-side
+      _populateSharedConfig         - fills the "applies to every belt below"
+                                       fields (Standard, Brand, Purpose, etc.)
+      _parseBeltText/_renderParsePreview - turns the pasted textarea content
+                                       into a live preview table of parsed rows
+                                       + validation errors, re-run on every
+                                       keystroke (see the textArea 'input'
+                                       listener near the bottom of this script)
+      _refreshBadge                 - updates the "N belts" counter badge
+      _collect/_validateShared      - gather + validate the shared config
+                                       before submission
+      _showBatchSuccess/_downloadZip- post-submit UI + the "download all as
+                                       ZIP" action (GET /api/tds/batch/{id}/download-zip/)
+  -->
+  <script>
+  (function () {
+    'use strict';
+
+    const API = '/api';
+    let _bootstrap = null;
+    let _rowIdx    = 0;   // ever-increasing row key
+
+    /* ── Auth headers - mirrors auth.js getAuthHeaders() exactly ── */
+    //  Phase 5 (current): token lives in httpOnly cookie - no Authorization
+    //  header needed; browser sends cookie automatically on same-origin requests.
+    //  Backward compat: old sessions may still have { token: "..." } inside
+    //  sessionStorage['tds_session'] - include the Bearer header in that case.
+    function _getAuthHeaders() {
+      try {
+        var s = JSON.parse(sessionStorage.getItem('tds_session') || 'null');
+        if (s && s.token) return { 'Authorization': 'Bearer ' + s.token };
+      } catch(e) {}
+      return {};   // new sessions: cookie handles auth, no header needed
+    }
+
+    function apiFetch(path, opts) {
+      opts = opts || {};
+      var hdrs = Object.assign(
+        { 'Content-Type': 'application/json' },
+        _getAuthHeaders(),      // only adds Authorization for old token sessions
+        opts.headers || {}
+      );
+      return fetch(API + path, Object.assign({}, opts, {
+        credentials: 'same-origin',   // ensure cookie is included
+        headers: hdrs,
+      })).then(function(r) {
+        return r.ok ? r.json() : r.json().then(function(e) { return Promise.reject(e); });
+      });
+    }
+
+    /* ── Mode helpers ──────────────────────────────────────────── */
+    function isMulti() {
+      return document.getElementById('btn-mode-multi').classList.contains('active');
+    }
+
+    function _isIntl() {
+      var sel = document.getElementById('purpose-id');
+      return ((sel.options[sel.selectedIndex] || {}).text || '').toLowerCase().includes('international');
+    }
+
+    /* ── Enter single mode ─────────────────────────────────────── */
+    function enterSingle() {
+      document.getElementById('btn-mode-single').classList.add('active');
+      document.getElementById('btn-mode-multi').classList.remove('active');
+
+      document.getElementById('single-belt-sections').style.display = '';
+      document.getElementById('multi-shared-config').style.display  = 'none';
+      document.getElementById('multi-packing-config').style.display = 'none';
+      document.getElementById('batch-success-panel').style.display  = 'none';
+      document.getElementById('post-submit-panel').style.display    = 'none';
+      document.getElementById('tds-form-wrap').style.display        = '';
+      document.getElementById('form-footer-bar').style.display      = '';
+
+      ['grp-belt-type','grp-end-type','grp-belt-desc','grp-container-type'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.style.display = '';
+      });
+      // TDS Doc No always visible; restore required marker for single mode
+      var docEl = document.getElementById('grp-doc-number');
+      if (docEl) docEl.style.display = '';
+      var reqMark = document.getElementById('doc-number-req-mark');
+      if (reqMark) reqMark.style.display = '';
+      var optNote = document.getElementById('doc-number-opt-note');
+      if (optNote) optNote.style.display = 'none';
+      document.getElementById('multi-mode-note').style.display = 'none';
+
+      document.getElementById('submit-text').textContent = 'Generate & Preview PDF';
+      document.getElementById('btn-save-draft').style.display = '';
+      document.getElementById('footer-mode-chip').textContent = 'Draft';
+      document.getElementById('sec1-sub').textContent = 'Single Belt';
+      document.getElementById('belt-queue-badge').style.display = 'none';
+    }
+
+    /* ── Enter multi mode ──────────────────────────────────────── */
+    async function enterMulti() {
+      document.getElementById('btn-mode-single').classList.remove('active');
+      document.getElementById('btn-mode-multi').classList.add('active');
+
+      document.getElementById('single-belt-sections').style.display = 'none';
+      document.getElementById('multi-shared-config').style.display  = '';
+      document.getElementById('multi-packing-config').style.display = '';
+      document.getElementById('batch-success-panel').style.display  = 'none';
+      document.getElementById('post-submit-panel').style.display    = 'none';
+      document.getElementById('tds-form-wrap').style.display        = '';
+      document.getElementById('form-footer-bar').style.display      = '';
+
+      ['grp-belt-type','grp-end-type','grp-belt-desc','grp-container-type'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+      // TDS Doc No stays visible in multi mode - show as optional/shared
+      var docEl = document.getElementById('grp-doc-number');
+      if (docEl) docEl.style.display = '';
+      var reqMark = document.getElementById('doc-number-req-mark');
+      if (reqMark) reqMark.style.display = 'none';   // not required in batch mode
+      var optNote = document.getElementById('doc-number-opt-note');
+      if (optNote) optNote.style.display = '';
+      document.getElementById('multi-mode-note').style.display = '';
+
+      document.getElementById('submit-text').textContent = 'Generate Batch TDS';
+      document.getElementById('btn-save-draft').style.display = 'none';
+      document.getElementById('footer-mode-chip').textContent = 'Batch';
+      document.getElementById('sec1-sub').textContent = 'Shared Info';
+
+      // Load bootstrap data (reel / packing dropdowns)
+      if (!_bootstrap) {
+        await _loadBootstrap();
+      }
+    }
+
+    /* ── Load/retry bootstrap data ────────────────────────────── */
+    async function _loadBootstrap() {
+      var errBanner = document.getElementById('packing-bootstrap-err');
+      try {
+        var data = await apiFetch('/bootstrap');
+        // Verify it has the shape we expect
+        if (!data || (!data.reel_types && !data.packing_types)) {
+          console.warn('Bootstrap response missing reel_types/packing_types:', data);
+          throw new Error('Unexpected bootstrap shape');
+        }
+        _bootstrap = data;
+        _populateSharedConfig();
+        if (errBanner) errBanner.style.display = 'none';
+      } catch(e) {
+        console.error('Bootstrap load error:', e);
+        _bootstrap = null;  // allow retry
+        // Reset dropdowns to empty
+        var reelSel = document.getElementById('multi-reel-type-id');
+        var pkSel   = document.getElementById('multi-packing-type-id');
+        if (reelSel) reelSel.innerHTML = '<option value="">- failed to load -</option>';
+        if (pkSel)   pkSel.innerHTML   = '<option value="">- failed to load -</option>';
+        if (errBanner) errBanner.style.display = '';
+      }
+    }
+
+    /* ── Exposed retry for button click ──────────────────────── */
+    window.retryBootstrap = function() { _loadBootstrap(); };
+
+    /* ── Populate reel/packing dropdowns from bootstrap ─────────── */
+    function _populateSharedConfig() {
+      if (!_bootstrap) return;
+
+      // Reel types → packing card
+      var reelSel = document.getElementById('multi-reel-type-id');
+      if (reelSel) {
+        reelSel.innerHTML = '<option value="">- None -</option>' +
+          _bootstrap.reel_types.map(function(r){
+            return '<option value="' + r.id + '">' + r.reel_name + '</option>';
+          }).join('');
+      }
+
+      // Packing types → packing card
+      var pkSel = document.getElementById('multi-packing-type-id');
+      if (pkSel) {
+        pkSel.innerHTML = '<option value="">- None -</option>' +
+          _bootstrap.packing_types.map(function(p){
+            return '<option value="' + p.id + '">' + p.packing_name + '</option>';
+          }).join('');
+      }
+    }
+
+    /* ── Parse belt text area → array of belt objects ────────────── */
+    function _parseBeltText() {
+      var raw = (document.getElementById('multi-belt-text').value || '').trim();
+      if (!raw) return { belts: [], errors: [] };
+
+      // Skip comment/example lines (starting with a hyphen, em dash, or #)
+      var lines = raw.split('\n')
+        .map(function(l){ return l.trim(); })
+        .filter(function(l){ return l && !/^[\-—#]/.test(l); });
+
+      var belts  = [];
+      var errors = [];
+
+      lines.forEach(function(line, i) {
+        var parts   = line.split('*').map(function(p){ return p.trim(); });
+        var lineNum = i + 1;
+
+        if (parts.length < 10) {
+          errors.push('Line ' + lineNum + ': needs at least 10 fields (got ' + parts.length
+            + ') - check that fields are separated by *');
+          return;
+        }
+
+        var width    = parts[0];
+        var fabric   = parts[1];
+        var rating   = parts[2];
+        var top      = parts[3];
+        var bottom   = parts[4];
+        var grade    = parts[5];
+        var edge     = parts[6];
+        var endType  = parts[7];
+        var beltType = parts[8];
+        var length   = parts[9];
+        var botPlies = (parts[10] || '').trim() || '1';
+        var bobPlies = (parts[11] || '').trim() || '1';
+        // Optional per-belt carcass override (field 13)
+        var carcassMm = (parts[12] || '').trim() || null;
+
+        var rowErrs = [];
+        if (!width  || isNaN(parseFloat(width)))  rowErrs.push('Belt Width (mm) must be a number');
+        if (!fabric)                               rowErrs.push('Fabric Code is required (e.g. EP, NN)');
+        if (!rating)                               rowErrs.push('Belt Rating is required (e.g. EP 400/3)');
+        if (!top    || isNaN(parseFloat(top)))     rowErrs.push('Top Cover (mm) must be a number');
+        if (!bottom || isNaN(parseFloat(bottom)))  rowErrs.push('Bottom Cover (mm) must be a number');
+        if (!grade)                                rowErrs.push('Cover Grade is required (e.g. H, N17)');
+        if (!length || isNaN(parseFloat(length)))  rowErrs.push('Belt Length (m) must be a number');
+        // Endless belts are a closed loop and must fit within a fixed max length
+        // (same 100 m cap the single-belt form enforces and the backend now
+        // validates on every creation path) - catch it here too so a bulk-pasted
+        // row shows a clear error instead of silently sailing through to the
+        // server and only failing at submit time.
+        else if (/endless/i.test(endType) && parseFloat(length) > 100)
+                                                   rowErrs.push('Belt Length (m) cannot exceed 100 m for Endless belts');
+        if (carcassMm !== null && isNaN(parseFloat(carcassMm)))
+                                                   rowErrs.push('Carcass (mm) must be a number if provided');
+
+        if (rowErrs.length) {
+          errors.push('Line ' + lineNum + ': ' + rowErrs.join('; '));
+          return;
+        }
+
+        belts.push({
+          line_num:   lineNum,
+          width:      width,
+          fabric:     fabric,
+          rating:     rating,
+          top:        top,
+          bottom:     bottom,
+          grade:      grade,
+          edge:       edge,
+          end_type:   endType,
+          belt_type:  beltType,
+          length:     length,
+          bot_plies:  botPlies,
+          bob_plies:  bobPlies,
+          carcass_mm: carcassMm,
+        });
+      });
+
+      return { belts: belts, errors: errors };
+    }
+
+    /* ── Render live preview table ────────────────────────────────── */
+    function _renderParsePreview(belts, errors) {
+      var previewDiv = document.getElementById('multi-parse-preview');
+      var errBox     = document.getElementById('multi-parse-errors');
+      var tbody      = document.getElementById('multi-parse-tbody');
+      var countSpan  = document.getElementById('multi-parse-count');
+
+      tbody.innerHTML      = '';
+      errBox.style.display = 'none';
+      errBox.innerHTML     = '';
+
+      if (belts.length === 0 && errors.length === 0) {
+        previewDiv.style.display = 'none';
+        _refreshBadge(0);
+        return;
+      }
+
+      if (belts.length > 0) {
+        previewDiv.style.display = '';
+        countSpan.textContent    = belts.length;
+        belts.forEach(function(b) {
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td>' + b.line_num  + '</td>'
+          + '<td>' + b.width     + '</td>'
+          + '<td>' + b.fabric    + '</td>'
+          + '<td>' + b.rating    + '</td>'
+          + '<td>' + b.top       + '</td>'
+          + '<td>' + b.bottom    + '</td>'
+          + '<td>' + b.grade     + '</td>'
+          + '<td>' + b.edge      + '</td>'
+          + '<td>' + b.end_type  + '</td>'
+          + '<td>' + b.belt_type + '</td>'
+          + '<td>' + b.length    + '</td>'
+          + '<td>' + (b.bot_plies || '1') + '</td>'
+          + '<td>' + (b.bob_plies || '1') + '</td>'
+          + '<td style="color:' + (b.carcass_mm ? '#7a5000' : '#aaa') + ';">'
+            + (b.carcass_mm || '<em style="color:#aaa;font-size:9px;">AUTO</em>') + '</td>';
+          tbody.appendChild(tr);
+        });
+        _refreshBadge(belts.length);
+      } else {
+        previewDiv.style.display = 'none';
+        _refreshBadge(0);
+      }
+
+      if (errors.length > 0) {
+        errBox.style.display = '';
+        errBox.innerHTML = '<div style="font-weight:700;margin-bottom:6px;font-size:12px;">⚠ Please fix the following errors before submitting:</div>'
+          + errors.map(function(e) {
+              return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + e + '</div>';
+            }).join('');
+      }
+    }
+
+    /* ── Update belt queue badge in footer ───────────────────────── */
+    function _refreshBadge(count) {
+      if (!isMulti()) return;
+      var badge = document.getElementById('belt-queue-badge');
+      if (!badge) return;
+      badge.style.display = count > 0 ? '' : 'none';
+      var countEl = document.getElementById('belt-queue-count');
+      if (countEl) countEl.textContent = count;
+    }
+
+    /* ── Collect full text-import payload ────────────────────────── */
+    function _collect() {
+      var purposeId  = parseInt(document.getElementById('purpose-id').value)   || null;
+      var brandId    = parseInt(document.getElementById('brand-id').value)      || null;
+      var stdId      = parseInt(document.getElementById('standard-id').value)   || null;
+      var custId     = document.getElementById('customer-id').value;
+      var custName   = (document.getElementById('customer-search').value || '').trim();
+      var splicingOn = document.getElementById('multi-splicing-required').checked;
+
+      var shared = {
+        purpose_id:           purposeId,
+        brand_id:             brandId,
+        standard_id:          stdId,
+        make_of_fabric:       document.getElementById('ms-make-of-fabric').value || 'MIT',
+        tds_doc_number:       (document.getElementById('tds-doc-number').value || '').trim() || null,
+        splicing_required:    splicingOn,
+        vulcanization_method: splicingOn
+          ? (document.getElementById('multi-vulcanization-method').value || null) : null,
+        num_joints: splicingOn
+          ? (parseInt(document.getElementById('multi-num-joints').value) || 2) : null,
+        reel_type_id:    parseInt(document.getElementById('multi-reel-type-id').value)    || null,
+        packing_type_id: parseInt(document.getElementById('multi-packing-type-id').value) || null,
+        shipping_region: (document.getElementById('shipping-region').value || null),
+      };
+
+      var customer = custId
+        ? { customer_id: parseInt(custId) }
+        : {
+            customer_name:  custName,
+            contact_person: (document.getElementById('cust-contact').value || '').trim() || null,
+            application:    (document.getElementById('cust-application').value || '').trim() || null,
+            plant_location: (document.getElementById('cust-location').value || '').trim() || null,
+          };
+
+      var parsed = _parseBeltText();
+      return { shared: shared, customer: customer, belt_lines: parsed.belts, parseErrors: parsed.errors };
+    }
+
+    /* ── Validate before submit ───────────────────────────────────── */
+    function _validateShared() {
+      var errs = [];
+      if (!document.getElementById('purpose-id').value)  errs.push('Purpose');
+      if (!document.getElementById('brand-id').value)    errs.push('Brand');
+      if (!document.getElementById('standard-id').value) errs.push('Standard');
+      var cId   = document.getElementById('customer-id').value;
+      var cName = (document.getElementById('customer-search').value || '').trim();
+      if (!cId && !cName) errs.push('Customer');
+      var parsed = _parseBeltText();
+      if (parsed.errors.length > 0)  errs.push('Fix belt line errors');
+      if (parsed.belts.length === 0) errs.push('at least one belt line');
+      return errs;
+    }
+
+    /* ── Submit batch (text-import endpoint) ───────────────────── */
+    async function submitBatch() {
+      var navErr = document.getElementById('nav-error');
+      var errBox = document.getElementById('multi-parse-errors');
+      var btn    = document.getElementById('btn-preview-pdf');
+
+      navErr.textContent   = '';
+      errBox.style.display = 'none';
+
+      var topErrs = _validateShared();
+      if (topErrs.length) {
+        navErr.textContent = 'Required: ' + topErrs.join(', ');
+        return;
+      }
+
+      var payload = _collect();
+      if (payload.parseErrors.length) {
+        errBox.innerHTML = payload.parseErrors.map(function(e) {
+          return '<div>⚠ ' + e + '</div>';
+        }).join('');
+        errBox.style.display = '';
+        navErr.textContent   = 'Fix belt line errors above';
+        return;
+      }
+
+      btn.disabled = true;
+      var origText = document.getElementById('submit-text').textContent;
+      document.getElementById('submit-text').textContent = 'Creating…';
+
+      try {
+        var result = await apiFetch('/tds/batch/text-import/', {
+          method: 'POST',
+          body: JSON.stringify({
+            shared:     payload.shared,
+            customer:   payload.customer,
+            belt_lines: payload.belt_lines,
+          }),
+        });
+        _showBatchSuccess(result);
+      } catch(e) {
+        console.error('Batch submit error:', e);
+        var msg = 'Submission failed';
+        if (e && typeof e === 'object') {
+          var first = e.detail
+            || (e.belt_lines && e.belt_lines[0])
+            || (e.shared && Object.values(e.shared)[0])
+            || Object.values(e)[0];
+          if (Array.isArray(first)) first = first[0];
+          if (typeof first === 'string') msg = first;
+        }
+        navErr.textContent = 'Error: ' + msg;
+      } finally {
+        btn.disabled = false;
+        document.getElementById('submit-text').textContent = origText;
+      }
+    }
+
+    /* ── Show batch success panel ───────────────────────────────── */
+    function _showBatchSuccess(result) {
+      document.getElementById('tds-form-wrap').style.display  = 'none';
+      document.getElementById('form-footer-bar').style.display = 'none';
+      document.getElementById('batch-success-panel').style.display = '';
+
+      var batch   = result.batch       || {};
+      var records = result.tds_records || [];
+      var batchId = batch.batch_id;
+
+      document.getElementById('bs-batch-id').textContent = '#' + (batchId || '-');
+      document.getElementById('bs-count').textContent    = result.count || records.length;
+
+      function _esc(s) {
+        return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+      document.getElementById('bs-records-tbody').innerHTML = records.map(function(r, i){
+        return '<tr>'
+          + '<td style="text-align:center;color:var(--text-muted);">' + (i+1) + '</td>'
+          + '<td class="tds-num">' + _esc(r.tds_number) + '</td>'
+          + '<td style="color:var(--text-muted);">' + _esc(r.tds_doc_number || '-') + '</td>'
+          + '<td style="font-size:11px;">' + _esc(r.belt_description || '-') + '</td>'
+          + '</tr>';
+      }).join('');
+
+      if (batchId) {
+        document.getElementById('bs-preview-link').href = 'tds-multi-preview.html?batch_id=' + batchId;
+        document.getElementById('bs-zip-btn').onclick = function() { _downloadZip(batchId); };
+      }
+    }
+
+    /* ── Authenticated ZIP download ────────────────────────────── */
+    async function _downloadZip(batchId) {
+      var btn  = document.getElementById('bs-zip-btn');
+      var orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+      try {
+        var token = localStorage.getItem('access') || sessionStorage.getItem('access') || '';
+        var resp  = await fetch('/api/tds/batch/' + batchId + '/download-zip/', {
+          headers: token ? { Authorization: 'Bearer ' + token } : {},
+        });
+        if (!resp.ok) {
+          var err = await resp.json().catch(function(){ return {}; });
+          alert('Download failed: ' + (err.detail || resp.statusText));
+          return;
+        }
+        var blob = await resp.blob();
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href = url;  a.download = 'TDS_Batch_' + batchId + '.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch(e) {
+        alert('Download error: ' + e.message);
+      } finally {
+        btn.disabled  = false;
+        btn.textContent = orig;
+      }
+    }
+
+    /* ── Wire up all events on DOMContentLoaded ─────────────────── */
+    document.addEventListener('DOMContentLoaded', function() {
+
+      /* Mode toggle */
+      document.getElementById('btn-mode-single').addEventListener('click', function() {
+        if (!this.classList.contains('active')) enterSingle();
+      });
+      document.getElementById('btn-mode-multi').addEventListener('click', function() {
+        if (!this.classList.contains('active')) enterMulti();
+      });
+
+      /* Submit - intercept in multi mode (capture phase = before module listener) */
+      document.addEventListener('click', function(e) {
+        if (!isMulti()) return;
+        var btn = e.target.closest('#btn-preview-pdf');
+        if (btn) { e.preventDefault(); e.stopPropagation(); submitBatch(); }
+      }, true);
+
+      /* Multi splicing toggle */
+      document.getElementById('multi-splicing-required').addEventListener('change', function() {
+        var on = this.checked;
+        document.getElementById('multi-splice-details').style.display = on ? '' : 'none';
+        document.getElementById('multi-splice-text').textContent = on ? 'Yes' : 'No';
+      });
+
+      /* ── Belt text area → live parse preview ───────────────────── */
+      var textArea = document.getElementById('multi-belt-text');
+      if (textArea) {
+        textArea.addEventListener('input', function() {
+          var parsed = _parseBeltText();
+          _renderParsePreview(parsed.belts, parsed.errors);
+        });
+      }
+
+    });
+
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# System packages for Render (Ubuntu 22.04)
+# Required by WeasyPrint for PDF generation.
+# Render reads this file and installs these before pip install.
+libpango-1.0-0
+libpangocairo-1.0-0
+libcairo2
+libffi8
+libjpeg-dev
+libopenjp2-7
+libfontconfig1
+libgdk-pixbuf-2.0-0

@@ -1,0 +1,699 @@
+<!--
+  index.html - Sign-in page for the Ravasco TDS Automation App.
+
+  This is the app's entry point (served at "/" by Django's catch-all frontend
+  route in config/urls.py). It implements a two-step login flow that mirrors
+  the backend's device-aware 2FA (see django_backend/apps/api/routers/device_views.py):
+
+    Step 1 (#step-credentials) - email + password form, posts to POST /api/auth/login
+      via login() in js/auth.js. Also offers "Sign in with Google" (redirects to
+      GET /api/auth/google/login/, handled by google_oauth_views.py) and a
+      "Forgot password" OTP-reset link.
+    Step 2 (#step-device-verify) - shown only when the server responds with
+      { status: "device_verify" }, meaning this browser/device isn't yet in the
+      TrustedDevice table. The user enters the 6-digit code emailed to them;
+      verifyDevice() in js/auth.js exchanges it for a session and marks the
+      device trusted via the tds_device cookie.
+
+  Two other entry paths are handled by the inline <script type="module"> below:
+    - ?oauth_token=<jwt>   - landing point after a *trusted*-device Google OAuth
+      login; the JWT is decoded client-side (base64url) just far enough to
+      populate the local session object, then the user is sent to home.html.
+    - ?oauth_error=<code>  - landing point when Google OAuth failed; shown as a toast.
+    - ?step=device_verify  - landing point after a *new*-device Google OAuth
+      login; jumps straight to Step 2 (the pending_user_id lives server-side
+      in the Django session cookie set by the OAuth callback).
+
+  NOTE for future maintainers: the "Remember me" checkbox below currently
+  stores the raw email+password pair in browser localStorage (see the
+  SAVED_CREDS_KEY block in the script) so the fields can be pre-filled next
+  visit. That is plaintext, client-side storage of a password - flagging this
+  explicitly here since it is easy to miss when skimming a login page. If this
+  still needs hardening, treat it as a security follow-up rather than folding
+  it into a comments-only pass.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In - Ravasco TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Login page - MNC grade design ───────────────── */
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      /* Two-tone split: dark left column + light right */
+      background: var(--bg-page);
+    }
+
+    /* Full-height two-column layout on wide screens */
+    .login-bg {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+    }
+    @media (max-width: 760px) {
+      .login-bg { grid-template-columns: 1fr; }
+      .login-hero { display: none; }
+    }
+
+    /* ── Left hero panel ──────────────────────────────── */
+    .login-hero {
+      background: var(--navy);
+      background-image:
+        radial-gradient(ellipse 80% 60% at 20% 40%, rgba(193,127,10,.18) 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(193,127,10,.08) 0%, transparent 50%);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding: 48px 52px;
+      position: relative;
+      overflow: hidden;
+    }
+    .login-hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 40px,
+        rgba(255,255,255,.012) 40px,
+        rgba(255,255,255,.012) 41px
+      );
+      pointer-events: none;
+    }
+    .hero-logo-wrap { z-index: 1; }
+    .hero-logo-badge {
+      display: inline-block;
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .hero-logo-img {
+      height: 44px; width: auto;
+      object-fit: contain;
+      display: block;
+    }
+    .hero-logo-fallback {
+      display: inline-block;
+      background: var(--gold);
+      padding: 10px 20px;
+      font-family: var(--font-head);
+      font-size: 13px; font-weight: 900;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--navy); border-radius: 4px;
+    }
+    .hero-body { z-index: 1; }
+    .hero-body h2 {
+      font-family: var(--font-head);
+      font-size: 32px; font-weight: 900;
+      color: #fff; line-height: 1.2;
+      letter-spacing: -.01em;
+    }
+    .hero-body h2 span { color: var(--gold-light); }
+    .hero-body p {
+      font-size: 13px; color: rgba(255,255,255,.55);
+      margin-top: 14px; line-height: 1.65; max-width: 340px;
+    }
+    .hero-pillars {
+      display: flex; flex-direction: column; gap: 10px; margin-top: 32px;
+    }
+    .hero-pillar {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 12px; color: rgba(255,255,255,.7);
+    }
+    .hero-pillar-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--gold); flex-shrink: 0;
+    }
+    .hero-foot { z-index: 1; }
+    .hero-foot-text {
+      font-size: 10px; color: rgba(255,255,255,.3);
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+
+    /* ── Right login panel ────────────────────────────── */
+    .login-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 32px;
+      background: var(--bg-page);
+    }
+    .login-panel {
+      width: 100%;
+      max-width: 400px;
+    }
+
+    /* Top brand mark (visible on right panel on mobile) */
+    .login-brand {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .login-brand-logo {
+      height: 48px; width: auto;
+      object-fit: contain;
+      display: block; margin: 0 auto 14px;
+    }
+    .login-brand h1 {
+      font-family: var(--font-head);
+      font-size: 20px; font-weight: 900;
+      color: var(--navy); letter-spacing: .04em;
+    }
+    .login-brand p {
+      font-size: 11px; color: var(--text-muted);
+      letter-spacing: .06em; text-transform: uppercase; margin-top: 4px;
+    }
+
+    /* Card */
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .login-card-header {
+      padding: 22px 28px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--navy);
+    }
+    .login-card-header h2 {
+      font-family: var(--font-head);
+      font-size: 16px; font-weight: 800;
+      letter-spacing: .04em; color: #fff;
+    }
+    .login-card-header p {
+      font-size: 11px; color: rgba(255,255,255,.5); margin-top: 4px;
+    }
+    .login-card-body { padding: 28px; }
+    .login-card-body .form-group { margin-bottom: 18px; }
+
+    .login-input-wrap { position: relative; }
+    .login-input-wrap .form-control { padding-left: 42px; }
+    .input-icon {
+      position: absolute; left: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 15px; pointer-events: none; opacity: .45;
+    }
+    .toggle-password {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; color: var(--text-muted);
+      cursor: pointer; font-size: 15px; padding: 2px; line-height: 1;
+      transition: color .15s;
+    }
+    .toggle-password:hover { color: var(--gold); }
+
+    .login-options {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 22px;
+    }
+
+    .login-btn {
+      width: 100%; padding: 14px;
+      background: var(--navy);
+      border: none; border-radius: var(--radius);
+      font-family: var(--font-head);
+      font-size: 12px; font-weight: 900;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: #fff; cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .login-btn:hover { background: #253145; }
+    .login-btn:active { transform: scale(.98); }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .login-error {
+      display: none; align-items: flex-start; gap: 10px;
+      padding: 12px 14px;
+      background: var(--red-pale); border: 1px solid var(--red-border);
+      border-radius: var(--radius); font-size: 12px; color: var(--red);
+      margin-top: 16px;
+    }
+    .login-error.show { display: flex; }
+
+    /* Footer inside card */
+    .login-footer {
+      text-align: center; padding: 18px 20px;
+      font-size: 10px; color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      background: var(--bg-section);
+    }
+    .iso-ribbon {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px;
+      border: 1px solid var(--green-border); background: var(--green-pale);
+      border-radius: 20px; font-size: 9px; font-weight: 700;
+      letter-spacing: .1em; color: var(--green); margin-bottom: 8px;
+    }
+    .secure-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 9px; color: var(--text-light); margin-top: 4px;
+    }
+    .secure-badge::before {
+      content: '🔒'; font-size: 9px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="login-bg">
+
+    <!-- ── Left hero panel ── -->
+    <div class="login-hero">
+      <div class="hero-logo-wrap">
+        <div class="hero-logo-badge">
+          <img src="img/indus_logo.png" alt="Ravasco" class="hero-logo-img"
+               onerror="this.parentElement.outerHTML='<div class=hero-logo-fallback>RAVASCO</div>'" />
+        </div>
+      </div>
+
+      <div class="hero-body">
+        <h2>Technical Data<br>Sheet <span>System</span></h2>
+        <p>Generate, manage, and distribute belt specification documents with precision and speed.</p>
+        <div class="hero-pillars">
+          <div class="hero-pillar"><div class="hero-pillar-dot"></div>IS 1891 &amp; IS 14206 compliant TDS generation</div>
+          <div class="hero-pillar"><div class="hero-pillar-dot"></div>Automatic belt weight &amp; reel diameter calculation</div>
+          <div class="hero-pillar"><div class="hero-pillar-dot"></div>Role-based access - Creator, Viewer, Admin</div>
+          <div class="hero-pillar"><div class="hero-pillar-dot"></div>PDF generation via WeasyPrint</div>
+        </div>
+      </div>
+
+      <div class="hero-foot">
+        <div class="hero-foot-text">Ravasco Transmission and Packing Limited</div>
+      </div>
+    </div>
+
+    <!-- ── Right login panel ── -->
+    <div class="login-right">
+      <div class="login-panel">
+
+        <!-- Brand above card -->
+        <div class="login-brand" id="mobile-brand" style="display:block;">
+          <img src="img/indus_logo.png" alt="Ravasco" class="login-brand-logo"
+               onerror="this.style.display='none'" />
+          <h1>TDS System</h1>
+          <p>Ravasco Transmission and Packing Limited</p>
+        </div>
+
+        <!-- Card -->
+        <div class="login-card">
+          <div class="login-card-header">
+            <h2>Sign In</h2>
+            <p>Use your company account credentials</p>
+          </div>
+
+          <div class="login-card-body">
+
+            <!-- ── Step 1: Email + Password ── -->
+            <div id="step-credentials">
+              <form id="login-form" novalidate>
+
+                <!-- Email -->
+                <div class="form-group">
+                  <label class="form-label" for="email">Email Address</label>
+                  <div class="login-input-wrap">
+                    <span class="input-icon">✉</span>
+                    <input
+                      type="email"
+                      id="email"
+                      class="form-control"
+                      placeholder="you@ravasco.com"
+                      autocomplete="email"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group">
+                  <label class="form-label" for="password">Password</label>
+                  <div class="login-input-wrap">
+                    <span class="input-icon">🔒</span>
+                    <input
+                      type="password"
+                      id="password"
+                      class="form-control"
+                      placeholder="••••••••"
+                      autocomplete="current-password"
+                      required
+                    />
+                    <button type="button" class="toggle-password" id="toggle-pw" aria-label="Toggle password visibility">
+                      👁
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Options -->
+                <div class="login-options">
+                  <label class="form-check">
+                    <input type="checkbox" id="remember-me" class="form-check-input" />
+                    <span class="form-check-label">Remember me</span>
+                  </label>
+                </div>
+
+                <!-- Error -->
+                <div class="login-error" id="login-error">
+                  <span>⚠</span>
+                  <span id="login-error-msg">Invalid credentials.</span>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="login-btn" id="login-btn">
+                  <span id="login-btn-text">Sign In</span>
+                </button>
+
+                <!-- Divider -->
+                <div style="display:flex;align-items:center;gap:12px;margin:18px 0;">
+                  <div style="flex:1;height:1px;background:var(--border);"></div>
+                  <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">or continue with</span>
+                  <div style="flex:1;height:1px;background:var(--border);"></div>
+                </div>
+
+                <!-- Google OAuth -->
+                <a href="/api/auth/google/login/"
+                   style="display:flex;align-items:center;justify-content:center;gap:10px;
+                          width:100%;padding:11px 16px;border:1px solid var(--border);
+                          border-radius:var(--radius);background:#fff;cursor:pointer;
+                          font-size:13px;font-weight:600;color:#1A202C;text-decoration:none;
+                          transition:border-color .15s,box-shadow .15s;"
+                   onmouseenter="this.style.borderColor='#C17F0A';this.style.boxShadow='0 2px 8px rgba(193,127,10,.15)'"
+                   onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+                  <svg width="18" height="18" viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  </svg>
+                  Sign in with Google
+                </a>
+
+                <!-- Forgot password -->
+                <div style="text-align:center;margin-top:16px;">
+                  <button type="button" id="btn-forgot-pw" style="
+                    background:none;border:none;font-size:11px;color:var(--gold-light);
+                    cursor:pointer;text-decoration:underline;padding:0;">
+                    Forgot password? Reset via email OTP
+                  </button>
+                </div>
+
+              </form>
+            </div>
+
+            <!-- ── Step 2: Device Verification (new device) ── -->
+            <div id="step-device-verify" style="display:none;">
+              <div style="text-align:center;margin-bottom:24px;">
+                <div style="font-size:36px;margin-bottom:12px;">📧</div>
+                <h3 style="margin:0 0 8px;font-family:var(--font-head);font-size:16px;
+                           font-weight:700;color:var(--navy);">Check your email</h3>
+                <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">
+                  We sent a 6-digit verification code to<br>
+                  <strong id="dv-email-hint" style="color:var(--navy);"></strong>
+                </p>
+                <p style="margin:8px 0 0;font-size:11px;color:var(--text-light);">
+                  This device will be remembered after verification.
+                </p>
+              </div>
+
+              <!-- OTP input -->
+              <div class="form-group">
+                <label class="form-label" for="dv-code">Verification Code</label>
+                <input
+                  type="text"
+                  id="dv-code"
+                  class="form-control"
+                  placeholder="123456"
+                  maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  style="font-size:24px;letter-spacing:.35em;text-align:center;font-weight:700;"
+                />
+              </div>
+
+              <!-- Error -->
+              <div class="login-error" id="dv-error">
+                <span>⚠</span>
+                <span id="dv-error-msg">Invalid code.</span>
+              </div>
+
+              <!-- Submit -->
+              <button type="button" class="login-btn" id="dv-btn">
+                <span id="dv-btn-text">Verify &amp; Sign In</span>
+              </button>
+
+              <!-- Back + Resend -->
+              <div style="display:flex;justify-content:space-between;margin-top:14px;">
+                <button type="button" id="dv-back" style="
+                  background:none;border:none;font-size:11px;color:var(--text-muted);
+                  cursor:pointer;text-decoration:underline;padding:0;">
+                  ← Back to sign in
+                </button>
+                <button type="button" id="dv-resend" style="
+                  background:none;border:none;font-size:11px;color:var(--gold-light);
+                  cursor:pointer;text-decoration:underline;padding:0;">
+                  Resend code
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Footer -->
+          <div class="login-footer">
+            <div class="iso-ribbon">✓ ISO 9001:2015 Certified</div>
+            <div>Internal use only - Ravasco Transmission and Packing Limited</div>
+            <div class="secure-badge">Secured with JWT · Session expires in 12 hours</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { login, verifyDevice, getSession, setSession, openChangePasswordModal, showToast } from './js/auth.js';
+
+    const SAVED_CREDS_KEY = 'tds_saved_credentials';
+    const params = new URLSearchParams(window.location.search);
+
+    // ── Already logged in → go home ───────────────────────────────────────────
+    if (getSession()) {
+      window.location.href = 'home.html';
+    }
+
+    // ── Google OAuth trusted-device redirect → parse token and store session ──
+    // After a trusted-device Google OAuth login the server redirects here with
+    // ?oauth_token=<jwt>. We store it and go home.
+    const oauthToken = params.get('oauth_token');
+    if (oauthToken) {
+      // We don't have user_id/role from the redirect URL alone, so call /auth/me
+      // after storing a minimal session so requireAuth passes on home.html.
+      // Easier: decode the JWT payload (base64url) to extract sub/role.
+      try {
+        const payload = JSON.parse(atob(oauthToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+        setSession({
+          token:     oauthToken,
+          user_id:   parseInt(payload.sub, 10),
+          role:      payload.role,
+          full_name: payload.full_name || '',
+          email:     payload.email     || '',
+        });
+        window.location.href = 'home.html';
+      } catch (_) {
+        showToast('Google sign-in failed. Please try again.', 'error');
+      }
+    }
+
+    // ── OAuth errors from the callback ────────────────────────────────────────
+    const oauthError = params.get('oauth_error');
+    if (oauthError) {
+      const msgs = {
+        cancelled:       'Google sign-in was cancelled.',
+        state_mismatch:  'Security check failed. Please try again.',
+        token_failed:    'Could not complete Google sign-in. Please try again.',
+        userinfo_failed: 'Could not retrieve your Google profile. Please try again.',
+        unverified_email:'Your Google account email is not verified.',
+        not_registered:  'This Google account is not registered in the TDS system. Contact your administrator.',
+        email_failed:    'Could not send verification email. Please try again.',
+      };
+      showToast(msgs[oauthError] || 'Google sign-in failed. Please try again.', 'error', 6000);
+    }
+
+    // ── Helpers to switch between Step 1 and Step 2 ──────────────────────────
+    function showCredentials() {
+      document.getElementById('step-credentials').style.display = 'block';
+      document.getElementById('step-device-verify').style.display = 'none';
+      document.querySelector('.login-card-header h2').textContent = 'Sign In';
+      document.querySelector('.login-card-header p').textContent  = 'Use your company account credentials';
+    }
+
+    function showDeviceVerify(email) {
+      document.getElementById('step-credentials').style.display = 'none';
+      document.getElementById('step-device-verify').style.display = 'block';
+      document.getElementById('dv-email-hint').textContent = email || 'your email address';
+      document.querySelector('.login-card-header h2').textContent = 'Verify your device';
+      document.querySelector('.login-card-header p').textContent  = 'Enter the code we emailed you';
+      document.getElementById('dv-code').focus();
+    }
+
+    // ── Pre-fill saved credentials ────────────────────────────────────────────
+    // See the file-level NOTE above: this reads a plaintext {email, password}
+    // object back out of localStorage when "Remember me" was previously checked.
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_CREDS_KEY) || 'null');
+      if (saved) {
+        document.getElementById('email').value    = saved.email    || '';
+        document.getElementById('password').value = saved.password || '';
+        document.getElementById('remember-me').checked = true;
+      }
+    } catch (_) {}
+
+    // ── Forgot password button ────────────────────────────────────────────────
+    document.getElementById('btn-forgot-pw').addEventListener('click', () => {
+      const email = document.getElementById('email').value.trim();
+      openChangePasswordModal(email);
+    });
+
+    // ── Toggle password visibility ────────────────────────────────────────────
+    document.getElementById('toggle-pw').addEventListener('click', () => {
+      const inp = document.getElementById('password');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    });
+
+    // ── Step 1 submit handler ─────────────────────────────────────────────────
+    let pendingEmail = '';   // remember which email triggered device verify
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const remember = document.getElementById('remember-me').checked;
+      const errBox   = document.getElementById('login-error');
+      const errMsg   = document.getElementById('login-error-msg');
+      const btn      = document.getElementById('login-btn');
+      const btnText  = document.getElementById('login-btn-text');
+
+      errBox.classList.remove('show');
+      btn.disabled = true;
+      btnText.textContent = 'Signing in…';
+
+      try {
+        const data = await login(email, password);
+
+        if (data.status === 'ok') {
+          // Trusted device - session already set inside login()
+          if (remember) {
+            localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({ email, password }));
+          } else {
+            localStorage.removeItem(SAVED_CREDS_KEY);
+          }
+          window.location.href = 'home.html';
+
+        } else if (data.status === 'device_verify') {
+          // New device - server sent OTP; show verification step
+          pendingEmail = email;
+          showDeviceVerify(email);
+          btn.disabled = false;
+          btnText.textContent = 'Sign In';
+        }
+
+      } catch (err) {
+        errMsg.textContent = err.message;
+        errBox.classList.add('show');
+        btn.disabled = false;
+        btnText.textContent = 'Sign In';
+      }
+    });
+
+    // ── Step 2 verify handler ─────────────────────────────────────────────────
+    async function doDeviceVerify() {
+      const code    = document.getElementById('dv-code').value.trim();
+      const errBox  = document.getElementById('dv-error');
+      const errMsg  = document.getElementById('dv-error-msg');
+      const btn     = document.getElementById('dv-btn');
+      const btnText = document.getElementById('dv-btn-text');
+
+      errBox.classList.remove('show');
+
+      if (!code || code.length !== 6) {
+        errMsg.textContent = 'Please enter the 6-digit code.';
+        errBox.classList.add('show');
+        return;
+      }
+
+      btn.disabled = true;
+      btnText.textContent = 'Verifying…';
+
+      try {
+        await verifyDevice(code);      // sets session + sets tds_device cookie
+        window.location.href = 'home.html';
+      } catch (err) {
+        errMsg.textContent = err.message;
+        errBox.classList.add('show');
+        btn.disabled = false;
+        btnText.textContent = 'Verify & Sign In';
+      }
+    }
+
+    document.getElementById('dv-btn').addEventListener('click', doDeviceVerify);
+    document.getElementById('dv-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doDeviceVerify();
+    });
+
+    // ── Back button - return to Step 1 ────────────────────────────────────────
+    document.getElementById('dv-back').addEventListener('click', () => {
+      document.getElementById('dv-code').value = '';
+      document.getElementById('dv-error').classList.remove('show');
+      showCredentials();
+    });
+
+    // ── Resend OTP - re-submit the login form with current credentials ────────
+    document.getElementById('dv-resend').addEventListener('click', async () => {
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      if (!email || !password) {
+        // Edge case: user cleared the form - go back to step 1
+        showCredentials();
+        return;
+      }
+      const btn = document.getElementById('dv-resend');
+      btn.textContent = 'Sending…';
+      btn.disabled = true;
+      try {
+        await login(email, password);   // re-triggers OTP send
+        showToast('New code sent to ' + email, 'success');
+        document.getElementById('dv-code').value = '';
+        document.getElementById('dv-code').focus();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.textContent = 'Resend code';
+        btn.disabled = false;
+      }
+    });
+
+    // ── Google OAuth new-device redirect → show device-verify step directly ──
+    // When Google OAuth detects a new device, it redirects to ?step=device_verify.
+    // The session cookie (with pending_user_id) is already set by the callback.
+    if (params.get('step') === 'device_verify') {
+      showDeviceVerify('your email address');
+    }
+  </script>
+
+</body>
+</html>

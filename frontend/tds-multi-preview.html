@@ -1,0 +1,616 @@
+<!--
+  tds-multi-preview.html - Multi-belt BATCH preview page.
+
+  This is the multi-belt counterpart to tds-preview.html: reached with
+  ?batch_id=<id> after a multi-belt submission (either the belt-queue flow or
+  the bulk-text-import flow in generate-tds.html), it loads the batch summary
+  + all member TDS records via GET /api/tds/batch/{id}/ (see
+  django_backend/apps/api/routers/batch_views.py's get_batch()), renders one
+  row per belt, and lets the user download the whole batch as a ZIP
+  (wireZipButton(), GET /api/tds/batch/{id}/download-zip/).
+
+  Previewing a single record does NOT reimplement any preview UI here -
+  clicking a row or its "Preview" button navigates straight to
+  tds-preview.html?tds_id=<id>&tds_number=<number>, the exact same
+  page/experience the single-belt flow uses (HTML preview with per-row/
+  per-group include/exclude checkboxes, Download PDF, Print PDF). This used
+  to instead fetch the raw PDF bytes into an inline iframe pane with no
+  checkboxes at all - a strictly worse, second preview implementation - so it
+  was replaced with a plain navigation to the one real preview page instead
+  of duplicating its logic here.
+
+  FIXED (previously flagged as a "dead code" concern, now confirmed to be a
+  real bug): this page used to have its own local getToken() that read
+  localStorage/sessionStorage key 'access', which is never set by this app -
+  every other page (js/auth.js) stores the session under sessionStorage key
+  'tds_session' as a JSON object with a nested .token field. For "Phase 5"
+  sessions the httpOnly cookie carries auth and getToken() being dead code
+  didn't matter. But for sessions that authenticated via the device-verify /
+  Bearer-token path (js/auth.js getAuthHeaders() returns an Authorization
+  header in that case), or any session where the cookie isn't present/sent,
+  this page's own apiFetch()/wireZipButton() sent NO Authorization header at
+  all (getToken() always returned '') and relied solely on the cookie -
+  which is exactly what produced the reported "GET /api/tds/batch/{id}/ ->
+  401" bug (auth/me succeeded via the Bearer header, this page's requests
+  didn't send one). Fixed by importing the same getAuthHeaders() helper
+  js/auth.js uses everywhere else, instead of maintaining a second,
+  inconsistent auth implementation here.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Batch Preview - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Section cards ─────────────────────────────────────── */
+    .section-card {
+      background: var(--bg-card);
+      border: 1.5px solid #2a2a2a;
+      border-radius: 0;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .section-card-header {
+      background: #F5A623;
+      border-bottom: 1px solid #c47e10;
+      padding: 7px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .section-card-header h3 {
+      font-family: var(--font-head);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: #fff;
+      margin: 0;
+    }
+    .section-card-body { padding: 16px; }
+
+    /* ── Batch summary chips ────────────────────────────────── */
+    .summary-chips {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      margin-bottom: 4px;
+    }
+    .schip {
+      background: var(--bg-section);
+      border: 1px solid var(--border-mid);
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .schip strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--navy);
+      margin-bottom: 1px;
+    }
+
+    /* ── Records table ─────────────────────────────────────── */
+    .rec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .rec-table th {
+      background: var(--bg-section);
+      border-bottom: 1px solid var(--border);
+      padding: 7px 10px;
+      font-family: var(--font-head);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+      text-align: left;
+    }
+    .rec-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .rec-table tr:last-child td { border-bottom: none; }
+    .rec-table tr:hover td { background: var(--bg-section); }
+    .tds-num {
+      font-family: var(--font-head);
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .status-badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .status-draft    { background:#FEF3C7; color:#92400E; }
+    .status-approved { background:#D1FAE5; color:#065F46; }
+    .status-declined { background:#FEE2E2; color:#991B1B; }
+
+    /* ── Action bar ─────────────────────────────────────────── */
+    .action-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .action-bar-title {
+      font-family: var(--font-head);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--navy);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      flex: 1;
+    }
+
+    /* ── Loading / error states ─────────────────────────────── */
+    .state-box {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .state-box .state-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+    .state-box p { margin: 4px 0; }
+
+
+    @media (max-width: 900px) {
+      .summary-chips { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Indus Belts" class="nav-logo"
+           onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html"         class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html"   class="nav-link">Search TDS</a>
+      <a href="admin.html"        class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap narrow" style="padding-bottom:48px;">
+
+    <div class="page-header" style="margin-bottom:14px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <a href="generate-tds.html">Generate TDS</a>
+        <span>›</span>
+        <span>Batch Preview</span>
+      </div>
+      <h2>Batch Preview - <span id="pg-batch-id" style="color:var(--gold);">#-</span></h2>
+    </div>
+
+
+    <!-- ── Loading / error state (shown while fetching) ──── -->
+    <div id="state-loading" class="state-box">
+      <div class="state-icon">⏳</div>
+      <p>Loading batch…</p>
+    </div>
+    <div id="state-error" class="state-box" style="display:none;">
+      <div class="state-icon">⚠</div>
+      <p id="state-error-msg">Failed to load batch.</p>
+      <p style="margin-top:8px;">
+        <a href="generate-tds.html" class="btn btn-ghost btn-sm">← Back to Generator</a>
+      </p>
+    </div>
+
+
+    <!-- ── Main content (hidden until loaded) ────────────── -->
+    <div id="main-content" style="display:none;">
+
+      <!-- Action bar -->
+      <div class="action-bar">
+        <span class="action-bar-title" id="ab-title">Batch #-</span>
+
+        <!-- Copy type applies to Print All (both modes) and the ZIP download -
+             it does NOT touch the saved TDSInput records, only what's included
+             in generated PDFs. Customer Copy leaves out Fabric Parameters,
+             Sampling and Testing, Packing and Logistics, and Splicing
+             Parameters (same defaults as the single-record preview);
+             Internal Copy includes everything. -->
+        <div class="copy-type-toggle" title="What level of detail to include in generated PDFs"
+             style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted);
+                    background:var(--bg-section);border:1px solid var(--border);border-radius:6px;
+                    padding:6px 10px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="radio" name="copy-type" value="customer" checked /> Customer Copy
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="radio" name="copy-type" value="internal" /> Internal Copy
+          </label>
+        </div>
+
+        <button id="btn-print-merged" class="btn btn-outline btn-sm">🖨 Print All (Merged)</button>
+        <button id="btn-print-separate" class="btn btn-outline btn-sm">🖨 Print All (Separate Tabs)</button>
+        <button id="btn-download-zip" class="btn btn-outline btn-sm"
+                style="background:var(--gold-pale);border-color:var(--gold-border);
+                       color:var(--navy);font-weight:700;">
+          ⬇ Download All PDFs (ZIP)
+        </button>
+        <a href="generate-tds.html" class="btn btn-ghost btn-sm">← Back to Generator</a>
+        <a href="search-tds.html"   class="btn btn-primary btn-sm">View All TDS</a>
+      </div>
+
+      <!-- Batch summary card -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>Batch Summary</h3>
+          <span style="font-size:10px;color:rgba(255,255,255,.8);"
+                id="hdr-sub">0 TDS documents</span>
+        </div>
+        <div class="section-card-body">
+          <div class="summary-chips" id="summary-chips">
+            <!-- populated by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- TDS records table -->
+      <div class="section-card">
+        <div class="section-card-header" style="justify-content:flex-start;gap:16px;">
+          <h3>TDS Documents</h3>
+          <span style="font-size:10px;color:rgba(255,255,255,.75);">
+            Click a row to open its preview (same customizable preview as the single-belt flow)
+          </span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="rec-table">
+            <thead>
+              <tr>
+                <th style="width:36px;">#</th>
+                <th style="width:90px;">TDS No.</th>
+                <th style="width:130px;">Doc No.</th>
+                <th>Belt Description</th>
+                <th style="width:70px;">Width</th>
+                <th style="width:70px;">Length</th>
+                <th style="width:70px;">Status</th>
+                <th style="width:90px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="records-tbody">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+    </div><!-- /#main-content -->
+
+  </div><!-- .page-wrap -->
+
+
+  <script type="module">
+    import { requireAuth, populateNavUser, getAuthHeaders } from './js/auth.js';
+
+    const session = requireAuth();
+    if (session) populateNavUser();
+
+    /* ── Helpers ──────────────────────────────────────────── */
+    // getAuthHeaders() (js/auth.js) is the single source of truth for how
+    // this app authenticates outgoing requests: it returns an Authorization
+    // header for backward-compat Bearer-token sessions, or {} for Phase 5
+    // sessions where the httpOnly cookie does the work. Using it here (instead
+    // of a second, separately-maintained token lookup) is what fixes the
+    // "can't preview batch tds" 401 bug - see the file header comment above.
+    async function apiFetch(path, opts) {
+      const res = await fetch('/api' + path, {
+        ...opts,
+        credentials: 'same-origin',   // ensure the httpOnly cookie is included
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+          ...(opts && opts.headers ? opts.headers : {}),
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw err;
+      }
+      return res.json();
+    }
+
+    function chip(label, value) {
+      return `<div class="schip"><strong>${value}</strong>${label}</div>`;
+    }
+
+    function statusBadge(s) {
+      const cls = s === 'approved' ? 'status-approved'
+                : s === 'declined' ? 'status-declined'
+                : 'status-draft';
+      return `<span class="status-badge ${cls}">${s || 'draft'}</span>`;
+    }
+
+    /* ── Read batch_id from URL ───────────────────────────── */
+    const params  = new URLSearchParams(location.search);
+    const batchId = parseInt(params.get('batch_id') || '0', 10);
+
+    if (!batchId) {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-error').style.display   = '';
+      document.getElementById('state-error-msg').textContent =
+        'No batch_id in the URL. Navigate here from the Generate TDS page.';
+    } else {
+      loadBatch(batchId);
+    }
+
+    /* ── Load batch data ──────────────────────────────────── */
+    async function loadBatch(id) {
+      try {
+        const data = await apiFetch('/tds/batch/' + id + '/');
+        renderBatch(data);
+      } catch (e) {
+        document.getElementById('state-loading').style.display = 'none';
+        document.getElementById('state-error').style.display   = '';
+        const msg = (e && (e.detail || Object.values(e)[0])) || 'Batch not found.';
+        document.getElementById('state-error-msg').textContent = String(msg);
+      }
+    }
+
+    /* ── Render ───────────────────────────────────────────── */
+    function renderBatch(data) {
+      const batch   = data.batch   || {};
+      const records = data.tds_records || [];
+      const count   = data.count   || records.length;
+      const id      = batch.batch_id;
+
+      /* page header */
+      document.getElementById('pg-batch-id').textContent = '#' + id;
+      document.getElementById('ab-title').textContent    = 'Batch #' + id;
+      document.title = 'Batch #' + id + ' Preview - INDUS TDS System';
+      document.getElementById('hdr-sub').textContent     =
+        count + ' TDS document' + (count !== 1 ? 's' : '');
+
+      /* summary chips */
+      const createdAt = batch.created_at ? new Date(batch.created_at).toLocaleDateString() : '-';
+      document.getElementById('summary-chips').innerHTML = [
+        chip('Batch ID',           '#' + id),
+        chip('Total Belts',        count),
+        chip('Make of Fabric',     batch.make_of_fabric || '-'),
+        chip('Splicing',           batch.splicing_required ? (batch.vulcanization_method || 'Yes') : 'No'),
+        chip('Shipping Region',    batch.shipping_region  || 'Domestic'),
+        chip('Created',            createdAt),
+      ].join('');
+
+      /* table rows */
+      document.getElementById('records-tbody').innerHTML = records.map(function(r, i) {
+        const width  = r.belt_width_mm  ? r.belt_width_mm + ' mm'  : '-';
+        const length = r.belt_length_m  ? r.belt_length_m + ' m'   : '-';
+        return [
+          '<tr data-tds-id="' + r.tds_id + '" data-label="' + escHtml(r.tds_number) + '" class="preview-row" style="cursor:pointer;">',
+          '  <td style="text-align:center;color:var(--text-muted);">' + (i + 1) + '</td>',
+          '  <td class="tds-num">' + escHtml(r.tds_number || '-') + '</td>',
+          '  <td style="color:var(--text-muted);">'   + escHtml(r.tds_doc_number || '-') + '</td>',
+          '  <td style="font-size:11px;">'             + escHtml(r.belt_description || '-') + '</td>',
+          '  <td style="text-align:center;">'          + width + '</td>',
+          '  <td style="text-align:center;">'          + length + '</td>',
+          '  <td style="text-align:center;">'          + statusBadge(r.status) + '</td>',
+          '  <td style="text-align:center;">',
+          '    <button class="btn btn-ghost btn-sm pdf-btn" style="font-size:10px;padding:3px 8px;"',
+          '            data-tds-id="' + r.tds_id + '" data-label="' + escHtml(r.tds_number) + '">',
+          '      Preview',
+          '    </button>',
+          '  </td>',
+          '</tr>',
+        ].join('\n');
+      }).join('\n');
+
+      /* show content */
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('main-content').style.display  = '';
+
+      /* wire events */
+      wirePdfButtons();
+      wireZipButton(id);
+      wirePrintAllMerged(id);
+      wirePrintAllSeparate();
+    }
+
+    function escHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ── Preview navigation ───────────────────────────────────
+       Reuse tds-preview.html verbatim instead of re-implementing a second,
+       cut-down preview (a raw PDF embed with no way to exclude sections/rows).
+       tds-preview.html already does exactly what the single-belt flow uses -
+       loads the same HTML the PDF is rendered from, injects a checkbox onto
+       every parameter group/row so you can include/exclude before printing or
+       downloading - and it only needs ?tds_id=&tds_number=, which every batch
+       record already has. So a batch record gets the identical experience,
+       not a lesser one, just by navigating there instead of opening an inline
+       pane. */
+    function goToPreview(tdsId, tdsNumber) {
+      const qs = new URLSearchParams({ tds_id: tdsId, tds_number: tdsNumber || '' });
+      window.location.href = 'tds-preview.html?' + qs.toString();
+    }
+
+    function wirePdfButtons() {
+      document.getElementById('records-tbody').addEventListener('click', function(e) {
+        /* clicking anywhere on the row opens that record's preview */
+        const row = e.target.closest('tr.preview-row');
+        if (!row) return;
+        goToPreview(parseInt(row.dataset.tdsId, 10), row.dataset.label);
+      });
+    }
+
+    /* ── Copy type (Customer / Internal) ───────────────────────
+       Shared by Print All (both modes) and the ZIP download. Mirrors
+       tds-preview.html's DEFAULT_UNCHECKED_GROUPS - keep both lists in sync
+       (and apps/services/sections.py's CUSTOMER_COPY_EXCLUDE_GROUPS on the
+       backend, which is what actually enforces this for print-all/ZIP). This
+       only controls what a generated PDF includes, never the stored record. */
+    const CUSTOMER_COPY_EXCLUDE_GROUPS = [
+      'Fabric Parameters',
+      'Sampling and Testing',
+      'Packing and Logistics',
+      'Splicing Parameters',
+    ];
+
+    function getSelectedCopyType() {
+      return document.querySelector('input[name="copy-type"]:checked')?.value || 'customer';
+    }
+
+    // Build the single-record PDF URL (GET /api/tds/{id}/pdf) with the right
+    // exclude_groups for the current copy-type selection - used by "Print All
+    // (Separate Tabs)", which fetches each record individually rather than
+    // hitting the batch print-all/download-zip endpoints (those apply the
+    // equivalent server-side via ?copy=, resolved from the same group list).
+    function buildRecordPdfUrl(tdsId, copyType) {
+      const qs = new URLSearchParams();
+      if (copyType === 'customer') {
+        CUSTOMER_COPY_EXCLUDE_GROUPS.forEach(g => qs.append('exclude_groups', g));
+      }
+      const query = qs.toString();
+      return '/api/tds/' + tdsId + '/pdf' + (query ? '?' + query : '');
+    }
+
+    /* ── ZIP download (authenticated fetch → blob) ────────── */
+    function wireZipButton(batchId) {
+      document.getElementById('btn-download-zip').addEventListener('click', async function() {
+        const btn  = this;
+        const orig = btn.textContent;
+        btn.disabled    = true;
+        btn.textContent = 'Generating…';
+        try {
+          const resp = await fetch(
+            '/api/tds/batch/' + batchId + '/download-zip/?copy=' + getSelectedCopyType(),
+            { credentials: 'same-origin', headers: getAuthHeaders() }
+          );
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            alert('Download failed: ' + (err.detail || resp.statusText));
+            return;
+          }
+          const blob = await resp.blob();
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement('a');
+          a.href     = url;
+          a.download = 'TDS_Batch_' + batchId + '.zip';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          alert('Download error: ' + e.message);
+        } finally {
+          btn.disabled    = false;
+          btn.textContent = orig;
+        }
+      });
+    }
+
+    /* ── Print All - Merged (one PDF, one tab) ──────────────
+       Opens the tab immediately (inside the click handler) so pop-up
+       blockers don't treat it as unsolicited, then navigates it to the
+       merged PDF once fetched - same pattern used to fix the single-record
+       Print PDF button on tds-preview.html, and for the same reason: a plain
+       navigation can't carry an Authorization header, only a fetch() can. */
+    function wirePrintAllMerged(batchId) {
+      document.getElementById('btn-print-merged').addEventListener('click', async function() {
+        const btn  = this;
+        const orig = btn.textContent;
+        const win  = window.open('', '_blank');
+        if (!win) { alert('Allow pop-ups to print.'); return; }
+        btn.disabled    = true;
+        btn.textContent = 'Preparing…';
+        try {
+          const resp = await fetch(
+            '/api/tds/batch/' + batchId + '/print-all/?copy=' + getSelectedCopyType(),
+            { credentials: 'same-origin', headers: getAuthHeaders() }
+          );
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            win.close();
+            alert('Print All failed: ' + (err.detail || resp.statusText));
+            return;
+          }
+          const blob    = await resp.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          win.location.href = blobUrl + '#toolbar=1';
+        } catch (e) {
+          win.close();
+          alert('Print All error: ' + e.message);
+        } finally {
+          btn.disabled    = false;
+          btn.textContent = orig;
+        }
+      });
+    }
+
+    /* ── Print All - Separate Tabs (one PDF per belt) ────────
+       Opens ALL tabs synchronously, before any await, in the same click
+       handler - browsers allow multiple window.open() calls made
+       synchronously in direct response to one user gesture; they only block
+       window.open() calls made later (e.g. inside a .then()/after an await).
+       Each tab is then pointed at its own record's PDF once fetched. */
+    function wirePrintAllSeparate() {
+      document.getElementById('btn-print-separate').addEventListener('click', function() {
+        const rows = [...document.querySelectorAll('#records-tbody tr.preview-row')];
+        if (!rows.length) return;
+        if (rows.length > 6 &&
+            !confirm('This opens ' + rows.length + ' separate tabs, one per belt. Continue?')) {
+          return;
+        }
+
+        const copyType = getSelectedCopyType();
+        const authHdrs = getAuthHeaders();
+
+        rows.forEach(function(row) {
+          const tdsId = parseInt(row.dataset.tdsId, 10);
+          const win   = window.open('', '_blank');
+          if (!win) return;   // this tab was blocked - the rest may still succeed
+          fetch(buildRecordPdfUrl(tdsId, copyType), { credentials: 'same-origin', headers: authHdrs })
+            .then(function(r) {
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              return r.blob();
+            })
+            .then(function(blob) {
+              win.location.href = URL.createObjectURL(blob) + '#toolbar=1';
+            })
+            .catch(function(err) {
+              win.close();
+              console.error('Print All (separate): tds_id=' + tdsId + ' failed: ' + err.message);
+            });
+        });
+      });
+    }
+  </script>
+</body>
+</html>

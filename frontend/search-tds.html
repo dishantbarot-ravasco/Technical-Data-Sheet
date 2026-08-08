@@ -1,0 +1,246 @@
+<!--
+  search-tds.html - Search/browse/manage page for existing TDS records.
+
+  This file is pure markup + CSS; ALL behaviour lives in js/search-tds.js
+  (loaded as an ES module at the bottom of <body>) - see that file's own
+  header docstring for the full breakdown of filtering, the detail modal's
+  four tabs (Overview/Belt Specs/Packing/Splicing, matching the #tab-*
+  divs below), and the delete-confirmation flow (#confirm-overlay).
+
+  The #detail-modal's field ids (d-tds-number, d-width, d-rating, ...) are
+  populated by populateModal(t) in search-tds.js from a single GET
+  /api/tds/{id} response - there is no per-tab API call.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Search TDS - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .results-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
+    .results-count  { font-size:12px;color:var(--muted); }
+    .results-count strong { color:var(--gold-light); }
+    .detail-section { margin-bottom:20px; }
+    .detail-row { display:flex;justify-content:space-between;padding:7px 0;
+                  border-bottom:1px solid var(--border);gap:12px; }
+    .detail-row:last-child { border-bottom:none; }
+    .detail-key { font-size:11px;color:var(--text-muted);flex-shrink:0; }
+    .detail-val { font-size:12px;color:var(--text);font-weight:500;text-align:right; }
+    .modal { max-width:700px; }
+    .modal-tabs { display:flex;gap:0;border-bottom:1px solid var(--border);
+                  padding:0 24px;background:var(--panel); }
+    .modal-tab { padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:.07em;
+                 text-transform:uppercase;color:var(--muted);cursor:pointer;
+                 border-bottom:2px solid transparent;transition:all .15s;
+                 margin-bottom:-1px;font-family:var(--font-head); }
+    .modal-tab.active { color:var(--gold-light);border-bottom-color:var(--gold); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .confirm-overlay { position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;
+                       display:flex;align-items:center;justify-content:center;
+                       opacity:0;pointer-events:none;transition:opacity .2s; }
+    .confirm-overlay.open { opacity:1;pointer-events:all; }
+    .confirm-card { background:var(--bg-card);border:1px solid var(--red-border);
+                    border-radius:var(--radius-lg);padding:32px;width:360px;
+                    text-align:center;box-shadow:var(--shadow-lg); }
+    .confirm-card h3 { font-family:var(--font-head);font-size:16px;color:var(--navy);margin-bottom:10px; }
+    .confirm-card p  { font-size:12px;color:var(--text-muted);margin-bottom:24px; }
+    .confirm-actions { display:flex;gap:12px;justify-content:center; }
+    .detail-section-title {
+      font-family:var(--font-head);font-size:9px;font-weight:700;letter-spacing:.12em;
+      text-transform:uppercase;color:var(--gold);margin-bottom:8px;
+      padding-bottom:4px;border-bottom:1px solid var(--gold-border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Indus Belts" class="nav-logo" onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html" class="nav-link active">Search TDS</a>
+      <a href="admin.html" class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap wide">
+
+    <div class="page-header">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a><span>›</span><span>Search TDS</span>
+      </div>
+      <h2>Technical Data Sheets</h2>
+      <p>Browse, filter, and download all generated TDS documents</p>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-group">
+        <div class="filter-label">Search</div>
+        <input type="text" id="filter-search" class="filter-control"
+               placeholder="TDS number, customer, rating…" style="min-width:220px;" />
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">Standard</div>
+        <select id="filter-standard" class="filter-control">
+          <option value="">All Standards</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">From Date</div>
+        <input type="date" id="filter-from" class="filter-control" />
+      </div>
+      <div class="filter-group">
+        <div class="filter-label">To Date</div>
+        <input type="date" id="filter-to" class="filter-control" />
+      </div>
+      <div class="filter-spacer"></div>
+      <div class="filter-group">
+        <button class="btn btn-outline btn-sm" id="btn-clear-filters">Clear</button>
+      </div>
+      <div class="filter-group">
+        <a href="generate-tds.html" class="btn btn-primary btn-sm">+ New TDS</a>
+      </div>
+    </div>
+
+    <div class="results-header">
+      <div class="results-count" id="results-count"></div>
+      <!-- Applies to every "Download PDF" action on this page (row buttons and
+           the detail modal). Only changes what a generated PDF includes -
+           never the stored record, which always has every field regardless
+           of this choice. Customer Copy leaves out Fabric Parameters,
+           Sampling and Testing, Packing and Logistics, and Splicing
+           Parameters (same defaults as the single-record preview page). -->
+      <div class="copy-type-toggle" title="What level of detail to include in downloaded PDFs"
+           style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted);
+                  background:var(--bg-section);border:1px solid var(--border);border-radius:6px;
+                  padding:5px 10px;">
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="radio" name="copy-type" value="customer" checked /> Customer Copy
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="radio" name="copy-type" value="internal" /> Internal Copy
+        </label>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="btn-refresh">↻ Refresh</button>
+    </div>
+
+    <div class="table-wrap" id="table-wrap">
+      <div class="loading-overlay">
+        <div class="spinner spinner-lg"></div><span>Loading TDS records…</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ DETAIL MODAL ══ -->
+  <div class="modal-backdrop" id="detail-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">TDS Details</h3>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <div class="modal-tab active" data-tab="overview">Overview</div>
+        <div class="modal-tab" data-tab="belt">Belt Specs</div>
+        <div class="modal-tab" data-tab="packing">Packing</div>
+        <div class="modal-tab" data-tab="splicing">Splicing</div>
+      </div>
+      <div class="modal-body">
+        <div class="tab-panel active" id="tab-overview">
+          <div class="detail-section">
+            <div class="detail-section-title">Document</div>
+            <div class="detail-row"><span class="detail-key">TDS Number</span>  <span class="detail-val td-mono" id="d-tds-number">-</span></div>
+            <div class="detail-row"><span class="detail-key">Date</span>         <span class="detail-val" id="d-date">-</span></div>
+            <div class="detail-row"><span class="detail-key">Standard</span>     <span class="detail-val" id="d-standard">-</span></div>
+            <div class="detail-row"><span class="detail-key">Purpose</span>      <span class="detail-val" id="d-purpose">-</span></div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">Customer</div>
+            <div class="detail-row"><span class="detail-key">Company</span>      <span class="detail-val" id="d-customer">-</span></div>
+            <div class="detail-row"><span class="detail-key">Application</span>  <span class="detail-val" id="d-application">-</span></div>
+            <div class="detail-row"><span class="detail-key">Plant Location</span><span class="detail-val" id="d-location">-</span></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-belt">
+          <div class="detail-section">
+            <div class="detail-section-title">Dimensions</div>
+            <div class="detail-row"><span class="detail-key">Width</span>              <span class="detail-val" id="d-width">-</span></div>
+            <div class="detail-row"><span class="detail-key">Length</span>             <span class="detail-val" id="d-length">-</span></div>
+            <div class="detail-row"><span class="detail-key">Belt End Type</span>      <span class="detail-val" id="d-construction">-</span></div>
+            <div class="detail-row"><span class="detail-key">Edge</span>               <span class="detail-val" id="d-edge">-</span></div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-section-title">Carcass &amp; Cover</div>
+            <div class="detail-row"><span class="detail-key">Belt Rating</span>        <span class="detail-val" id="d-rating">-</span></div>
+            <div class="detail-row"><span class="detail-key">Fabric Type</span>        <span class="detail-val" id="d-fabric">-</span></div>
+            <div class="detail-row"><span class="detail-key">Cover Grade</span>        <span class="detail-val" id="d-grade">-</span></div>
+            <div class="detail-row"><span class="detail-key">Plies</span>              <span class="detail-val" id="d-plies">-</span></div>
+            <div class="detail-row"><span class="detail-key">Top Cover</span>          <span class="detail-val" id="d-top">-</span></div>
+            <div class="detail-row"><span class="detail-key">Bottom Cover</span>       <span class="detail-val" id="d-bottom">-</span></div>
+            <div class="detail-row"><span class="detail-key">Carcass Thickness</span>  <span class="detail-val" id="d-carcass">-</span></div>
+            <div class="detail-row"><span class="detail-key">Total Thickness</span>    <span class="detail-val" id="d-total-thick">-</span></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-packing">
+          <div class="detail-section">
+            <div class="detail-row"><span class="detail-key">Reel Type</span>        <span class="detail-val" id="d-reel">-</span></div>
+            <div class="detail-row"><span class="detail-key">Packing Type</span>     <span class="detail-val" id="d-packing-type">-</span></div>
+            <div class="detail-row"><span class="detail-key">Number of Rolls</span>  <span class="detail-val" id="d-rolls">-</span></div>
+            <div class="detail-row"><span class="detail-key">Length per Roll</span>  <span class="detail-val" id="d-len-roll">-</span></div>
+            <div class="detail-row"><span class="detail-key">Roll Dimensions</span>  <span class="detail-val" id="d-roll-dims">-</span></div>
+            <div class="detail-row"><span class="detail-key">Net Weight</span>       <span class="detail-val" id="d-net-wt">-</span></div>
+            <div class="detail-row"><span class="detail-key">Gross Weight</span>     <span class="detail-val" id="d-gross-wt">-</span></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-splicing">
+          <div class="detail-section">
+            <div class="detail-row"><span class="detail-key">Splicing Required</span><span class="detail-val" id="d-splice-req">-</span></div>
+            <div class="detail-row"><span class="detail-key">Method</span>            <span class="detail-val" id="d-vuln-method">-</span></div>
+            <div class="detail-row"><span class="detail-key">Number of Joints</span> <span class="detail-val" id="d-joints">-</span></div>
+            <div class="detail-row"><span class="detail-key">Step Length</span>       <span class="detail-val" id="d-step-len">-</span></div>
+            <div class="detail-row"><span class="detail-key">Splice Length</span>     <span class="detail-val" id="d-splice-len">-</span></div>
+            <div class="detail-row"><span class="detail-key">Total Extra Length</span><span class="detail-val" id="d-extra-len">-</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger btn-sm" id="modal-btn-delete">Delete</button>
+        <button class="btn btn-outline btn-sm" id="modal-btn-pdf">⬇ Download PDF</button>
+        <button class="btn btn-ghost btn-sm" id="modal-btn-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CONFIRM DELETE ══ -->
+  <div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-card">
+      <h3>Delete TDS?</h3>
+      <p id="confirm-msg">This action cannot be undone.</p>
+      <div class="confirm-actions">
+        <button class="btn btn-outline" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-danger"  id="confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+  <script type="module" src="js/search-tds.js"></script>
+</body>
+</html>

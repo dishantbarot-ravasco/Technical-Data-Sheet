@@ -1,0 +1,316 @@
+<!--
+  home.html - Post-login dashboard for the Ravasco TDS Automation App.
+
+  Protected page: the inline module script below calls requireAuth() (js/auth.js)
+  first thing, which redirects to index.html if there's no active session.
+
+  Structure:
+    - Top nav (shared markup pattern reused across every logged-in page; see
+      css/style.css's ".topnav"/".nav-*" rules) with populateNavUser() filling
+      in the signed-in user's name/role/avatar.
+    - Hero banner - static branding, no dynamic data.
+    - Stats row (#stat-total/#stat-customers/#stat-month/#stat-week) - computed
+      client-side from listTDS() (js/api.js), not separate backend endpoints.
+    - Quick Actions - static links to the other pages; the Admin card is
+      hidden unless session.role === 'admin'.
+    - Recent Documents table - the 8 most recently returned TDS records.
+
+  All data on this page comes from GET /api/tds/ via listTDS(); there is no
+  bootstrap/dashboard-specific endpoint.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* Hero */
+    .hero {
+      position:relative;height:300px;overflow:hidden;background:var(--navy);
+    }
+    .hero-img { width:100%;height:100%;object-fit:cover;object-position:center 30%;display:block;opacity:.55; }
+    .hero-overlay {
+      position:absolute;inset:0;
+      background:linear-gradient(90deg,rgba(26,37,53,.95) 0%,rgba(26,37,53,.75) 50%,rgba(26,37,53,.2) 100%);
+    }
+    .hero-content { position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 60px; }
+    .hero-tag {
+      display:inline-flex;align-items:center;gap:8px;padding:5px 14px;margin-bottom:14px;
+      background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.4);border-radius:20px;
+      width:fit-content;font-family:var(--font-head);font-size:9px;font-weight:700;
+      letter-spacing:.16em;text-transform:uppercase;color:var(--gold-bright);
+    }
+    .hero-tag::before { content:'●';font-size:7px; }
+    .hero-greeting { font-size:12px;font-weight:500;color:rgba(255,255,255,.6);letter-spacing:.06em;margin-bottom:7px; }
+    .hero-greeting span { color:var(--gold-bright);font-weight:700; }
+    .hero-title { font-family:var(--font-head);font-size:30px;font-weight:900;color:#fff;
+                  letter-spacing:.02em;line-height:1.15;margin-bottom:10px; }
+    .hero-title em { color:var(--gold-bright);font-style:normal; }
+    .hero-sub { font-size:12px;color:rgba(255,255,255,.6);max-width:460px;line-height:1.6; }
+    .hero-fade { position:absolute;bottom:0;left:0;right:0;height:60px;
+                 background:linear-gradient(to top,var(--bg-page),transparent); }
+
+    /* Stats */
+    .stats-row { display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px; }
+    @media(max-width:900px) { .stats-row{grid-template-columns:1fr 1fr;} }
+    @media(max-width:500px) { .stats-row{grid-template-columns:1fr;} .hero-content{padding:0 24px;} }
+
+    /* Section title */
+    .section-title {
+      font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.14em;
+      text-transform:uppercase;color:var(--muted);margin-bottom:14px;
+      display:flex;align-items:center;gap:10px;
+    }
+    .section-title::after { content:'';flex:1;height:1px;background:var(--border); }
+
+    /* Action cards */
+    .action-cards { display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px; }
+    @media(max-width:900px) { .action-cards{grid-template-columns:1fr 1fr;} }
+    @media(max-width:600px) { .action-cards{grid-template-columns:1fr;} }
+
+    /* Recent */
+    .recent-wrap { background:var(--bg-card);border:1px solid var(--border);
+                   border-radius:var(--radius-lg);overflow:hidden; }
+    .recent-header { padding:14px 20px;border-bottom:1px solid var(--border);
+                     display:flex;align-items:center;justify-content:space-between; }
+    .recent-header h3 { font-family:var(--font-head);font-size:11px;font-weight:700;
+                        letter-spacing:.08em;text-transform:uppercase;color:var(--gold-light); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Indus Belts" class="nav-logo" onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link active">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html" class="nav-link">Search TDS</a>
+      <a href="admin.html" class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">✓ ISO 9001:2015</span>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <img src="img/hero.png" alt="INDUS SUPER BRUTE Conveyor Belt" class="hero-img" />
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="hero-greeting">Welcome back, <span id="hero-name">-</span></div>
+      <div class="hero-title"><em>Technical Data Sheet</em><br>Automation</div>
+      <div class="hero-sub">Technical Data Sheet Generator - IS 1891, ISO 14890, DIN 22102, AS 1332, SANS 1173 &amp; ASTM D378.</div>
+    </div>
+    <div class="hero-fade"></div>
+  </div>
+
+  <div class="page-wrap" style="padding-top:36px;">
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div>
+          <div class="stat-label">Total TDS</div>
+          <div class="stat-value" id="stat-total">-</div>
+          <div class="stat-sub">All time</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon blue">👥</div>
+        <div>
+          <div class="stat-label">Customers</div>
+          <div class="stat-value" id="stat-customers">-</div>
+          <div class="stat-sub">Unique companies</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon orange">📅</div>
+        <div>
+          <div class="stat-label">This Month</div>
+          <div class="stat-value" id="stat-month">-</div>
+          <div class="stat-sub" id="stat-month-label">-</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div>
+          <div class="stat-label">This Week</div>
+          <div class="stat-value" id="stat-week">-</div>
+          <div class="stat-sub">Last 7 days</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="section-title">Quick Actions</div>
+    <div class="action-cards">
+
+      <a href="generate-tds.html" class="action-card">
+        <div class="action-card-icon">📋</div>
+        <div class="action-card-title">Generate TDS</div>
+        <div class="action-card-desc">
+          Create a new Technical Data Sheet for INDUS SUPER BRUTE conveyor belts with belt spec, packing, and splicing parameters.
+        </div>
+        <span class="action-card-cta">Start Now →</span>
+      </a>
+
+      <a href="search-tds.html" class="action-card">
+        <div class="action-card-icon" style="background:var(--blue-dim);border-color:var(--blue);">🔍</div>
+        <div class="action-card-title">Search TDS</div>
+        <div class="action-card-desc">
+          Browse, filter, and download existing Technical Data Sheets. Search by customer, standard, or belt rating.
+        </div>
+        <span class="action-card-cta" style="color:var(--blue);border-color:var(--blue);background:var(--blue-dim);">Browse Records →</span>
+      </a>
+
+      <a href="admin.html" class="action-card" id="admin-action-card" style="display:none;">
+        <div class="action-card-icon" style="background:rgba(26,37,53,.08);border-color:var(--navy-mid);">⚙️</div>
+        <div class="action-card-title">Admin Panel</div>
+        <div class="action-card-desc">
+          Manage users, view system statistics, and configure application settings.
+        </div>
+        <span class="action-card-cta" style="color:var(--navy);border-color:var(--navy-mid);background:rgba(26,37,53,.06);">Open Panel →</span>
+      </a>
+
+      <a href="packing-calculator.html" class="action-card">
+        <div class="action-card-icon" style="background:rgba(22,101,52,.08);border-color:rgba(22,101,52,.25);">📦</div>
+        <div class="action-card-title">Packing Calculator</div>
+        <div class="action-card-desc">
+          Calculate roll count, reel dimensions, and order weights for any belt specification - without generating a full TDS.
+        </div>
+        <span class="action-card-cta" style="color:#166534;border-color:rgba(22,101,52,.3);background:rgba(22,101,52,.08);">Calculate →</span>
+      </a>
+
+      <a href="splicing-calculator.html" class="action-card">
+        <div class="action-card-icon" style="background:rgba(124,58,237,.08);border-color:rgba(124,58,237,.25);">🔗</div>
+        <div class="action-card-title">Splicing Calculator</div>
+        <div class="action-card-desc">
+          Compute splice step length, splice length, and total extra belt length per IS 14206 - instantly, no TDS required.
+        </div>
+        <span class="action-card-cta" style="color:#6d28d9;border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.08);">Calculate →</span>
+      </a>
+
+    </div>
+
+    <!-- Recent TDS -->
+    <div class="section-title" style="margin-top:36px;">Recent Documents</div>
+    <div class="recent-wrap">
+      <div class="recent-header">
+        <h3>Recently Generated TDS</h3>
+        <a href="search-tds.html" class="btn btn-outline btn-sm">View All</a>
+      </div>
+      <div id="recent-body">
+        <div class="loading-overlay">
+          <div class="spinner"></div><span>Loading recent records…</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser, showToast } from './js/auth.js';
+    import { listTDS } from './js/api.js';
+
+    const session = requireAuth();
+    if (!session) throw new Error('redirect');
+
+    populateNavUser();
+
+    if (session.role === 'admin') {
+      document.getElementById('admin-action-card').style.display = 'flex';
+    }
+
+    // Fetch every TDS record and derive the dashboard stats + recent-list
+    // client-side (there is no dedicated /api/dashboard endpoint).
+    async function loadData() {
+      try {
+        const allTds = await listTDS();
+        const now    = new Date();
+        const weekAgo = new Date(now - 7 * 86400000);
+        const monthStr = now.toLocaleString('default',{month:'long',year:'numeric'});
+
+        const uniqueCustomers = new Set(allTds.map(t=>t.customer?.customer_name).filter(Boolean)).size;
+        const thisMonth = allTds.filter(t => {
+          const d = new Date(t.tds_date);
+          return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+        }).length;
+        const thisWeek = allTds.filter(t => new Date(t.tds_date) >= weekAgo).length;
+
+        document.getElementById('stat-total').textContent     = allTds.length;
+        document.getElementById('stat-customers').textContent = uniqueCustomers;
+        document.getElementById('stat-month').textContent     = thisMonth;
+        document.getElementById('stat-month-label').textContent = monthStr;
+        document.getElementById('stat-week').textContent      = thisWeek;
+
+        renderRecent(allTds.slice(0,8));
+      } catch (err) {
+        showToast('Could not load data: '+err.message, 'error');
+        document.getElementById('recent-body').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⚠️</div>
+            <h3>Backend not reachable</h3>
+            <p>Make sure the Django server is running and reachable at /api</p>
+          </div>`;
+        ['stat-total','stat-customers','stat-month','stat-week'].forEach(id => {
+          document.getElementById(id).textContent='-';
+        });
+      }
+    }
+
+    // Render the "Recently Generated TDS" table from the first N records
+    // (caller passes allTds.slice(0, 8) - this function itself has no limit logic).
+    function renderRecent(items) {
+      const el = document.getElementById('recent-body');
+      if (!items.length) {
+        el.innerHTML = `<div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <h3>No TDS generated yet</h3>
+          <p>Click "Generate TDS" to create your first Technical Data Sheet</p>
+        </div>`;
+        return;
+      }
+      el.innerHTML = `<div class="table-wrap" style="border:none;border-radius:0;">
+        <table>
+          <thead><tr>
+            <th>TDS Number</th><th>Date</th><th>Customer</th>
+            <th>Standard</th><th>Belt Config</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${items.map(t => `<tr>
+              <td class="td-mono">${t.tds_number}</td>
+              <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+              <td>${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
+              <td><span class="badge badge-muted" style="font-size:9px;">
+                ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
+              <td class="td-muted" style="font-size:11px;">
+                ${t.belt_width_mm} mm × ${parseFloat(t.belt_length_m).toFixed(0)} m · ${t.construction_type}</td>
+              <td>
+                <div class="table-actions">
+                  <a href="search-tds.html" class="btn btn-ghost btn-sm">Open</a>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+    }
+
+    loadData();
+  </script>
+
+</body>
+</html>

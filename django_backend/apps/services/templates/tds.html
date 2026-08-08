@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>TDS &mdash; {{ doc.tds_number }}</title>
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+@page {
+  size: A4 portrait;
+  margin-top: 12mm;
+  margin-bottom: 12mm;
+  margin-left: 10mm;
+  margin-right: 10mm;
+}
+
+@media screen {
+  html, body { background: #c0c0c0; margin: 0; padding: 0; }
+  .page-a4 {
+    width: 190mm; min-height: 270mm; margin: 14pt auto;
+    background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.22);
+  }
+  #page-footer { position: static !important; width: 100%; margin-top: 10pt; }
+  .body-wrap { padding-top: 2pt; }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Inter","DejaVu Sans","Noto Sans",Arial,sans-serif;
+  font-size: 8pt; color: #1a1a1a; background: #fff; line-height: 1.4;
+}
+
+/* ══════════════════════════════════
+   RUNNING HEADER  (page 1 only)
+   Header: 28mm  +  Title strip: 9mm = 37mm
+   @page :first margin-top: 39mm
+   ══════════════════════════════════ */
+/* header is a normal flow block on page 1 — no running element */
+/* Outer container carries the full border — no child border gaps */
+#page-header {
+  border: 1.2pt solid #888888;
+  margin-bottom: 6pt;
+  page-break-after: avoid; break-after: avoid;
+}
+
+.hdr-row {
+  display: table; width: 100%; height: 35mm;
+  border-collapse: collapse;
+  border: none;
+  border-bottom: 1.2pt solid #888888; /* separator between logos and title strip */
+  background: #fff; table-layout: fixed;
+}
+.hdr-cell { display: table-cell; vertical-align: middle; padding: 4pt 8pt; }
+.hdr-left  { width: 20%; text-align: center; border-right: 1pt solid #888888; }
+.hdr-mid   { width: 60%; text-align: center; }
+.hdr-right { width: 20%; text-align: center; border-left: 1pt solid #888888; }
+
+.co-name {
+  font-size: 10.5pt; font-weight: 700; color: #1a1a1a;
+  margin-bottom: 2pt; white-space: nowrap;
+}
+.co-addr { font-size: 6.5pt; color: #555; line-height: 1.5; }
+.co-web  { font-size: 6.5pt; color: #1a5eb8; margin-top: 2pt; }
+
+.indus-wm  { font-size: 18pt; font-weight: 900; color: #F5A623; line-height: 1; }
+.indus-tag { font-size: 5pt; color: #999; letter-spacing: 1.5pt; margin-top: 2pt; }
+
+.hdr-title {
+  display: block; background: #F5A623;
+  border: none;
+  color: #fff; text-align: center;
+  font-size: 10pt; font-weight: 700;
+  letter-spacing: 7pt; text-transform: uppercase;
+  height: 10mm; line-height: 10mm;
+  padding: 0 10pt; overflow: hidden;
+}
+
+/* ══════════════════════════════════
+   RUNNING FOOTER — hidden
+   ══════════════════════════════════ */
+#page-footer { display: none; }
+
+/* ══════════════════════════════════
+   STATUS CHIPS
+   ══════════════════════════════════ */
+.chip {
+  display: inline-block; padding: 1pt 5pt; border-radius: 2pt;
+  font-size: 6.5pt; font-weight: 700; text-transform: uppercase; letter-spacing: .3pt;
+}
+.chip-draft    { background:#fff3cd; color:#856404; border:.5pt solid #e0a800; }
+.chip-approved { background:#d1e7dd; color:#0a3622; border:.5pt solid #198754; }
+.chip-sent     { background:#cfe2ff; color:#084298; border:.5pt solid #0d6efd; }
+.chip-archived { background:#e9ecef; color:#495057; border:.5pt solid #adb5bd; }
+
+/* ══════════════════════════════════
+   GENERAL INFORMATION TABLE
+   ══════════════════════════════════ */
+.gi-table {
+  width: 100%; border-collapse: collapse;
+  border: 1.2pt solid #888888; font-size: 8pt;
+}
+.gi-table thead th {
+  background: #F5A623; color: #fff;
+  font-size: 8.5pt; font-weight: 700;
+  letter-spacing: .4pt; text-transform: uppercase;
+  padding: 4pt 8pt; text-align: left;
+}
+.gi-table td { padding: 3pt 8pt; vertical-align: middle; border-bottom: .5pt solid #eeeeee; }
+.gi-table tr:last-child td { border-bottom: none; }
+.gi-lbl {
+  width: 28%; background: #FFF8E6; font-weight: 600;
+  color: #6b4500; border-right: 1pt solid #EED080; white-space: nowrap;
+}
+.gi-val { color: #1a1a1a; }
+
+/* ══════════════════════════════════
+   PARAMETER TABLES
+   Section name + col headers = ONE row
+   Columns: 35% | 18% | 18% | 14% | 15%
+   ══════════════════════════════════ */
+.param-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 8pt; border: 1.2pt solid #888888;
+}
+
+/* Prevent the group-name header row from repeating on every page when the
+   table spans a page break. table-row-group = no repeat; table-header-group = repeat. */
+.param-table thead { display: table-row-group; }
+
+/* All thead th cells share orange background */
+.param-table thead tr th {
+  background: #F5A623; color: #fff;
+  font-weight: 700; font-size: 7.5pt;
+  padding: 4pt 6pt;
+  border-right: .5pt solid rgba(255,255,255,.35);
+  vertical-align: middle;
+}
+/* First cell = section name: larger, left-aligned, uppercase */
+.param-table thead tr th:first-child {
+  text-align: left;
+  font-size: 8.5pt;
+  letter-spacing: .4pt;
+  text-transform: uppercase;
+}
+/* Remaining cells = column labels: centered */
+.param-table thead tr th:not(:first-child) {
+  text-align: center;
+  white-space: nowrap;
+}
+.param-table thead tr th:last-child { border-right: none; }
+
+/* Alternating data rows */
+.param-table tbody tr:nth-child(odd)  td { background: #ffffff; }
+.param-table tbody tr:nth-child(even) td { background: #FFFBF2; }
+.param-table tbody td {
+  padding: 3pt 6pt; vertical-align: middle; line-height: 1.35;
+  border-bottom: .5pt solid #eeeeee; border-right: .5pt solid #eeeeee; font-size: 8pt;
+}
+.param-table tbody td:first-child  { border-left: none; }
+.param-table tbody td:last-child   { border-right: none; }
+.param-table tbody tr:last-child td { border-bottom: none; }
+
+.indus-val { font-weight: 700; color: #b85c00; }
+.dash      { color: #ccc; }
+
+/* ══════════════════════════════════
+   NOTES TABLE
+   ══════════════════════════════════ */
+.notes-table {
+  width: 100%; border-collapse: collapse;
+  border: 1.2pt solid #888888; font-size: 8pt;
+}
+.notes-table thead th {
+  background: #F5A623; color: #fff;
+  font-size: 8.5pt; font-weight: 700;
+  letter-spacing: .4pt; text-transform: uppercase;
+  padding: 4pt 8pt; text-align: left;
+}
+.notes-table tbody td { padding: 7pt 10pt; vertical-align: top; }
+.note-row { display: table; width: 100%; margin-bottom: 5pt; }
+.note-row:last-child { margin-bottom: 0; }
+.note-lbl {
+  display: table-cell; width: 46pt; font-weight: 700;
+  font-size: 7.5pt; color: #b85c00; vertical-align: top; white-space: nowrap;
+}
+.note-txt { display: table-cell; font-size: 7.5pt; color: #444; line-height: 1.55; vertical-align: top; }
+
+/* ══════════════════════════════════
+   SIGNATURE TABLE
+   38pt top padding = stamp space
+   margin-top pushes block toward page bottom
+   ══════════════════════════════════ */
+.sig-wrapper { margin-top: 28pt; page-break-inside: avoid; break-inside: avoid; }
+.sig-table {
+  width: 100%; border-collapse: collapse;
+  border: 1.2pt solid #888888;
+}
+.sig-table thead tr th {
+  background: #F5A623; color: #fff;
+  font-size: 8.5pt; font-weight: 700;
+  letter-spacing: .4pt; text-transform: uppercase;
+  padding: 4pt 8pt; text-align: left; width: 50%;
+}
+.sig-table thead tr th + th { border-left: .5pt solid rgba(255,255,255,.35); }
+.sig-table tbody td { padding: 38pt 14pt 10pt; vertical-align: bottom; width: 50%; }
+.sig-table tbody td + td { border-left: 1pt solid #eeeeee; }
+.sig-line  { border-top: .8pt solid #999; margin-bottom: 4pt; width: 80%; }
+.sig-name  { font-size: 8.5pt; font-weight: 700; color: #1a1a1a; }
+.sig-desig { font-size: 7.5pt; color: #F5A623; margin-top: 1pt; }
+
+/* Gap between sections */
+.sg { margin-top: 6pt; page-break-inside: avoid; break-inside: avoid; }
+
+/* Keep the orange section header row with the first data row on print */
+.param-table thead { page-break-after: avoid; break-after: avoid; }
+/* Prevent individual data rows from splitting across pages */
+.param-table tbody tr { page-break-inside: avoid; break-inside: avoid; }
+
+</style>
+</head>
+<body>
+<div class="page-a4">
+
+<!-- ══════════════════ RUNNING HEADER ══════════════════ -->
+<div id="page-header">
+  <div class="hdr-row">
+    <div class="hdr-cell hdr-left">
+      {% if indus_logo %}
+        <img src="{{ indus_logo }}" alt="Indus" style="width:70pt;height:70pt;display:block;margin:0 auto;"/>
+      {% else %}
+        <div style="text-align:center;">
+          <div class="indus-wm">Indus<sup style="font-size:9pt;">&#174;</sup></div>
+          <div class="indus-tag">ENGINEERED TO DELIVER</div>
+        </div>
+      {% endif %}
+    </div>
+    <div class="hdr-cell hdr-mid">
+      <div class="co-name">Ravasco Transmission &amp; Packing Pvt Ltd.</div>
+      <div class="co-addr">
+        1, Janki Centre, Off Veera Desai Road, Andheri (W), Mumbai &mdash; 400053<br/>
+        Maharashtra State, India &nbsp;|&nbsp; Pin Code : 400053
+      </div>
+      <div class="co-web">www.indusbelts.com &nbsp;/&nbsp; technical@ravasco.com</div>
+    </div>
+    <div class="hdr-cell hdr-right">
+      {% if tuv_logo %}
+        <img src="{{ tuv_logo }}" alt="TUV SUD ISO 9001" style="width:70pt;height:70pt;display:block;margin:0 auto;"/>
+      {% else %}
+        <svg width="52" height="52" viewBox="0 0 54 54" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto;">
+          <polygon points="16,2 38,2 52,16 52,38 38,52 16,52 2,38 2,16" fill="#1a5eb8" stroke="#0e3a80" stroke-width=".8"/>
+          <polygon points="19.5,8.5 34.5,8.5 45.5,19.5 45.5,34.5 34.5,45.5 19.5,45.5 8.5,34.5 8.5,19.5" fill="#eef2ff"/>
+          <text x="27" y="22" text-anchor="middle" font-family="Arial" font-size="8.5" font-weight="bold" fill="#0e3a80">TUV</text>
+          <line x1="13" y1="27" x2="41" y2="27" stroke="#0e3a80" stroke-width="1.2"/>
+          <text x="27" y="35.5" text-anchor="middle" font-family="Arial" font-size="8" font-weight="bold" fill="#0e3a80">SUD</text>
+          <text x="27" y="48" text-anchor="middle" font-family="Arial" font-size="5.5" font-weight="bold" fill="#fff" letter-spacing=".6">ISO 9001</text>
+        </svg>
+      {% endif %}
+    </div>
+  </div>
+  <div class="hdr-title">Technical &nbsp; Data &nbsp; Sheet</div>
+</div>
+
+<!-- Footer intentionally omitted -->
+
+<!-- ══════════════════ PAGE BODY ══════════════════ -->
+<div class="body-wrap">
+
+  <!-- GENERAL INFORMATION — rows driven from tds_parameters (GI group) via doc.gi_rows -->
+  {% if 'General Information' not in exclude_groups %}
+  <table class="gi-table" data-group="General Information">
+    <thead>
+      <tr><th colspan="2">General Information</th></tr>
+    </thead>
+    <tbody>
+      {% for row in doc.gi_rows %}
+      <tr data-field="gi_{{ row.label | lower | replace(' ', '_') | replace('/', '_') }}">
+        <td class="gi-lbl">{{ row.label }}</td>
+        <td class="gi-val">{% if row.bold %}<strong>{{ row.value }}</strong>{% else %}{{ row.value }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- PARAMETER SECTIONS -->
+  {% set GROUP_LABELS = {} %}
+
+  {% for group in doc.groups %}
+  {% set is_simple = group.name in ['Packing and Logistics', 'Splicing Parameters'] %}
+
+  {% if not is_simple %}
+  <div class="sg">
+    <table class="param-table" data-group="{{ group.name }}">
+      <colgroup>
+        <col style="width:{% if show_test_method and show_reference %}35{% elif show_test_method or show_reference %}42{% else %}52{% endif %}%"/>
+        {% if show_test_method %}<col style="width:{% if show_reference %}18{% else %}22{% endif %}%"/>{% endif %}
+        {% if show_reference %}<col style="width:{% if show_test_method %}18{% else %}22{% endif %}%"/>{% endif %}
+        <col style="width:{% if show_test_method and show_reference %}14{% elif show_test_method or show_reference %}18{% else %}24{% endif %}%"/>
+        <col/>
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="text-align:left;">{{ GROUP_LABELS.get(group.name, group.name) }}</th>
+          {% if show_test_method %}<th>Test Method</th>{% endif %}
+          {% if show_reference %}<th>Reference</th>{% endif %}
+          <th>{% if group.name == 'Dimensional Parameters' %}Tolerance Value{% else %}Specified Value{% endif %}</th>
+          <th>Indus Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in group.rows %}
+        <tr data-param-id="{{ row.parameter_id }}">
+          <td style="text-align:left;">{{ row.name }}</td>
+          {% if show_test_method %}<td style="text-align:center;font-size:7pt;">{% if row.test_method %}{{ row.test_method }}{% else %}<span class="dash">&mdash;</span>{% endif %}</td>{% endif %}
+          {% if show_reference %}<td style="text-align:center;font-size:7pt;">{% if row.reference %}{{ row.reference }}{% else %}<span class="dash">&mdash;</span>{% endif %}</td>{% endif %}
+          <td style="text-align:center;">
+            {% if row.spec_value is not none and row.spec_value != dash %}{{ row.spec_value }}{% else %}<span class="dash">&mdash;</span>{% endif %}
+          </td>
+          <td style="text-align:center;">
+            {% if row.indus_value is not none and row.indus_value != dash %}<span class="indus-val">{{ row.indus_value }}</span>{% else %}<span class="dash">&mdash;</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="sg">
+    <table class="param-table" data-group="{{ group.name }}">
+      <colgroup><col style="width:52%"/><col style="width:48%"/></colgroup>
+      <thead>
+        <tr>
+          <th colspan="2" style="text-align:left;">{{ group.name }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in group.rows %}
+        <tr data-param-id="{{ row.parameter_id }}">
+          <td style="text-align:left;">{{ row.name }}</td>
+          <td style="text-align:right;">
+            {% if row.indus_value is not none and row.indus_value != dash %}<span class="indus-val">{{ row.indus_value }}</span>{% else %}<span class="dash">&mdash;</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  <!-- NOTES -->
+  {% if notes %}
+  <div class="sg" style="page-break-inside:avoid;break-inside:avoid;">
+    <table class="notes-table">
+      <thead>
+        <tr><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            {% for note in notes %}
+            <div class="note-row">
+              <span class="note-lbl">Note {{ loop.index }}:</span>
+              <span class="note-txt">{{ note }}</span>
+            </div>
+            {% endfor %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <!-- SIGNATURE -->
+  <div class="sig-wrapper">
+    <table class="sig-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Prepared By</th>
+          <th style="text-align:left;">Customer Acceptance &mdash; Stamp &amp; Signature</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <div class="sig-line"></div>
+            <div class="sig-name">{{ doc.prepared_by_name }}</div>
+            <div class="sig-desig">{{ doc.prepared_by_designation }}</div>
+          </td>
+          <td>
+            <div class="sig-line"></div>
+            <div class="sig-name" style="color:#aaa;">{{ doc.customer_name }}</div>
+            <div class="sig-desig" style="color:#ccc;">{{ doc.contact_person or "Authorised Signatory" }}</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /.body-wrap -->
+</div><!-- /.page-a4 -->
+</body>

@@ -1,0 +1,26 @@
+# TDS Automation App — .gitignore
+
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Django
+django_backend/staticfiles/
+db.sqlite3
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Archived / not part of the deployed app
+backend_archived/

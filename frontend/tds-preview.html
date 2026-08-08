@@ -1,0 +1,588 @@
+<!--
+  tds-preview.html - Single-belt TDS preview/customization page.
+
+  Reached from generate-tds.html after a single-belt TDS is saved (via
+  loadPreview() in js/generate-tds.js), with ?tds_id=<id>&tds_number=<num> in
+  the URL. This page does NOT re-implement the PDF layout: it loads the same
+  HTML the PDF is rendered from (GET /api/tds/{id}/pdf?format=html, see
+  django_backend/apps/api/routers/pdf_views.py's generate_pdf()) into an
+  <iframe>, so what you see here is exactly what WeasyPrint will print.
+
+  The interesting part is injectCheckboxes(): after the iframe loads, this
+  script reaches INTO the iframe's document and appends a checkbox to every
+  parameter-group header row and every parameter row, so the user can
+  interactively hide sections/rows before downloading. Checkbox state
+  (excludeGroups/excludeParams/excludeGiFields) is read back out via
+  getOptsFromIframe() and passed to getPdfUrl()/downloadPdf() (js/api.js) to
+  build the final PDF with the same exclusions applied server-side.
+  snapshotExclusions()/restoreExclusions() preserve those checkbox choices
+  across a refresh (e.g. toggling "Show Test Method"), since reloading the
+  iframe would otherwise reset every injected checkbox to checked.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TDS Preview - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Two-column layout ───────────────────────────────────── */
+    .preview-layout {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    /* ── Sidebar (column toggles only) ──────────────────────── */
+    .options-sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 72px;
+      max-height: calc(100vh - 88px);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sidebar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .sidebar-card-header {
+      background: var(--bg-section);
+      border-bottom: 1px solid var(--border);
+      padding: 9px 13px;
+    }
+    .sidebar-card-header h3 {
+      font-family: var(--font-head);
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-muted); margin: 0;
+    }
+    .sidebar-card-body { padding: 11px 13px; }
+
+    .col-toggle label {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; cursor: pointer; padding: 3px 0;
+    }
+
+    .btn-refresh {
+      background: var(--gold, #F5A623); color: #fff; border: none;
+      border-radius: var(--radius); padding: 9px 14px;
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      cursor: pointer; transition: filter .2s; width: 100%;
+    }
+    .btn-refresh:hover { filter: brightness(.92); }
+
+    .btn-download-save {
+      background: var(--navy); color: #fff; border: none;
+      border-radius: var(--radius); padding: 9px 14px;
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .btn-download-save:hover { background: #253145; }
+    .btn-download-save:disabled { opacity: .5; cursor: not-allowed; }
+
+    .btn-print-save {
+      background: transparent; color: var(--navy);
+      border: 1.5px solid var(--navy); border-radius: var(--radius);
+      padding: 9px 14px;
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .btn-print-save:hover { background: var(--navy); color: #fff; }
+    .btn-print-save:disabled { opacity: .5; cursor: not-allowed; }
+
+    .sidebar-hint {
+      font-size: 10px; color: var(--text-muted); line-height: 1.5;
+      padding: 0 1px;
+    }
+
+    /* ── Preview pane ────────────────────────────────────────── */
+    .preview-pane { flex: 1; min-width: 0; }
+
+    .preview-toolbar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 13px 18px;
+      margin-bottom: 14px; box-shadow: var(--shadow);
+    }
+    .preview-toolbar-info { flex: 1; min-width: 0; }
+    .preview-toolbar-info h3 {
+      font-family: var(--font-head); font-size: 15px; font-weight: 800;
+      color: var(--navy); margin: 0;
+    }
+    .preview-toolbar-info p { font-size: 11px; color: var(--text-muted); margin: 3px 0 0; }
+
+    .preview-wrapper {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden;
+    }
+    .preview-wrapper-header {
+      background: var(--bg-section); border-bottom: 1px solid var(--border);
+      padding: 9px 16px; display: flex; align-items: center; gap: 8px;
+      font-family: var(--font-head); font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted);
+    }
+
+    .preview-loading {
+      padding: 60px 20px; text-align: center;
+      color: var(--text-muted); font-size: 13px;
+    }
+    .preview-loading .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border); border-top-color: var(--gold);
+      border-radius: 50%; animation: spin .8s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .action-feedback {
+      display: none; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      background: var(--green-pale); border: 1px solid var(--green-border);
+      border-radius: var(--radius); font-size: 12px; color: var(--green);
+      margin-bottom: 12px;
+    }
+    .action-feedback.show { display: flex; }
+
+    @media (max-width: 860px) {
+      .preview-layout { flex-direction: column; }
+      .options-sidebar { width: 100%; position: static; max-height: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Ravasco" class="nav-logo"
+           onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html"         class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html"   class="nav-link">Search TDS</a>
+      <a href="admin.html"        class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap" style="padding-bottom:40px;max-width:1400px;">
+
+    <div class="page-header" style="margin-bottom:16px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <a href="generate-tds.html">Generate TDS</a>
+        <span>›</span>
+        <span>Preview</span>
+      </div>
+      <h2>TDS Preview</h2>
+    </div>
+
+    <div class="action-feedback" id="action-feedback">
+      <span>✓</span><span id="feedback-msg"></span>
+    </div>
+
+    <div class="preview-layout">
+
+      <!-- ── LEFT: Column-toggle sidebar ─────────────────────── -->
+      <aside class="options-sidebar">
+
+        <div class="sidebar-card">
+          <div class="sidebar-card-header"><h3>Column Visibility</h3></div>
+          <div class="sidebar-card-body col-toggle">
+            <label><input type="checkbox" id="opt-show-testmethod" checked /> Test Method</label>
+            <label><input type="checkbox" id="opt-show-reference"  checked /> Reference</label>
+          </div>
+        </div>
+
+        <p class="sidebar-hint">Check/uncheck rows directly in the preview. Column changes need a refresh.</p>
+
+        <button class="btn-refresh"      id="btn-refresh-preview">↻ Refresh Columns</button>
+        <button class="btn-download-save" id="btn-download-save">⬇ Download PDF</button>
+        <button class="btn-print-save"    id="btn-print-save">🖨 Print PDF</button>
+
+        <a href="generate-tds.html" class="btn btn-outline btn-sm"
+           style="text-align:center;margin-top:4px;">← Back to Form</a>
+
+      </aside>
+
+      <!-- ── RIGHT: HTML preview with injected row checkboxes ── -->
+      <div class="preview-pane">
+
+        <div class="preview-toolbar">
+          <div class="preview-toolbar-info">
+            <h3>TDS-<span id="tds-number-display">-</span></h3>
+            <p>Uncheck rows in the document to exclude them from the PDF. Column changes need ↻ Refresh.</p>
+          </div>
+        </div>
+
+        <div class="preview-wrapper">
+          <div class="preview-wrapper-header"><span>📄</span> Technical Data Sheet</div>
+          <div class="preview-loading" id="preview-loading">
+            <div class="spinner"></div>Loading TDS preview…
+          </div>
+          <!-- srcdoc keeps this same-origin so we can modify its DOM -->
+          <iframe id="tds-iframe" srcdoc=""
+            style="display:none;width:100%;height:860px;border:none;"></iframe>
+        </div>
+
+      </div>
+
+    </div><!-- /.preview-layout -->
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser, showToast } from './js/auth.js';
+    import { getPdfUrl, downloadPdf }                  from './js/api.js';
+
+    const session = requireAuth();
+    if (session) populateNavUser();
+
+    // ── URL params ────────────────────────────────────────────────
+    const urlParams  = new URLSearchParams(location.search);
+    const tdsId      = urlParams.get('tds_id');
+    const tdsNumber  = urlParams.get('tds_number') || '0000';
+
+    if (!tdsId) { window.location.href = 'generate-tds.html'; }
+    document.getElementById('tds-number-display').textContent = tdsNumber;
+
+    // ── Auth helper ───────────────────────────────────────────────
+    function authHeaders() {
+      try {
+        const s = JSON.parse(sessionStorage.getItem('tds_session') || '{}');
+        return s.token ? { 'Authorization': 'Bearer ' + s.token } : {};
+      } catch { return {}; }
+    }
+
+    // ── Build HTML preview URL (format=html, column opts only) ────
+    function buildHtmlUrl(colOpts) {
+      // Always use a relative path - api.js does the same.
+      // The frontend is served by Django (port 8001 locally), so /api resolves
+      // correctly.  Never hardcode a port here.
+      const base = '/api';
+      const qs = new URLSearchParams();
+      if (!colOpts.showTestMethod) qs.set('show_test_method', 'false');
+      if (!colOpts.showReference)  qs.set('show_reference',   'false');
+      qs.set('format', 'html');
+      return `${base}/tds/${tdsId}/pdf?${qs.toString()}`;
+    }
+
+    // ── Read current column-toggle state ─────────────────────────
+    function getColOpts() {
+      return {
+        showTestMethod: document.getElementById('opt-show-testmethod').checked,
+        showReference:  document.getElementById('opt-show-reference').checked,
+      };
+    }
+
+    // ── Read exclusions from the live iframe DOM ──────────────────
+    function getOptsFromIframe() {
+      const doc = iframe.contentDocument;
+      const colOpts = getColOpts();
+      if (!doc || !doc.body) return { ...colOpts, excludeGroups: [], excludeParams: [], excludeGiFields: [] };
+
+      const excludeGroups = [...doc.querySelectorAll('.cb-group:not(:checked)')]
+        .map(cb => cb.dataset.group);
+      const excludeParams = [...doc.querySelectorAll('.cb-param:not(:checked):not([disabled])')]
+        .map(cb => Number(cb.dataset.paramId));
+      const excludeGiFields = [...doc.querySelectorAll('.cb-gi-field:not(:checked):not([disabled])')]
+        .map(cb => cb.dataset.field);
+
+      return { ...colOpts, excludeGroups, excludeParams, excludeGiFields };
+    }
+
+    // ── Snapshot & restore exclusions across refreshes ────────────
+    function snapshotExclusions() {
+      const doc = iframe.contentDocument;
+      if (!doc || !doc.body) return { groups: new Set(), params: new Set(), giFields: new Set() };
+      return {
+        groups:   new Set([...doc.querySelectorAll('.cb-group:not(:checked)')].map(cb => cb.dataset.group)),
+        params:   new Set([...doc.querySelectorAll('.cb-param:not(:checked):not([disabled])')].map(cb => cb.dataset.paramId)),
+        giFields: new Set([...doc.querySelectorAll('.cb-gi-field:not(:checked):not([disabled])')].map(cb => cb.dataset.field)),
+      };
+    }
+
+    function restoreExclusions(doc, snap) {
+      if (!snap) return;
+      snap.groups.forEach(name => {
+        const cb = doc.querySelector(`.cb-group[data-group="${CSS.escape(name)}"]`);
+        if (cb) { cb.checked = false; triggerGroupChange(cb, doc); }
+      });
+      snap.params.forEach(id => {
+        const cb = doc.querySelector(`.cb-param[data-param-id="${id}"]`);
+        if (cb && !cb.disabled) {
+          cb.checked = false;
+          dimRow(cb.closest('tr'), false);
+        }
+      });
+      snap.giFields.forEach(fieldKey => {
+        const cb = doc.querySelector(`.cb-gi-field[data-field="${CSS.escape(fieldKey)}"]`);
+        if (cb && !cb.disabled) {
+          cb.checked = false;
+          dimRow(cb.closest('tr'), false);
+        }
+      });
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function dimRow(tr, checked) {
+      if (!tr) return;
+      tr.style.opacity = checked ? '1' : '0.35';
+      tr.style.textDecoration = checked ? '' : 'line-through';
+    }
+
+    function triggerGroupChange(groupCb, doc) {
+      const name = groupCb.dataset.group;
+      // Works for both .param-table and .gi-table (both carry data-group)
+      const table = doc.querySelector(`[data-group="${CSS.escape(name)}"]`);
+      if (!table) return;
+      table.querySelectorAll('.cb-param, .cb-gi-field').forEach(cb => {
+        cb.checked  = groupCb.checked;
+        cb.disabled = !groupCb.checked;
+        dimRow(cb.closest('tr'), groupCb.checked);
+      });
+    }
+
+    // ── Groups unchecked by default ─────────────────────────────────
+    // This is a customer-facing preview/PDF, so these internal-only sections
+    // start excluded (unchecked) - the user can still tick them back on for a
+    // given TDS if a customer specifically needs to see them. This ONLY
+    // affects what's ticked in this preview/what goes into the printed PDF -
+    // it does not touch the TDSInput record itself, which is saved with every
+    // field regardless of what's ever excluded here (see create_tds /
+    // create_batch in the Django backend: fabric style, sampling/testing
+    // counts, packing, and splicing are all computed and stored server-side
+    // on every record, independent of PDF presentation). Names must match
+    // apps/services/sections.py's PARAMETER_GROUP_ORDER exactly, since that's
+    // what the backend renders into each table's data-group attribute.
+    const DEFAULT_UNCHECKED_GROUPS = [
+      'Fabric Parameters',
+      'Sampling and Testing',
+      'Packing and Logistics',
+      'Splicing Parameters',
+    ];
+
+    // ── Inject checkboxes into the loaded iframe ──────────────────
+    function injectCheckboxes(doc) {
+      // Inject a tiny stylesheet for the checkbox column
+      const style = doc.createElement('style');
+      style.textContent = `
+        .cb-col-th {
+          width: 22px !important; min-width: 22px; padding: 4pt 3pt !important;
+          text-align: center !important; background: #F5A623;
+          border-left: .5pt solid rgba(255,255,255,.35) !important;
+          border-right: none !important;
+        }
+        .cb-col-td {
+          width: 22px !important; min-width: 22px; padding: 3pt 3pt !important;
+          text-align: center !important; border-left: .5pt solid #eee !important;
+          border-right: none !important;
+        }
+        .cb-col-th input, .cb-col-td input {
+          cursor: pointer; accent-color: #F5A623; width: 13px; height: 13px;
+        }
+        @media print {
+          .cb-col-th, .cb-col-td { display: none !important; }
+          tr[style*="opacity"] { opacity: 1 !important; text-decoration: none !important; }
+        }
+      `;
+      doc.head.appendChild(style);
+
+      // Handle both .param-table (parameter groups) and .gi-table (General Information)
+      doc.querySelectorAll('.param-table, .gi-table').forEach(table => {
+        const groupName = table.getAttribute('data-group') || '';
+        const isGiTable = table.classList.contains('gi-table');
+        const defaultChecked = !DEFAULT_UNCHECKED_GROUPS.includes(groupName);
+
+        // ── Group checkbox - always APPEND to the end of the header row ──────
+        const firstTh = table.querySelector('thead tr th:first-child');
+        if (firstTh) {
+          const cbTh = doc.createElement('th');
+          cbTh.className = 'cb-col-th';
+          const groupCb = doc.createElement('input');
+          groupCb.type = 'checkbox'; groupCb.checked = defaultChecked;
+          groupCb.className = 'cb-group'; groupCb.dataset.group = groupName;
+          groupCb.title = 'Include/exclude entire group';
+          cbTh.appendChild(groupCb);
+          firstTh.parentElement.appendChild(cbTh);  // always append at end
+
+          // Wire group checkbox
+          table.querySelector('.cb-group')?.addEventListener('change', function() {
+            triggerGroupChange(this, doc);
+          });
+        }
+
+        // ── Add 22px col to colgroup so the appended checkbox column is sized ─
+        const cg = table.querySelector('colgroup');
+        if (cg) {
+          const cbCol = doc.createElement('col');
+          cbCol.style.width = '22px';
+          cg.appendChild(cbCol);
+        }
+
+        // ── Individual row checkboxes - always APPEND at end of each row ──────
+        // gi-table rows use data-field; param-table rows use data-param-id
+        const rowAttr = isGiTable ? 'data-field' : 'data-param-id';
+        table.querySelectorAll(`tbody tr[${rowAttr}]`).forEach(tr => {
+          const rowId = tr.getAttribute(rowAttr);
+          const cbTd = doc.createElement('td');
+          cbTd.className = 'cb-col-td';
+          const cb = doc.createElement('input');
+          cb.type = 'checkbox'; cb.checked = defaultChecked;
+          cb.disabled = !defaultChecked;   // matches triggerGroupChange()'s own rule for an unchecked group
+          cb.className = isGiTable ? 'cb-gi-field' : 'cb-param';
+          if (isGiTable) {
+            cb.dataset.field = rowId;
+          } else {
+            cb.dataset.paramId = rowId;
+          }
+          cb.dataset.group = groupName;
+          cb.title = 'Include/exclude this row';
+          cbTd.appendChild(cb);
+          tr.appendChild(cbTd);  // always append at end
+          dimRow(tr, defaultChecked);
+
+          cb.addEventListener('change', function() {
+            dimRow(this.closest('tr'), this.checked);
+          });
+        });
+      });
+    }
+
+    // ── Load the HTML preview ─────────────────────────────────────
+    const iframe  = document.getElementById('tds-iframe');
+    const loading = document.getElementById('preview-loading');
+
+    async function loadPreview(snap) {
+      loading.style.display = '';
+      iframe.style.display  = 'none';
+      loading.innerHTML = '<div class="spinner"></div>Loading TDS preview…';
+
+      const url = buildHtmlUrl(getColOpts());
+      console.log('Preview URL:', url);   // ADD THIS
+      
+
+      try {
+        const res = await fetch(url, { headers: authHeaders() });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => `HTTP ${res.status}`);
+          loading.innerHTML = `
+            <div style="color:#b00020;text-align:left;max-width:600px;margin:0 auto;">
+              <strong>⚠ Preview failed (HTTP ${res.status})</strong>
+              <pre style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:11px;
+                          white-space:pre-wrap;">${text.replace(/</g,'&lt;')}</pre>
+            </div>`;
+          return;
+        }
+
+        const html = await res.text();
+
+        iframe.onload = () => {
+          injectCheckboxes(iframe.contentDocument);
+          if (snap) restoreExclusions(iframe.contentDocument, snap);
+          loading.style.display = 'none';
+          iframe.style.display  = 'block';
+        };
+        iframe.srcdoc = html;
+
+      } catch (err) {
+        loading.innerHTML = `<div style="color:#b00020;"><strong>⚠ Network error</strong><br><small>${err.message}</small></div>`;
+      }
+    }
+
+    // ── Column toggle: refresh preserving current exclusions ──────
+    document.getElementById('btn-refresh-preview').addEventListener('click', () => {
+      const snap = snapshotExclusions();
+      loadPreview(snap);
+    });
+
+    // ── Finish + redirect ─────────────────────────────────────────
+    function finishAndGoHome(msg, delay = 3000) {
+      const fb = document.getElementById('action-feedback');
+      document.getElementById('feedback-msg').textContent = msg + '  Redirecting to dashboard…';
+      fb.classList.add('show');
+      fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      document.getElementById('btn-download-save').disabled = true;
+      document.getElementById('btn-print-save').disabled    = true;
+      setTimeout(() => { window.location.href = 'home.html'; }, delay);
+    }
+
+    // ── Download - always reads live iframe state ─────────────────
+    document.getElementById('btn-download-save').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-download-save');
+      btn.disabled = true; btn.innerHTML = 'Downloading…';
+      try {
+        await downloadPdf(tdsId, tdsNumber, getOptsFromIframe());
+        finishAndGoHome('TDS-' + tdsNumber + ' downloaded.', 5000);
+      } catch (err) {
+        showToast('Download failed: ' + err.message, 'error');
+        btn.disabled = false; btn.innerHTML = '⬇ Download PDF';
+      }
+    });
+
+    // ── Print - opens PDF (with live opts) in new tab ─────────────
+    // Open the tab synchronously, inside the click handler, so popup blockers
+    // don't treat it as an unsolicited popup - we point it at the real PDF
+    // once it's fetched. This used to be a bare `window.open(pdfUrl)`, i.e. a
+    // plain top-level navigation straight to the API URL. A navigation can
+    // only ever carry the httpOnly cookie - it can't attach an Authorization
+    // header - so any session relying on the Bearer-token path (the same
+    // getAuthHeaders()/authHeaders() every fetch() call on this page already
+    // uses) got a 401 "Authentication credentials were not provided" here
+    // even though the HTML preview load and the Download PDF button (both
+    // real fetch() calls with headers) worked fine on the exact same page.
+    // Fetching with authHeaders() first and only then navigating the
+    // already-open tab to the resulting blob fixes that for every session,
+    // regardless of which auth path it's actually using.
+    document.getElementById('btn-print-save').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-print-save');
+      const win = window.open('', '_blank');
+      if (!win) { showToast('Allow pop-ups to print.', 'warning'); return; }
+      const orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = 'Preparing…';
+      try {
+        const pdfUrl = getPdfUrl(tdsId, getOptsFromIframe());
+        const res = await fetch(pdfUrl, { headers: authHeaders() });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        win.location.href = blobUrl + '#toolbar=1';
+        finishAndGoHome('TDS-' + tdsNumber + ' opened for printing.', 3000);
+      } catch (err) {
+        win.close();
+        showToast('Could not open PDF for printing: ' + err.message, 'error');
+        btn.disabled = false; btn.innerHTML = orig;
+      }
+    });
+
+    // ── Boot ──────────────────────────────────────────────────────
+    loadPreview(null);
+  </script>
+
+</body>
+</html>

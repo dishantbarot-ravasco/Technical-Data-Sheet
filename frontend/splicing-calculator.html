@@ -1,0 +1,379 @@
+<!--
+  splicing-calculator.html - Standalone splicing calculator.
+
+  Reachable from the home dashboard's "Splicing Calculator" quick-action
+  card. Computes splice step length, splice length per joint, and total
+  extra belt length per IS 14206 Part I : 1995, purely client-side -
+  there is no backend call on this page at all (unlike packing-calculator.html,
+  which fetches reel types from /api/bootstrap).
+
+  DELIBERATELY duplicates formulas/tables that also exist in:
+    - js/generate-tds.js: getSpliceStep()/recalcSplicing() (STEP_TABLE here
+      mirrors the same lookup table used there).
+    - django_backend/apps/services/splicing_service.py - the server-side
+      version used when an actual TDS is generated.
+  Splice length formula: 0.3 × Width + Step × (Plies − 1) + Buffer, where
+  Buffer is 50mm for hot vulcanisation or 75mm for cold (see setMethod()).
+
+  If the splicing formula, buffer values, or STEP_TABLE thresholds ever
+  change, this file, js/generate-tds.js, and splicing_service.py all need to
+  be updated together or this calculator's numbers will drift from what the
+  actual TDS/PDF shows.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splicing Calculator - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .calc-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media(max-width: 860px) { .calc-layout { grid-template-columns: 1fr; } }
+
+    .calc-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow-sm);
+    }
+    .calc-card-head {
+      font-family: var(--font-head);
+      font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 22px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .calc-card-head::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    .flbl {
+      display: block; font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--navy); margin-bottom: 4px;
+    }
+    .flbl .req { color: #F5A623; margin-left: 2px; }
+    .finp {
+      width: 100%; padding: 8px 12px;
+      background: var(--bg-input); border: 1px solid var(--border-mid);
+      border-radius: var(--radius); color: var(--text); font-size: 13px;
+      font-family: var(--font-body); outline: none; appearance: none;
+      box-sizing: border-box; transition: border-color .15s, box-shadow .15s;
+    }
+    .finp:focus { border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
+    .frow { margin-bottom: 14px; }
+    .fhint { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+    .frc-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Method toggle */
+    .method-toggle { display: flex; gap: 0; border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; }
+    .method-btn {
+      flex: 1; padding: 8px 10px; font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; border: none; cursor: pointer;
+      background: var(--bg-input); color: var(--text-muted); transition: all .15s;
+    }
+    .method-btn.active { background: var(--navy); color: #fff; }
+
+    /* Results */
+    .result-highlight {
+      background: var(--gold-pale); border: 1.5px solid var(--gold-border);
+      border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .result-highlight-label { font-size: 11px; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+    .result-highlight-val { font-family: var(--font-head); font-size: 28px; font-weight: 900; color: var(--gold); line-height: 1; }
+    .result-highlight-sub { font-size: 10px; color: var(--gold); opacity: .7; margin-top: 2px; }
+
+    .res-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .res-row:last-child { border-bottom: none; }
+    .res-label { color: var(--text-muted); font-size: 11px; }
+    .res-val { font-family: var(--font-head); font-weight: 700; color: var(--navy); }
+    .res-unit { font-size: 10px; color: var(--text-muted); margin-left: 3px; }
+
+    .empty-state {
+      text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 13px;
+    }
+    .empty-state .empty-icon { font-size: 42px; margin-bottom: 12px; opacity: .4; }
+
+    .res-section-label {
+      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); padding: 8px 0 4px;
+      border-bottom: 1px solid var(--border); margin-top: 4px;
+    }
+
+    /* Formula note */
+    .formula-note {
+      background: var(--bg-section); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; margin-top: 20px; font-size: 11px; color: var(--text-muted); line-height: 1.7;
+    }
+    .formula-note strong { color: var(--navy); }
+
+    /* Step table reference */
+    .step-table-wrap { margin-top: 18px; }
+    .step-table-title {
+      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .step-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .step-table th { background: var(--navy); color: #fff; padding: 5px 8px; text-align: left; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+    .step-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
+    .step-table tr.active-row td { background: var(--gold-pale); font-weight: 700; color: var(--navy); }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Ravasco" class="nav-logo" onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html" class="nav-link">Search TDS</a>
+      <a href="admin.html" class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap" style="padding-bottom: 60px;">
+
+    <div class="page-header" style="margin-bottom: 28px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <span>Splicing Calculator</span>
+      </div>
+      <h2>Splicing Calculator</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-top:5px; max-width:520px;">
+        Calculate splice step length, splice length, and total extra belt length per IS 14206 Part I : 1995.
+      </p>
+    </div>
+
+    <div class="calc-layout">
+
+      <!-- ── INPUTS ─────────────────────────────────────────────── -->
+      <div>
+        <div class="calc-card">
+          <div class="calc-card-head">⚙ Splice Inputs</div>
+
+          <div class="frc-2">
+            <div class="frow">
+              <label class="flbl">Belt Rating <span class="req">*</span></label>
+              <input type="number" id="s-rating" class="finp" placeholder="e.g. 800" min="50" step="25" />
+              <div class="fhint">kN/m (e.g. 800 for EP 800/4)</div>
+            </div>
+            <div class="frow">
+              <label class="flbl">Number of Plies <span class="req">*</span></label>
+              <input type="number" id="s-plies" class="finp" placeholder="e.g. 4" min="1" max="8" step="1" />
+              <div class="fhint">e.g. 4 for EP 800/4</div>
+            </div>
+          </div>
+
+          <div class="frc-2">
+            <div class="frow">
+              <label class="flbl">Belt Width <span class="req">*</span></label>
+              <input type="number" id="s-width" class="finp" placeholder="e.g. 1000" min="100" max="2400" step="50" />
+              <div class="fhint">mm</div>
+            </div>
+            <div class="frow">
+              <label class="flbl">Number of Joints</label>
+              <input type="number" id="s-joints" class="finp" placeholder="e.g. 2" min="0" max="20" step="1" value="1" />
+              <div class="fhint">for total extra length</div>
+            </div>
+          </div>
+
+          <div class="frow">
+            <label class="flbl">Vulcanisation Method</label>
+            <div class="method-toggle">
+              <button type="button" class="method-btn active" id="btn-hot" onclick="setMethod('hot')">🔥 Hot</button>
+              <button type="button" class="method-btn"        id="btn-cold" onclick="setMethod('cold')">❄ Cold</button>
+            </div>
+            <div class="fhint" id="s-buffer-hint">Buffer: 50 mm (hot vulcanisation)</div>
+          </div>
+        </div>
+
+        <!-- Formula note -->
+        <div class="formula-note">
+          <strong>Formula (IS 14206 Part I : 1995)</strong><br>
+          Rating per ply = Belt Rating ÷ Plies<br>
+          Step length = lookup from splice step table<br>
+          Splice length = <em>0.3 × Width + Step × (Plies − 1) + Buffer</em><br>
+          Buffer = 50 mm (hot) | 75 mm (cold)
+        </div>
+      </div>
+
+      <!-- ── RESULTS ────────────────────────────────────────────── -->
+      <div class="calc-card">
+        <div class="calc-card-head">📏 Results</div>
+
+        <div id="s-empty" class="empty-state">
+          <div class="empty-icon">🔗</div>
+          Enter belt rating, plies, and width to calculate splice dimensions.
+        </div>
+
+        <div id="s-body" style="display:none;">
+
+          <!-- Splice Length highlight -->
+          <div class="result-highlight">
+            <div>
+              <div class="result-highlight-label">Splice Length</div>
+              <div class="result-highlight-sub">per joint</div>
+            </div>
+            <div>
+              <div class="result-highlight-val"><span id="s-r-splice">-</span></div>
+              <div class="result-highlight-sub" style="text-align:right;">mm</div>
+            </div>
+          </div>
+
+          <!-- Inputs summary -->
+          <div class="res-section-label">Derived Values</div>
+
+          <div class="res-row">
+            <div class="res-label">Rating per Ply</div>
+            <div><span class="res-val" id="s-r-ply">-</span><span class="res-unit">kN/m</span></div>
+          </div>
+          <div class="res-row">
+            <div class="res-label">Step Length</div>
+            <div><span class="res-val" id="s-r-step">-</span><span class="res-unit">mm</span></div>
+          </div>
+          <div class="res-row">
+            <div class="res-label">Buffer (method)</div>
+            <div><span class="res-val" id="s-r-buffer">-</span><span class="res-unit">mm</span></div>
+          </div>
+
+          <!-- Total extra -->
+          <div class="res-section-label" style="margin-top:4px;">Order Total</div>
+          <div class="res-row" id="s-extra-row">
+            <div class="res-label">Total Extra Belt Length (<span id="s-joints-label">1</span> joint)</div>
+            <div><span class="res-val" id="s-r-extra">-</span><span class="res-unit">m</span></div>
+          </div>
+
+          <!-- Step table with active row highlighted -->
+          <div class="step-table-wrap">
+            <div class="step-table-title">Splice Step Lookup Table</div>
+            <table class="step-table" id="s-step-table">
+              <thead>
+                <tr>
+                  <th>Max Rating per Ply (kN/m)</th>
+                  <th>Step Length (mm)</th>
+                </tr>
+              </thead>
+              <tbody id="s-step-tbody"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser } from './js/auth.js';
+
+    const session = requireAuth();
+    if (session) populateNavUser();
+
+    // ── Step lookup table (mirrors generate-tds.js) ───────────────
+    const STEP_TABLE = [
+      [100, 150], [125, 200], [160, 200], [200, 250], [250, 300],
+      [300, 350], [315, 350], [350, 400], [400, 400],
+    ];
+
+    function getStepLength(ratingPerPly) {
+      for (const [thresh, step] of STEP_TABLE) {
+        if (ratingPerPly <= thresh) return step;
+      }
+      return 400;
+    }
+
+    let vulMethod = 'hot';
+
+    window.setMethod = function(m) {
+      vulMethod = m;
+      document.getElementById('btn-hot').classList.toggle('active', m === 'hot');
+      document.getElementById('btn-cold').classList.toggle('active', m === 'cold');
+      document.getElementById('s-buffer-hint').textContent =
+        m === 'hot' ? 'Buffer: 50 mm (hot vulcanisation)' : 'Buffer: 75 mm (cold vulcanisation)';
+      recalc();
+    };
+
+    // ── Build the static step reference table ─────────────────────
+    function buildStepTable(activeStep) {
+      const tbody = document.getElementById('s-step-tbody');
+      tbody.innerHTML = STEP_TABLE.map(([thresh, step]) => {
+        const active = step === activeStep ? ' class="active-row"' : '';
+        const label  = thresh === 400 ? '> 315' : `≤ ${thresh}`;
+        return `<tr${active}><td>${label}</td><td>${step}</td></tr>`;
+      }).join('');
+    }
+
+    // ── Main calculation ──────────────────────────────────────────
+    function recalc() {
+      const rating = parseFloat(document.getElementById('s-rating').value) || 0;
+      const plies  = parseInt(document.getElementById('s-plies').value)    || 0;
+      const width  = parseInt(document.getElementById('s-width').value)    || 0;
+      const joints = parseInt(document.getElementById('s-joints').value)   || 0;
+
+      const empty = document.getElementById('s-empty');
+      const body  = document.getElementById('s-body');
+
+      if (!rating || !plies || !width) {
+        empty.style.display = '';
+        body.style.display  = 'none';
+        return;
+      }
+
+      const ratingPerPly = parseFloat((rating / plies).toFixed(2));
+      const stepLen      = getStepLength(ratingPerPly);
+      const buffer       = vulMethod === 'cold' ? 75 : 50;
+      const spliceLen    = Math.round(0.3 * width + stepLen * (plies - 1) + buffer);
+      const totalExtra   = joints > 0 ? (joints * spliceLen / 1000).toFixed(3) : null;
+
+      document.getElementById('s-r-ply').textContent    = ratingPerPly;
+      document.getElementById('s-r-step').textContent   = stepLen;
+      document.getElementById('s-r-buffer').textContent = buffer;
+      document.getElementById('s-r-splice').textContent = spliceLen.toLocaleString();
+
+      const extraRow = document.getElementById('s-extra-row');
+      if (totalExtra !== null) {
+        document.getElementById('s-r-extra').textContent    = totalExtra;
+        document.getElementById('s-joints-label').textContent = joints;
+        extraRow.style.display = '';
+      } else {
+        extraRow.style.display = 'none';
+      }
+
+      buildStepTable(stepLen);
+
+      empty.style.display = 'none';
+      body.style.display  = '';
+    }
+
+    // ── Wire inputs ───────────────────────────────────────────────
+    ['s-rating', 's-plies', 's-width', 's-joints'].forEach(id =>
+      document.getElementById(id).addEventListener('input', recalc)
+    );
+  </script>
+
+</body>
+</html>

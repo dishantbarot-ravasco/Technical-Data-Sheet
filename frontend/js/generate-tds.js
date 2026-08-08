@@ -1,0 +1,2088 @@
+/**
+ * generate-tds.js  v7
+ * Single-page compact TDS form (replaces 5-step wizard) - the largest and
+ * most complex frontend script in the app. It drives generate-tds.html end
+ * to end: dropdown population, cascading EAV lookups, all client-side
+ * calculations (weight/packing/splicing - mirrored server-side in
+ * django_backend/apps/services/calculations.py, packing_service.py,
+ * splicing_service.py so the preview numbers match what the PDF renders),
+ * multi-belt batch queueing, and final submission.
+ *
+ * Weight formulas:
+ *   Net/m   = SG × T_mm × (W_mm / 1000)
+ *   Gross/m = SG × (T_mm + 0.5) × (W_mm / 1000)
+ *
+ * Splice formula (IS 14206 Part I):
+ *   step_len  = table lookup on ratingPerPly
+ *   splice/joint = 0.3×W + step×(plies−1) + buffer
+ *   total(m)  = joints × splice / 1000
+ *
+ * Reading guide - the file is organized into the `/* ══ SECTION ══ *\/`
+ * banner comments below, in this order:
+ *   1. Auth + module-level state (allCustomers/allReelTypes/.../beltQueue)
+ *      and small DOM helpers (val/set/setText/selectedText).
+ *   2. Static reference data (ALL_PARAM_GROUPS) that mirrors backend lookup
+ *      tables for client-side calculation without a round trip. Container
+ *      types and shipping-region weight limits are NOT static data here -
+ *      they're fetched live from GET /api/shipping-constraints (see
+ *      _refreshShippingConstraints) so they can never drift from the DB.
+ *   3. INIT - init() is the page's true entry point (called at the bottom of
+ *      this file); it loads dropdown data then calls wireEvents().
+ *   4. Dropdown population + cascading EAV lookup: loadAllDropdowns() →
+ *      populateSelect()/populateStandardsForBrand() → loadCoverGrades()/
+ *      loadBeltRatings() → runLookup() (the actual POST /api/tds/lookup call).
+ *   5. Belt description assembly (updateBeltDescription) - builds the
+ *      human-readable summary string shown on the form and stored on the record.
+ *   6. Dimension/weight calculations (recalcTotal, recalcWeight) - client-side
+ *      mirror of the Net/Gross weight formulas above.
+ *   7. Reel diameter math (roundUpHalf, computeReelDiam) and packing
+ *      calculations (recalcPacking) - client-side mirror of packing_service.py.
+ *   8. Splicing calculations (getSpliceStep, recalcSplicing) - client-side
+ *      mirror of splicing_service.py.
+ *   9. Customer autocomplete + generic searchable-select widget
+ *      (wireCustomerAutocomplete, makeSearchable) - the latter is reused for
+ *      every long dropdown on this form (brand, standard, cover grade, etc.).
+ *  10. Dimensional spec fetch (fetchDimensionalSpecs) - pulls DB tolerance
+ *      values so the PDF's "Spec" column can be previewed here too.
+ *  11. Breaker helpers (window._brkTop/_brkBot) - small onchange handlers
+ *      referenced directly from inline HTML attributes in generate-tds.html.
+ *  12. wireEvents() - attaches every listener above to its form control;
+ *      read this function's own doc-comment for the full listener map.
+ *  13. Multi-belt queue (captureBeltSpec → validateBeltSpec → addBeltToQueue
+ *      → renderBeltQueue → removeBeltFromQueue) - lets one TDS submission
+ *      cover several belt specs at once (bulk-text import shares this queue;
+ *      see django_backend/apps/api/routers/batch_views.py's text_import_batch).
+ *  14. Packing override toggle, form validation (validateForm), PDF display
+ *      options (buildPdfGroupOptions/getPdfOptions), preview (loadPreview),
+ *      and finally submitTDS() - the terminal function that POSTs to
+ *      /api/tds or /api/tds/batch/ depending on whether beltQueue has entries.
+ */
+import {
+  requireAuth, populateNavUser, showToast,
+} from './auth.js';
+import {
+  getBootstrap,
+  getCoverGrades,
+  getFabricStyles, getBeltRatings,
+  createCustomer, updateCustomer,
+  tdsLookup, createTDS, downloadPdf, getParameters,
+  getDimensionalSpecs, getShippingConstraints,
+} from './api.js';
+
+/* ── Auth ─────────────────────────────────────────────────── */
+const session = requireAuth();
+if (session) populateNavUser();
+
+/* ── State ────────────────────────────────────────────────── */
+let allCustomers  = [];   // loaded once from /api/bootstrap
+let allReelTypes  = [];   // loaded once from /api/bootstrap
+let allStandards  = [];   // loaded once from /api/bootstrap; filtered per-brand in populateStandardsForBrand()
+let lookupData    = null; // result of last /api/tds/lookup call
+let createdTdsId  = null; // tds_id returned after a successful createTDS call
+let allParameters = {};   // { groupName: [{parameter_id, parameter_name}] } for PDF options
+let beltQueue     = [];   // array of captured belt-spec objects waiting to be submitted
+
+/* ── DOM utility helpers ──────────────────────────────────── */
+/**
+ * Get the current .value of an <input> or <select> element.
+ * Returns '' (empty string) if the element doesn't exist.
+ * @param {string} id - The element's HTML id attribute
+ */
+const val = (id) => document.getElementById(id)?.value ?? '';
+
+/**
+ * Set the .value of an <input> or <select> element.
+ * Silently does nothing if the element doesn't exist.
+ * @param {string} id  - The element's HTML id
+ * @param {*}      v   - The new value (coerced to string)
+ */
+/* Registry of searchable-select sync functions - keyed by select id.
+   Populated by makeSearchable(); used by set() and autoSelect() so that
+   programmatic value changes keep the visible input in sync. */
+const _searchableSyncs = {};
+
+const set = (id, v) => {
+  const el = document.getElementById(id);
+  if (el) { el.value = v; _searchableSyncs[id]?.(); }
+};
+
+/**
+ * Set the .textContent of any element.
+ * Used to update read-only display chips and calculated-value spans.
+ * @param {string} id  - The element's HTML id
+ * @param {*}      v   - The text to display
+ */
+const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+
+/**
+ * Return the display text of the currently selected <option> in a <select>.
+ * Used to build the auto-assembled belt description string.
+ * @param {string} id - The <select> element's HTML id
+ * @returns {string} The option's text, or '' if the element doesn't exist
+ */
+const selectedText = (id) => {
+  const sel = document.getElementById(id);
+  if (!sel) return '';
+  return sel.options[sel.selectedIndex]?.text || '';
+};
+
+
+const ALL_PARAM_GROUPS = [
+  'General Information',
+  'Dimensional Parameters',
+  'Belt Construction Parameters',
+  'Fabric Parameters',
+  'Cover Rubber Properties',
+  'After Ageing Cover Rubber Properties',
+  'Belt Breaking Strength',
+  'Adhesion Values',
+  'Troughability',
+  'Recommended Minimum Pulley Diameter',
+  'Sampling and Testing',
+  'Packing and Logistics',
+  'Splicing Parameters',
+];
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+/**
+ * Entry point called when the page loads.
+ * Sets the date field to today, populates the user's name in the footer,
+ * loads all dropdown data from the API, and wires all event listeners.
+ */
+async function init() {
+  // Set today's date
+  const today = new Date().toISOString().slice(0, 10);
+  const dateEl = document.getElementById('tds-date');
+  if (dateEl) dateEl.value = today;
+
+  // Populate footer user name
+  if (session) {
+    const nameEl = document.getElementById('footer-user-name');
+    if (nameEl) nameEl.textContent = session.full_name || session.email || '-';
+  }
+
+  await loadAllDropdowns();
+  wireEvents();
+
+  // Wrap every <select> with a live-search input.
+  // Done AFTER loadAllDropdowns() so options are already present,
+  // and AFTER wireEvents() so the native 'change' listeners are in place
+  // before makeSearchable() can dispatch synthetic change events.
+  [
+    'purpose-id', 'belt-type-id', 'brand-id', 'standard-id',
+    'cover-grade-id', 'fabric-type-id', 'belt-rating-id', 'fabric-style-id',
+    'reel-type-id', 'packing-type-id', 'edge-construction', 'construction-type',
+    'shipping-region', 'container-type-id', 'vulcanization-method', 'make-of-fabric',
+  ].forEach(makeSearchable);
+}
+
+/* ══════════════════════════════════════════════════════════
+   LOAD DROPDOWNS
+══════════════════════════════════════════════════════════ */
+/**
+ * Fetch all master/reference data from the bootstrap endpoint in one request
+ * and populate every <select> dropdown on the form.
+ * Also pre-selects the first option for Belt Type and Brand (since there's
+ * typically only one of each), and loads the PDF parameter list.
+ */
+async function loadAllDropdowns() {
+  try {
+    const d = await getBootstrap();
+
+    allCustomers = d.customers;
+    allReelTypes = d.reel_types;
+    allStandards = d.standards;
+
+    populateSelect('purpose-id',     d.purposes,      'purpose_id',  'purpose_type',  '- Select Purpose -');
+    populateSelect('belt-type-id',   d.belt_types,    'belt_id',     'belt_type',     '- Select Belt Type -');
+    populateSelect('brand-id',       d.brands,        'brand_id',    'brand_name',    '- Select Brand -');
+    populateSelect('fabric-type-id', d.fabric_types,  'id',          'fabric_code',   '- Select Fabric Type -');
+    populateSelect('reel-type-id',   d.reel_types,    'id',          'reel_name',     '- None / Manual -');
+    populateSelect('packing-type-id',d.packing_types, 'id',          'packing_name',  '- None / Manual -');
+    populateSelect('container-type-id', d.container_types, 'id',     'name',          '- Select Container -');
+
+    autoSelect('belt-type-id');
+    autoSelect('brand-id');
+
+    // Standard dropdown is brand-scoped (each brand has its own set of standards) -
+    // populate it AFTER brand-id has been auto-selected above, filtered to that brand.
+    populateStandardsForBrand(val('brand-id'));
+
+    try { allParameters = await getParameters(); } catch { allParameters = {}; }
+
+  } catch (err) {
+    showToast('Failed to load form data: ' + err.message, 'error', 6000);
+  }
+}
+
+/**
+ * Fill a <select> element with options built from an array of API objects.
+ * Clears existing options and prepends a blank placeholder option.
+ *
+ * @param {string} id          - The HTML id of the <select> element
+ * @param {Object[]} items     - Array of objects returned by the API
+ * @param {string} valueKey    - Key on each object to use as <option value="...">
+ * @param {string} labelKey    - Key on each object to use as the visible option text
+ * @param {string} placeholder - Text shown in the blank first option (e.g. '- Select -')
+ */
+function populateSelect(id, items, valueKey, labelKey, placeholder) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    items.map(item => `<option value="${item[valueKey]}">${item[labelKey]}</option>`).join('');
+}
+
+/**
+ * Populate the Standard dropdown with only the standards belonging to the
+ * given brand. Standards are brand-scoped (e.g. INDUS SUPER BRUTE has
+ * IS 1891/ISO 14890/DIN 22102/etc.; INDUS SUPER THERMO has its own IS 1891
+ * (Part 2)/ISO/ARPM/Inhouse set) - without this filter every brand's
+ * standards get dumped into one list, which only went unnoticed while
+ * INDUS SUPER BRUTE was the only brand in the system.
+ *
+ * @param {string|number} brandId - The currently selected brand's database ID
+ */
+function populateStandardsForBrand(brandId) {
+  const filtered = brandId
+    ? allStandards.filter(s => String(s.brand_id) === String(brandId))
+    : allStandards;
+  populateSelect('standard-id', filtered, 'standard_id', 'standard_name', '- Select Standard -');
+}
+
+/**
+ * Auto-select the first real option (index 1) in a <select>.
+ * Used for dropdowns that almost always have exactly one choice
+ * (e.g. Belt Type = "Flat Belt", Brand = "INDUS SUPER BRUTE").
+ *
+ * @param {string} id - The HTML id of the <select> element
+ */
+function autoSelect(id) {
+  const sel = document.getElementById(id);
+  if (sel && sel.options.length >= 2) {
+    sel.selectedIndex = 1;
+    _searchableSyncs[id]?.();   // keep searchable wrapper's visible input in sync
+  }
+}
+
+/* ── Dependent: cover grades ────────────────────────────── */
+/**
+ * Fetch and populate the Cover Grade dropdown for the chosen testing standard.
+ * Cover grade controls the rubber compound (e.g. M = general purpose, H = heat resistant).
+ * Called every time the Standard dropdown changes.
+ *
+ * @param {string|number} standardId - The selected standard's database ID
+ */
+async function loadCoverGrades(standardId) {
+  const sel = document.getElementById('cover-grade-id');
+  sel.innerHTML = '<option value="">Loading…</option>';
+  document.getElementById('grade-hint').textContent = '';
+  if (!standardId) { sel.innerHTML = '<option value="">Select standard first</option>'; return; }
+  try {
+    const grades = await getCoverGrades(standardId);
+    sel.innerHTML = '<option value="">- Select Cover Grade -</option>' +
+      grades.map(g => `<option value="${g.id}">${g.grade_code}</option>`).join('');
+  } catch { sel.innerHTML = '<option value="">Failed to load</option>'; }
+}
+
+/* ── Dependent: belt ratings + fabric styles ────────────── */
+/**
+ * Fetch and populate both the Belt Rating and Fabric Style dropdowns for the chosen fabric type.
+ * A belt rating is the total tensile strength + number of plies (e.g. "EP 630/4" = 630 kN/m, 4 plies).
+ * A fabric style is the weave pattern and construction variant (e.g. "EP 160/3").
+ * Both are fetched in parallel with Promise.all for speed.
+ * Called every time the Fabric Type dropdown changes.
+ *
+ * @param {string|number} fabricTypeId - The selected fabric type's database ID
+ */
+async function loadBeltRatings(fabricTypeId) {
+  const ratingSel = document.getElementById('belt-rating-id');
+  const styleSel  = document.getElementById('fabric-style-id');
+  ratingSel.innerHTML = '<option value="">Loading…</option>';
+  styleSel.innerHTML  = '<option value="">Loading…</option>';
+  if (!fabricTypeId) {
+    ratingSel.innerHTML = '<option value="">Select fabric type first</option>';
+    styleSel.innerHTML  = '<option value="">Select fabric type first</option>';
+    return;
+  }
+  try {
+    const [ratings, styles] = await Promise.all([
+      getBeltRatings(fabricTypeId),
+      getFabricStyles(fabricTypeId),
+    ]);
+    ratingSel.innerHTML = '<option value="">- Select Belt Rating -</option>' +
+      ratings.map(r => `<option value="${r.id}">${r.rating_name}</option>`).join('');
+    styleSel.innerHTML = '<option value="">- None -</option>' +
+      styles.map(s => `<option value="${s.id}">${s.style_name}</option>`).join('');
+  } catch {
+    ratingSel.innerHTML = '<option value="">Failed to load</option>';
+    styleSel.innerHTML  = '<option value="">Failed to load</option>';
+  }
+}
+
+/* ── EAV lookup ─────────────────────────────────────────── */
+/**
+ * Fetch the full EAV (Entity-Attribute-Value) spec data for the selected
+ * Standard + Cover Grade + Belt Rating combination.
+ * Populates the "Computed Values" chip strip (plies, carcass thickness, skim),
+ * auto-selects the best matching fabric style, and triggers recalcTotal().
+ *
+ * This is the main "intelligence" step of the form - after this call,
+ * the form knows the rubber and carcass properties needed for all calculations.
+ */
+async function runLookup() {
+  const standardId   = val('standard-id');
+  const coverGradeId = val('cover-grade-id');
+  const beltRatingId = val('belt-rating-id');
+  if (!standardId || !coverGradeId || !beltRatingId) return;
+
+  try {
+    lookupData = await tdsLookup({
+      standard_id:    +standardId,
+      cover_grade_id: +coverGradeId,
+      belt_rating_id: +beltRatingId,
+    });
+
+    const plies   = lookupData.belt_rating?.num_plies            ?? '-';
+    const carcass = lookupData.belt_rating?.carcass_thickness_mm ?? '-';
+    const skim    = lookupData.belt_rating?.interply_skim_mm     ?? '-';
+
+    setText('cv-plies',   plies);
+    setText('cv-carcass', carcass ?? '-');
+    setText('cv-skim',    skim    ?? '-');
+
+    // Also populate the form fields
+    set('cv-plies-field', plies !== '-' ? plies : '');
+    set('cv-skim-field',  skim  !== '-' ? skim  : '');
+
+    if (!document.getElementById('carcass-override-toggle').checked) {
+      set('carcass-thickness-mm', carcass ?? '');
+    }
+
+    // Auto-select fabric style — the SERVER already computed the correct
+    // style (apps.services.calculations.auto_select_fabric_style, same
+    // function batch import and create_tds use) and returned it as
+    // lookupData.fabric_style. This used to be re-derived here by scanning
+    // the dropdown's visible text and stripping every non-digit character
+    // (`opt.textContent.replace(/[^0-9.]/g, '')`), which silently produces a
+    // wrong number for any style name containing a second number (e.g.
+    // "EP 200/3" would collapse to "2003"). Trusting the server's answer
+    // removes that whole class of bug, and guarantees the option pre-selected
+    // here is the exact same one create_tds will save.
+    autoSelectFabricStyle();
+
+    recalcTotal();
+    document.getElementById('lookup-result').style.display = 'block';
+    updateBeltDescription();
+  } catch (err) {
+    showToast('Lookup failed: ' + err.message, 'error');
+  }
+}
+
+/**
+ * Select the fabric style option that matches the server's authoritative
+ * choice (lookupData.fabric_style, computed by auto_select_fabric_style() in
+ * apps/services/calculations.py from the belt rating's kN/plies). If the
+ * server didn't return a match (e.g. no style is strong enough for this
+ * rating), the dropdown is left on "- None -".
+ */
+function autoSelectFabricStyle() {
+  const styleSel = document.getElementById('fabric-style-id');
+  const styleId  = lookupData?.fabric_style?.id;
+  if (!styleSel || !styleId) return;
+  styleSel.value = String(styleId);
+  _searchableSyncs['fabric-style-id']?.();
+}
+
+/* ══════════════════════════════════════════════════════════
+   BELT DESCRIPTION - auto-assembled from spec fields
+══════════════════════════════════════════════════════════ */
+/**
+ * Auto-assemble the belt description string from the current form values.
+ * Format: {width} × {fabric} × {rating} × {top} × {bottom} × {grade} × {edge} × {construction} {belt type}
+ * Example: "600 × EP × EP 1000/5 × 5 × 2 × H × Cut Edge × Open End Flat Belt"
+ *
+ * Requires at minimum: width, belt rating, top cover, and bottom cover.
+ * Clears the description field if any required field is missing.
+ * Called on every relevant field change so the field stays up to date.
+ */
+function updateBeltDescription() {
+  const w  = val('belt-width-mm')     || '';
+  const ft = selectedText('fabric-type-id');   // 'EP', 'NN', 'EE'
+  const br = selectedText('belt-rating-id');   // 'EP 1000/5'
+  const tc = val('top-cover-mm')      || '';
+  const bc = val('bottom-cover-mm')   || '';
+  const cg = selectedText('cover-grade-id');   // 'H', 'M', etc.
+  const ec = val('edge-construction') || '';
+  const ct = val('construction-type') || 'Open-End';  // 'Open-End' or 'Endless'
+  const bt = selectedText('belt-type-id');             // 'Flat Belt'
+
+  // Require at minimum: width, rating, top/bottom cover
+  if (!w || !br || br === '- Select Belt Rating -' || br === 'Select fabric first' || !tc || !bc) {
+    set('belt-description', '');
+    return;
+  }
+
+  const ft_clean = (ft === '- Select Fabric Type -' || !ft) ? '' : ft;
+  const cg_clean = (cg === 'Select standard first' || cg === '- Select Cover Grade -' || !cg) ? '' : cg;
+  const ec_clean = ec || '';
+
+  // 'Open-End' → 'Open End', 'Endless' → 'Endless'
+  const ctLabel = ct.replace(/-/g, ' ').trim();
+  const btLabel = (bt && bt !== '- Select Belt Type -') ? bt : 'Flat Belt';
+  const beltTypeStr = `${ctLabel} ${btLabel}`;
+
+  // Format: Width × Fabric × Rating × TopCover × BotCover × Grade × Edge × Construction BeltType [× BOT - N X BOB - M]
+  const parts = [
+    w,
+    ft_clean,
+    br,
+    tc,
+    bc,
+    cg_clean,
+    ec_clean,
+    beltTypeStr,
+  ].filter(Boolean);
+
+  // Append breaker info: "BOT - N X BOB - M" (only include sides that are active)
+  const botActive = document.getElementById('breaker-top')?.checked;
+  const bobActive = document.getElementById('breaker-bottom')?.checked;
+  if (botActive || bobActive) {
+    const breakerParts = [];
+    if (botActive) {
+      const plies = +val('breaker-top-plies') || 1;
+      breakerParts.push(`BOT - ${plies}`);
+    }
+    if (bobActive) {
+      const plies = +val('breaker-bottom-plies') || 1;
+      breakerParts.push(`BOB - ${plies}`);
+    }
+    parts.push(breakerParts.join(' X '));
+  }
+
+  set('belt-description', parts.join(' × '));
+}
+
+/* ══════════════════════════════════════════════════════════
+   WEIGHT CALCULATIONS
+══════════════════════════════════════════════════════════ */
+/* ── International logistics helpers ─────────────────────────────────── */
+/**
+ * Check whether the currently selected Purpose is "International".
+ * Used to show/hide the shipping region + container type row and
+ * to apply container dimension constraints during packing calculation.
+ *
+ * @returns {boolean} true if the selected purpose text contains "international"
+ */
+function _isInternational() {
+  // purpose option text contains 'International'
+  const sel = document.getElementById('purpose-id');
+  if (!sel) return false;
+  const opt = sel.options[sel.selectedIndex];
+  return opt && opt.text.toLowerCase().includes('international');
+}
+
+/**
+ * Live shipping-constraint cache. Container height/width/weight limits used
+ * to be hardcoded here in CONTAINER_TYPES / REGION_WEIGHT_LIMITS, duplicating
+ * the container_types / region_container_weight_limits tables — if an admin
+ * ever changed a limit in the database, this file would silently keep using
+ * the old number. Now every value comes from GET /api/shipping-constraints
+ * (backed by the same apps.services.calculations.get_container_constraints()
+ * the backend itself would use), fetched whenever the region or container
+ * type changes, and cached here only for the exact (containerTypeId, region)
+ * pair that was actually fetched.
+ */
+let _shippingConstraintsCache = { key: null, data: null };
+
+/**
+ * Synchronous read of the cache — returns the fetched constraints ONLY if
+ * they match the currently selected container type + region, else null.
+ * Never guesses or falls back to a hardcoded number.
+ *
+ * @returns {{ max_height_m: number, max_width_m: number, max_gross_weight_kg: number } | null}
+ */
+function _getCachedShippingConstraints() {
+  const ctId   = parseInt(val('container-type-id'), 10) || 0;
+  const region = val('shipping-region') || '';
+  if (!ctId || !region) return null;
+  const key = `${ctId}|${region}`;
+  return _shippingConstraintsCache.key === key ? _shippingConstraintsCache.data : null;
+}
+
+/**
+ * Fetch the live shipping constraints for the currently selected container
+ * type + region from the backend, cache them, then refresh the constraint-info
+ * chip and re-run the packing calculation so the international weight/width
+ * warnings reflect the real (never hardcoded) limits.
+ * Called whenever the region or container-type dropdown changes.
+ */
+async function _refreshShippingConstraints() {
+  const ctId   = parseInt(val('container-type-id'), 10) || 0;
+  const region = val('shipping-region') || '';
+  const info = document.getElementById('intl-constraint-info');
+  if (!ctId || !region) {
+    _shippingConstraintsCache = { key: null, data: null };
+    if (info) info.textContent = 'Select region & container to see limits';
+    recalcPacking();
+    return;
+  }
+  const key = `${ctId}|${region}`;
+  if (info) info.textContent = 'Loading limits…';
+  try {
+    const c = await getShippingConstraints(ctId, region);
+    _shippingConstraintsCache = { key, data: c };
+    if (info) {
+      info.textContent =
+        `Max height: ${c.max_height_m} m | Max width: ${c.max_width_m} m | Max gross: ${c.max_gross_weight_kg} kg`;
+    }
+  } catch (err) {
+    _shippingConstraintsCache = { key: null, data: null };
+    if (info) info.textContent = 'Could not load container limits for this region.';
+  }
+  recalcPacking();
+}
+
+/**
+ * Show or hide the international logistics fields (shipping region, container type)
+ * based on the current purpose selection. Clears those fields when switching to Domestic
+ * so stale international data doesn't accidentally get submitted.
+ */
+function _toggleIntlRow() {
+  const row = document.getElementById('intl-logistics-row');
+  if (!row) return;
+  const intl = _isInternational();
+  row.style.display = intl ? '' : 'none';
+  if (!intl) {
+    // Clear international fields when switching back to domestic
+    set('shipping-region', '');
+    set('container-type-id', '');
+    document.getElementById('intl-weight-warning').style.display = 'none';
+    _shippingConstraintsCache = { key: null, data: null };
+  }
+  recalcPacking();
+}
+
+/**
+ * Enforce a maximum belt length of 100 m when the construction type is "Endless".
+ * Endless belts are loops - they must fit inside the container during shipping,
+ * so very long lengths are physically impossible. Shows a note to the user and
+ * clamps the value down if they've already entered something too large.
+ */
+function _enforceEndlessMax() {
+  const input  = document.getElementById('belt-length-m');
+  const note   = document.getElementById('belt-length-note');
+  const isEndless = (val('construction-type') || '').toLowerCase() === 'endless';
+  if (isEndless) {
+    input.max = 100;
+    const v = parseFloat(input.value) || 0;
+    if (note) note.style.display = 'inline';
+    if (v > 100) {
+      input.value = 100;
+      recalcWeight();
+      recalcPacking();
+      updateBeltDescription();
+    }
+  } else {
+    input.max = 2000;
+    if (note) note.style.display = 'none';
+  }
+}
+
+/**
+ * Recompute total belt thickness = top cover + bottom cover + carcass thickness.
+ * Updates the read-only #total-thickness-mm field, then cascades into
+ * recalcWeight() (weight per metre) and updateBeltDescription().
+ */
+function recalcTotal() {
+  const top     = parseFloat(val('top-cover-mm'))         || 0;
+  const bottom  = parseFloat(val('bottom-cover-mm'))      || 0;
+  const carcass = parseFloat(val('carcass-thickness-mm')) || 0;
+  const total   = top + bottom + carcass;
+  set('total-thickness-mm', total > 0 ? total.toFixed(1) : '');
+  recalcWeight();
+  updateBeltDescription();
+}
+
+/**
+ * Compute belt weight per metre (net and gross) using specific gravity from the cover grade.
+ * Formulas (from IS 1891 / standard references):
+ *   Net weight/m  (kg/m) = SG × thickness_mm × (width_mm / 1000)
+ *   Gross weight/m (kg/m) = SG × (thickness_mm + 0.5) × (width_mm / 1000)
+ * The +0.5 mm on gross accounts for packaging wrapping material.
+ * Updates all weight chips across the form and cascades into recalcPacking().
+ * Does nothing if any of width, thickness, or specific gravity is missing.
+ */
+function recalcWeight() {
+  const width  = parseFloat(val('belt-width-mm'))      || 0;
+  const length = parseFloat(val('belt-length-m'))      || 0;
+  const total  = parseFloat(val('total-thickness-mm')) || 0;
+  const sg     = lookupData?.cover_grade?.specific_gravity || 0;
+
+  const panel  = document.getElementById('weight-calc-panel');
+  const lookup = document.getElementById('lookup-result');
+
+  if (!width || !total || !sg) {
+    if (panel)  panel.style.display  = 'none';
+    return;
+  }
+
+  const netPm   = sg * total         * (width / 1000);
+  const grossPm = sg * (total + 0.5) * (width / 1000);
+
+  const netPmD   = roundUpHalf(netPm).toFixed(2);
+  const grossPmD = roundUpHalf(grossPm).toFixed(2);
+  const netTotD   = length ? roundUpHalf(netPm   * length).toFixed(2) : '-';
+  const grossTotD = length ? roundUpHalf(grossPm * length).toFixed(2) : '-';
+
+  // Update lookup chip strip
+  setText('cv-weight-pm',    netPmD);
+  setText('cv-gross-pm',     grossPmD);
+  setText('cv-total-weight', netTotD);
+  setText('cv-total-gross',  grossTotD);
+  if (lookup) lookup.style.display = 'block';
+
+  const formula = `Net: ${sg} × ${total} × ${(width/1000).toFixed(3)} = ${netPmD} kg/m`
+                + `  |  Gross: ${sg} × ${(total+0.5)} × ${(width/1000).toFixed(3)} = ${grossPmD} kg/m`;
+  setText('cv-weight-formula', formula);
+
+  // Update weight chips in belt config section
+  setText('cv-weight-pm-2',    netPmD);
+  setText('cv-gross-pm-2',     grossPmD);
+  setText('cv-total-weight-2', netTotD);
+  setText('cv-total-gross-2',  grossTotD);
+  if (panel) panel.style.display = 'block';
+
+  recalcPacking();
+}
+
+/* ══════════════════════════════════════════════════════════
+   REEL DIAMETER
+══════════════════════════════════════════════════════════ */
+/**
+ * Round up to the nearest 0.5 (e.g. 1.2 → 1.5, 1.21 → 1.5, 1.7 → 2.0).
+ * Apply to all physical display values (lengths, diameters, weights).
+ */
+function roundUpHalf(v) {
+  return Math.ceil(v * 2) / 2;
+}
+
+/**
+ * Compute the outer reel diameter D (metres) for a wound belt roll.
+ * Three formula variants depending on reel geometry:
+ *
+ *   circular  (default): D = sqrt(4/π × d_m × L + k²)
+ *   twin      (two drums): D = sqrt(4/π × d_m × L/2 + k²)   [belt splits across two drums]
+ *   elliptical:           D = sqrt(4/π × d_m × L + term²) − 2l/π   where term = k + 2l/π
+ *
+ * Variables:
+ *   d_m = belt cross-section area equivalent thickness in metres = thickness_mm / 1000
+ *   L   = belt length in metres
+ *   k   = reel core diameter in metres (from reel_types.core_diameter_m)
+ *   l   = center-to-center distance in metres (elliptical only, from reel_types.center_to_center_m)
+ *
+ * @param {string} formulaKey  - 'circular', 'twin', or 'elliptical'
+ * @param {number} d_m         - Effective belt thickness in metres (gross, incl. packaging allowance)
+ * @param {number} beltLengthM - Total belt length in metres
+ * @param {number} k           - Reel core diameter in metres
+ * @param {number} l           - Center-to-center distance in metres (elliptical reels only)
+ * @returns {number} Outer reel diameter D in metres
+ */
+function computeReelDiam(formulaKey, d_m, beltLengthM, k, l) {
+  if (formulaKey === 'twin') {
+    return Math.sqrt((4 / Math.PI) * d_m * (beltLengthM / 2) + k * k);
+  } else if (formulaKey === 'elliptical') {
+    const term = k + (2 * l / Math.PI);
+    return Math.sqrt((4 / Math.PI) * d_m * beltLengthM + term * term) - (2 * l / Math.PI);
+  }
+  return Math.sqrt((4 / Math.PI) * d_m * beltLengthM + k * k); // circular
+}
+
+/* ══════════════════════════════════════════════════════════
+   PACKING PREVIEW
+══════════════════════════════════════════════════════════ */
+/**
+ * Compute and display live packing estimates in the "Packing Preview" panel.
+ * Mirrors the exact logic in backend/services/packing_service.py.
+ *
+ * Flow:
+ *  1. Compute reel diameter D using computeReelDiam().
+ *  2. If D > max allowed diameter (reel max OR container height for international):
+ *       Back-calculate max length per roll → ceil to get num_rolls.
+ *       Twin reels are always kept as multiples of 2.
+ *  3. Compute net and gross weight for the full order.
+ *  4. Show/hide warnings if container weight or width limits are exceeded.
+ *  5. Pre-fill the packing form fields so the user doesn't have to enter them manually.
+ *
+ * Does nothing if reel type, thickness, belt length, or belt width is missing.
+ */
+function recalcPacking() {
+  const panel      = document.getElementById('packing-calc-panel');
+  const reelId     = val('reel-type-id');
+  const totalThick = parseFloat(val('total-thickness-mm')) || 0;
+  const beltLength = parseFloat(val('belt-length-m'))      || 0;
+  const beltWidth  = parseInt(val('belt-width-mm'), 10)    || 0;
+  const sg         = lookupData?.cover_grade?.specific_gravity || 0;
+
+  if (!reelId || !totalThick || !beltLength || !beltWidth) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+
+  const reel = allReelTypes.find(r => String(r.id) === reelId);
+  if (!reel) { if (panel) panel.style.display = 'none'; return; }
+
+  const k    = parseFloat(reel.core_diameter_m);
+  const l    = reel.center_to_center_m ? parseFloat(reel.center_to_center_m) : 1.32;
+  const base = parseInt(reel.num_rolls_base, 10);
+  const d_m  = totalThick / 1000;   // per Formulae.md - +0.5 is gross weight only
+
+  // International: cap reel diameter by container height; domestic: use reel's own max
+  // (constraints come from the live /api/shipping-constraints fetch, cached in
+  // _shippingConstraintsCache by _refreshShippingConstraints() — never hardcoded)
+  const intlConstraints = _isInternational() ? _getCachedShippingConstraints() : null;
+  const reelMaxD = parseFloat(reel.max_roll_diameter_m) || Infinity;
+  const maxD = intlConstraints
+    ? Math.min(reelMaxD, intlConstraints.max_height_m)
+    : reelMaxD;
+  // International: reel width must fit container width
+  const reelWidthM = (beltWidth + 100) / 1000;
+  const maxWidthM  = intlConstraints ? intlConstraints.max_width_m : Infinity;
+  const widthOk    = reelWidthM <= maxWidthM;
+
+  let D = computeReelDiam(reel.formula_key, d_m, beltLength, k, l);
+  let numRolls, lenPerRoll;
+
+  if (D > maxD) {
+    if (reel.formula_key === 'twin') {
+      const lPerSingle = (maxD * maxD - k * k) * Math.PI / (4 * d_m);
+      const numPairs   = Math.ceil(beltLength / (2 * lPerSingle));
+      numRolls   = numPairs * 2;
+      lenPerRoll = beltLength / numRolls;
+    } else if (reel.formula_key === 'elliptical') {
+      const offset   = 2 * l / Math.PI;
+      const innerD   = maxD + offset;
+      const innerK   = k   + offset;
+      const lPerRoll0 = (innerD * innerD - innerK * innerK) * Math.PI / (4 * d_m);
+      numRolls   = Math.ceil(beltLength / lPerRoll0);
+      lenPerRoll = beltLength / numRolls;
+    } else {
+      const lPerRoll0 = (maxD * maxD - k * k) * Math.PI / (4 * d_m);
+      numRolls   = Math.ceil(beltLength / lPerRoll0);
+      lenPerRoll = beltLength / numRolls;
+    }
+    D = maxD;
+  } else {
+    numRolls   = base;
+    lenPerRoll = beltLength / base;
+  }
+
+  const rollH = roundUpHalf(D).toFixed(2);
+  const rollW = roundUpHalf(reelWidthM).toFixed(2);
+
+  const netPm   = sg > 0 ? sg * totalThick         * (beltWidth / 1000) : 0;
+  const grossPm = sg > 0 ? sg * (totalThick + 0.5) * (beltWidth / 1000) : 0;
+  const netWt   = netPm   > 0 ? roundUpHalf(netPm   * beltLength).toFixed(2) : null;
+  const grossWt = grossPm > 0 ? roundUpHalf(grossPm * beltLength).toFixed(2) : null;
+
+  setText('pc-d',     rollH);
+  setText('pc-rolls', numRolls);
+  setText('pc-lpr',   roundUpHalf(lenPerRoll).toFixed(2));
+  setText('pc-dims',  `H: ${rollH} m × W: ${rollW} m`);
+  setText('pc-net',   netWt   ?? '-');
+  setText('pc-gross', grossWt ?? '-');
+
+  // Populate the auto fields in packing row
+  set('num-rolls',        String(numRolls));
+  set('roll-dimensions',  `H: ${rollH} m × W: ${rollW} m`);
+  set('length-per-roll',  roundUpHalf(lenPerRoll).toFixed(2));
+  set('net-weight-kg',    netWt   ?? '');
+  set('gross-weight-kg',  grossWt ?? '');
+
+  // Auto-sync number of splice joints = number of rolls (each roll end needs a joint)
+  if (document.getElementById('splicing-required')?.checked) {
+    set('num-joints', String(numRolls));
+    recalcSplicing();
+  }
+
+  if (panel) panel.style.display = 'block';
+
+  // International: gross weight warning + width warning
+  const weightWarning = document.getElementById('intl-weight-warning');
+  if (intlConstraints && weightWarning) {
+    const grossKg    = grossWt ? parseFloat(grossWt) : 0;
+    const overWeight = grossKg > intlConstraints.max_gross_weight_kg;
+    const overWidth  = !widthOk;
+    if (overWeight || overWidth) {
+      const msgs = [];
+      if (overWeight) msgs.push(`Gross weight ${grossKg.toFixed(0)} kg exceeds container limit of ${intlConstraints.max_gross_weight_kg} kg`);
+      if (overWidth)  msgs.push(`Reel width ${rollW} m exceeds container width limit of ${maxWidthM} m`);
+      weightWarning.innerHTML = '⚠ ' + msgs.join(' | ');
+      weightWarning.style.display = 'block';
+    } else {
+      weightWarning.style.display = 'none';
+    }
+  } else if (weightWarning) {
+    weightWarning.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SPLICING CALCULATION
+══════════════════════════════════════════════════════════ */
+// Step lookup table per IS 14206 Part I : 1995.
+// Each entry is [max_rating_per_ply_kN_m, step_length_mm].
+// To find the step: pick the first row where rating_per_ply ≤ max_rating_per_ply.
+const SPLICE_STEP_TABLE = [
+  [100,150],[125,200],[160,200],[200,250],[250,300],
+  [300,350],[315,350],[350,400],[400,400],
+];
+
+/**
+ * Look up the splice step length (mm) for a given rating per ply.
+ * Scans SPLICE_STEP_TABLE and returns the step for the first threshold that
+ * is >= ratingPerPly. Falls back to 400 mm if ratingPerPly exceeds all thresholds.
+ *
+ * @param {number} ratingPerPly - kN/m per ply (e.g. 200 for EP 800/4)
+ * @returns {number} Step length in mm (e.g. 250)
+ */
+function getSpliceStep(ratingPerPly) {
+  for (const [thresh, step] of SPLICE_STEP_TABLE) {
+    if (ratingPerPly <= thresh) return step;
+  }
+  return 400;
+}
+
+/**
+ * Compute and display splicing parameters in the Splicing section.
+ * Formula per IS 14206 Part I : 1995:
+ *   ratingPerPly = beltRating_kN_m ÷ numPlies
+ *   stepLength   = getSpliceStep(ratingPerPly)
+ *   spliceLength = round(0.3 × width_mm + stepLength × (plies − 1) + buffer)
+ *   totalExtra_m = numJoints × spliceLength ÷ 1000
+ * Buffer = 50 mm (hot vulcanisation) | 75 mm (cold vulcanisation).
+ * Does nothing if the "Splicing Required" checkbox is unchecked,
+ * or if any required input (plies, belt rating, width) is missing.
+ */
+function recalcSplicing() {
+  if (!document.getElementById('splicing-required').checked) return;
+
+  const numJoints  = parseInt(val('num-joints'), 10) || 0;
+  const vulMethod  = (val('vulcanization-method') || 'Hot').toLowerCase();
+  const beltWidth  = parseInt(val('belt-width-mm'), 10) || 0;
+  const numPlies   = lookupData?.belt_rating?.num_plies || 0;
+
+  // Use the kN/m value the SERVER already parsed from rating_name
+  // (apps.services.calculations.parse_belt_rating, returned as rating_kn_m by
+  // POST /api/tds/lookup) instead of re-parsing the display text here with a
+  // separate regex — this used to be its own `ratingName.match(/(\d+)\//)`,
+  // which could disagree with the backend's parser on an edge-case rating_name.
+  const beltKn = lookupData?.belt_rating?.rating_kn_m || 0;
+
+  if (!numPlies || !beltKn || !beltWidth) {
+    set('sp-step-len-field',       '');
+    set('sp-total-splice-field',   '');
+    return;
+  }
+
+  const ratingPerPly = parseFloat((beltKn / numPlies).toFixed(2));
+  const stepLen      = getSpliceStep(ratingPerPly);
+  const buffer       = vulMethod === 'cold' ? 75 : 50;
+  // Plain nearest-integer rounding here, matching the backend EXACTLY
+  // (apps.services.calculations.splice_length_mm uses Python's round(), not
+  // "round up to the nearest 0.5" — that half-unit helper belongs to weight/
+  // packing figures, not splice length. Using it here used to make this
+  // preview disagree with what's actually saved and printed on the PDF,
+  // sometimes by a lot once total_extra_length_m compounds it - e.g. a real
+  // 4.656 m would preview as a rounded-up 5.0 m).
+  const spliceLen    = Math.round(0.3 * beltWidth + stepLen * (numPlies - 1) + buffer);
+  const totalExtra   = numJoints > 0
+    ? Math.round(numJoints * spliceLen / 1000 * 1000) / 1000  // matches backend's round(x, 3)
+    : null;
+
+  // Populate the visible form fields
+  set('sp-step-len-field',     stepLen.toFixed(2));
+  set('sp-total-splice-field', totalExtra !== null ? totalExtra.toFixed(2) : '');
+
+  // Also keep hidden span elements populated for JS compatibility
+  setText('sp-rating-ply', ratingPerPly.toFixed(2));
+  setText('sp-step-len',   stepLen.toFixed(2));
+  setText('sp-splice-len', spliceLen.toFixed(2));
+  setText('sp-total-extra', totalExtra !== null ? totalExtra.toFixed(2) : '-');
+}
+
+/* ══════════════════════════════════════════════════════════
+   CUSTOMER AUTOCOMPLETE
+══════════════════════════════════════════════════════════ */
+/**
+ * Set up the customer name autocomplete behaviour.
+ * As the user types, filters the locally-cached allCustomers list and shows
+ * matching options in a dropdown list. Also provides an "Add new customer" option.
+ *
+ * When an existing customer is selected: fills in their contact/application/location.
+ * When "Add new customer" is chosen: reveals the new-customer mini-form.
+ * Clicking anywhere outside the autocomplete wrapper closes the dropdown.
+ */
+function wireCustomerAutocomplete() {
+  const inp     = document.getElementById('customer-search');
+  const list    = document.getElementById('customer-list');
+  const hidId   = document.getElementById('customer-id');
+  const newForm = document.getElementById('new-customer-form');
+
+  // Body-portal: move list to <body> so it escapes .section-card { overflow:hidden }
+  document.body.appendChild(list);
+  list.style.cssText = [
+    'position:fixed',
+    'z-index:9999',
+    'display:none',
+    'max-height:220px',
+    'overflow-y:auto',
+    'background:var(--bg-card)',
+    'border:1px solid #F5A623',
+    'border-top:none',
+    'box-shadow:var(--shadow)',
+    'font-size:12.5px',
+  ].join(';');
+
+  function positionList() {
+    const r = inp.getBoundingClientRect();
+    list.style.left  = r.left  + 'px';
+    list.style.top   = r.bottom + 'px';
+    list.style.width = r.width  + 'px';
+  }
+  function openList()  { positionList(); list.style.display = 'block'; }
+  function closeList() { list.style.display = 'none'; }
+
+  inp.addEventListener('input', () => {
+    const q = inp.value.toLowerCase().trim();
+    hidId.value = '';
+    clearCustomerDetailFields();
+    if (!q) { closeList(); return; }
+    const matches = allCustomers
+      .filter(c =>
+        c.customer_name.toLowerCase().includes(q) ||
+        (c.plant_location || '').toLowerCase().includes(q)
+      )
+      .sort((a, b) => {
+        const an = a.customer_name.toLowerCase();
+        const bn = b.customer_name.toLowerCase();
+        // Names that START with the query rank higher than ones that merely contain it
+        const aS = an.startsWith(q);
+        const bS = bn.startsWith(q);
+        if (aS !== bS) return aS ? -1 : 1;
+        return an.localeCompare(bn);
+      })
+      .slice(0, 10);
+    list.innerHTML = matches.map(c => `
+      <div class="autocomplete-item"
+           data-id="${c.customer_id}" data-name="${c.customer_name}"
+           data-contact="${c.contact_person || ''}" data-application="${c.application || ''}"
+           data-location="${c.plant_location || ''}">
+        ${c.customer_name}
+        <small>${[c.application, c.plant_location].filter(Boolean).join(' · ') || ''}</small>
+      </div>`).join('') +
+      `<div class="autocomplete-item new-customer" data-new="1">
+         ➕ Add new customer: "<strong>${inp.value}</strong>"
+       </div>`;
+    openList();
+  });
+
+  list.addEventListener('click', (e) => {
+    const item = e.target.closest('.autocomplete-item');
+    if (!item) return;
+    closeList();
+    if (item.dataset.new) {
+      hidId.value = '';
+      document.getElementById('nc-name').value = inp.value;
+      newForm.classList.add('open');
+      inp.value = inp.value + ' (new)';
+      clearCustomerDetailFields();
+    } else {
+      hidId.value = item.dataset.id;
+      inp.value   = item.dataset.name;
+      newForm.classList.remove('open');
+      set('cust-contact',     item.dataset.contact);
+      set('cust-application', item.dataset.application);
+      set('cust-location',    item.dataset.location);
+    }
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (!inp.contains(e.target) && !list.contains(e.target)) closeList();
+  });
+
+  window.addEventListener('scroll', () => {
+    if (list.style.display !== 'none') closeList();
+  }, true);
+}
+
+/**
+ * Wrap a native <select> with a live-search text input + filtered dropdown.
+ *
+ * The dropdown list is appended to <body> and positioned with
+ * getBoundingClientRect() so it is NEVER clipped by overflow:hidden on any
+ * ancestor element (e.g. .section-card).
+ *
+ * The native <select> stays hidden so that:
+ *   - val(id) / selectedText(id) / all existing .addEventListener('change')
+ *     calls continue to work without any changes elsewhere.
+ *   - Form validation, captureBeltSpec(), submitTDS() are unaffected.
+ *
+ * @param {string} selectId - HTML id of the <select> to wrap
+ */
+function makeSearchable(selectId) {
+  const nativeSel = document.getElementById(selectId);
+  if (!nativeSel || nativeSel.tagName !== 'SELECT') return;
+
+  // ── Build wrapper (holds only the input; list goes on body) ──────────
+  const wrap = document.createElement('div');
+  wrap.className = 'ss-wrap';
+  nativeSel.parentNode.insertBefore(wrap, nativeSel);
+  wrap.appendChild(nativeSel);
+  nativeSel.style.display = 'none';
+
+  // ── Visible search input ──────────────────────────────────────────────
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'finp ss-input';
+  inp.autocomplete = 'off';
+  inp.spellcheck = false;
+  const phOpt = nativeSel.options[0];
+  if (phOpt && !phOpt.value) inp.placeholder = phOpt.text;
+  wrap.appendChild(inp);
+
+  // ── Dropdown list - appended to <body> to escape overflow:hidden ──────
+  const lst = document.createElement('div');
+  lst.className = 'autocomplete-list ss-list';
+  // Override the stylesheet's position:absolute with fixed so we can place
+  // it anywhere in the viewport regardless of scroll position.
+  lst.style.cssText = 'position:fixed;z-index:9999;display:none;max-height:220px;overflow-y:auto;';
+  document.body.appendChild(lst);
+
+  let isOpen = false;
+
+  // ── Position the list under the input ────────────────────────────────
+  function positionList() {
+    const r = inp.getBoundingClientRect();
+    lst.style.left  = r.left + 'px';
+    lst.style.top   = r.bottom + 'px';
+    lst.style.width = r.width + 'px';
+  }
+
+  function openList()  { isOpen = true;  positionList(); lst.style.display = 'block'; }
+  function closeList() { isOpen = false; lst.style.display = 'none'; }
+
+  // ── Helpers ───────────────────────────────────────────────────────────
+  const currentLabel = () => {
+    const opt = nativeSel.options[nativeSel.selectedIndex];
+    return (opt && opt.value) ? opt.text : '';
+  };
+
+  const syncDisplay = () => { inp.value = currentLabel(); };
+
+  const getOpts = () => Array.from(nativeSel.options).filter(o => o.value !== '');
+
+  function renderList(query) {
+    const q = (query || '').toLowerCase().trim();
+    let opts = getOpts();
+
+    if (q) {
+      opts = opts
+        .filter(o => o.text.toLowerCase().includes(q))
+        .sort((a, b) => {
+          const aS = a.text.toLowerCase().startsWith(q);
+          const bS = b.text.toLowerCase().startsWith(q);
+          if (aS !== bS) return aS ? -1 : 1;
+          return a.text.localeCompare(b.text);
+        });
+    }
+
+    lst.innerHTML = opts.length
+      ? opts.slice(0, 60).map(o => {
+          const active = String(o.value) === String(nativeSel.value) ? ' ss-active' : '';
+          return `<div class="autocomplete-item${active}" data-value="${o.value}" tabindex="-1">${o.text}</div>`;
+        }).join('')
+      : '<div class="autocomplete-item" style="color:var(--text-muted);cursor:default;">No matches</div>';
+
+    openList();
+  }
+
+  function pickValue(value, label) {
+    nativeSel.value = value;
+    inp.value = label;
+    closeList();
+    nativeSel.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // ── Input events ──────────────────────────────────────────────────────
+  inp.addEventListener('focus', () => renderList(''));
+
+  inp.addEventListener('input', () => renderList(inp.value));
+
+  inp.addEventListener('mousedown', (e) => {
+    if (isOpen) { e.preventDefault(); closeList(); syncDisplay(); }
+  });
+
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape')    { e.preventDefault(); closeList(); syncDisplay(); inp.blur(); return; }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isOpen) renderList('');
+      lst.querySelector('[data-value]')?.focus();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = lst.querySelector('[data-value]');
+      if (first) pickValue(first.dataset.value, first.textContent.trim());
+    }
+  });
+
+  // ── List events ───────────────────────────────────────────────────────
+  lst.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-value]');
+    if (item) pickValue(item.dataset.value, item.textContent.trim());
+  });
+
+  lst.addEventListener('keydown', (e) => {
+    const cur = document.activeElement;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (cur?.dataset?.value != null) pickValue(cur.dataset.value, cur.textContent.trim());
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = cur.nextElementSibling;
+      if (next?.dataset?.value != null) next.focus();
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = cur.previousElementSibling;
+      if (prev?.dataset?.value != null) prev.focus(); else inp.focus();
+      return;
+    }
+    if (e.key === 'Escape') { e.preventDefault(); closeList(); syncDisplay(); inp.focus(); }
+  });
+
+  // ── Close on outside click (mousedown so it fires before blur) ────────
+  document.addEventListener('mousedown', (e) => {
+    if (!wrap.contains(e.target) && !lst.contains(e.target)) {
+      closeList(); syncDisplay();
+    }
+  });
+
+  // ── Close on scroll so fixed position doesn't drift from its input ────
+  window.addEventListener('scroll', () => { if (isOpen) { closeList(); syncDisplay(); } }, true);
+
+  // ── Watch for option changes (populateSelect, loadCoverGrades, etc.) ──
+  new MutationObserver(syncDisplay).observe(nativeSel, { childList: true });
+
+  // ── Register for programmatic sync via set() and autoSelect() ─────────
+  _searchableSyncs[selectId] = syncDisplay;
+
+  syncDisplay();
+}
+
+/**
+ * Clear the customer contact/application/location fields.
+ * Called when the customer search input is cleared or a new customer is being added.
+ */
+function clearCustomerDetailFields() {
+  set('cust-contact', ''); set('cust-application', ''); set('cust-location', '');
+}
+
+/* ══════════════════════════════════════════════════════════
+   DIMENSIONAL SPEC FETCH
+══════════════════════════════════════════════════════════ */
+/**
+ * Fetch the dimensional tolerance specifications for the current standard + dimensions.
+ * Results are stored in window._dimSpecs and used by the PDF preview step to display
+ * the correct spec tolerance string for each dimensional parameter (e.g. belt width ±2 mm).
+ * Called whenever the standard or belt width changes.
+ * Silently ignores errors - dimensional specs are informational and non-blocking.
+ */
+async function fetchDimensionalSpecs() {
+  const standardId  = val('standard-id');
+  const beltWidthMm = val('belt-width-mm');
+  if (!standardId || !beltWidthMm) return;
+
+  try {
+    const specs = await getDimensionalSpecs(+standardId, {
+      belt_width_mm:        +beltWidthMm,
+      top_cover_mm:         +val('top-cover-mm')          || undefined,
+      bottom_cover_mm:      +val('bottom-cover-mm')       || undefined,
+      carcass_thickness_mm: +val('carcass-thickness-mm')  || undefined,
+      total_thickness_mm:   +val('total-thickness-mm')    || undefined,
+    });
+    window._dimSpecs = specs;   // { "1": { parameter_name, spec_value }, ... }
+  } catch (e) {
+    console.warn('dimensional-specs fetch failed:', e);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   BREAKER HELPERS (called from inline onchange)
+══════════════════════════════════════════════════════════ */
+window._brkTop = (show) => {
+  document.getElementById('breaker-top-plies').style.display = show ? 'inline-block' : 'none';
+  document.getElementById('breaker-top').checked = show;
+  updateBeltDescription();
+};
+window._brkBot = (show) => {
+  document.getElementById('breaker-bottom-plies').style.display = show ? 'inline-block' : 'none';
+  document.getElementById('breaker-bottom').checked = show;
+  updateBeltDescription();
+};
+
+/* ══════════════════════════════════════════════════════════
+   WIRE EVENTS
+══════════════════════════════════════════════════════════ */
+/**
+ * Attach all event listeners on the TDS form.
+ * Called once during init() after dropdowns have loaded.
+ * Groups listeners by feature:
+ *   - Standard → reloads cover grades, resets lookup state
+ *   - Fabric type → reloads belt ratings & fabric styles
+ *   - Cover grade + belt rating → triggers EAV lookup
+ *   - Cover/carcass thickness → recalculates total thickness and weight
+ *   - Belt dimensions → recalculates packing and belt description
+ *   - Purpose → shows/hides international logistics row
+ *   - Splicing fields → recalculates splice lengths
+ *   - Submit/draft buttons → validateForm + submitTDS
+ */
+function wireEvents() {
+  wireCustomerAutocomplete();
+
+  // Brand → re-filter Standard dropdown to that brand's standards only, then
+  // reset everything downstream (standard, cover grade, lookup) since the
+  // previous selections no longer apply to the newly chosen brand.
+  document.getElementById('brand-id').addEventListener('change', (e) => {
+    populateStandardsForBrand(e.target.value);
+    document.getElementById('standard-id').dispatchEvent(new Event('change'));
+  });
+
+  // Standard → cover grades + re-fetch dimensional specs
+  document.getElementById('standard-id').addEventListener('change', (e) => {
+    loadCoverGrades(e.target.value);
+    resetLookupState();
+    fetchDimensionalSpecs();
+  });
+
+  // Fabric type → ratings + styles
+  document.getElementById('fabric-type-id').addEventListener('change', (e) => {
+    loadBeltRatings(e.target.value);
+    resetLookupState();
+  });
+
+  // Cover grade or belt rating → lookup
+  ['cover-grade-id', 'belt-rating-id'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', runLookup);
+  });
+
+  // Cover thickness → recalc + re-fetch dimensional specs
+  ['top-cover-mm', 'bottom-cover-mm'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      recalcTotal();
+      fetchDimensionalSpecs();
+    });
+  });
+
+  // Carcass override toggle
+  document.getElementById('carcass-override-toggle').addEventListener('change', (e) => {
+    const field = document.getElementById('carcass-thickness-mm');
+    const hint  = document.getElementById('carcass-hint');
+    if (e.target.checked) {
+      field.removeAttribute('readonly');
+      field.classList.remove('auto-field');
+      hint.textContent = 'Override active - enter manually';
+      hint.style.color = 'var(--gold-light)';
+    } else {
+      field.setAttribute('readonly', '');
+      field.classList.add('auto-field');
+      hint.textContent = 'Auto-filled · toggle to override';
+      hint.style.color = '';
+      const carcass = lookupData?.belt_rating?.carcass_thickness_mm;
+      if (carcass != null) { set('carcass-thickness-mm', carcass); recalcTotal(); }
+    }
+  });
+  document.getElementById('carcass-thickness-mm').addEventListener('input', () => {
+    recalcTotal();
+    fetchDimensionalSpecs();
+  });
+
+  // Belt width / length → weight + packing + belt desc + dimensional specs
+  document.getElementById('belt-width-mm').addEventListener('input', () => {
+    recalcWeight();
+    recalcPacking();
+    updateBeltDescription();
+    recalcSplicing();
+    fetchDimensionalSpecs();
+  });
+  document.getElementById('belt-length-m').addEventListener('input', () => {
+    recalcWeight();
+    recalcPacking();
+    updateBeltDescription();
+    recalcSplicing();
+    _enforceEndlessMax();
+  });
+
+  // Construction type toggle: endless caps belt length at 100 m
+  document.getElementById('construction-type').addEventListener('change', () => {
+    _enforceEndlessMax();
+  });
+
+  // Purpose → show/hide international logistics row
+  document.getElementById('purpose-id').addEventListener('change', _toggleIntlRow);
+
+  // Region / container → fetch live limits from the DB, then rerun packing
+  document.getElementById('shipping-region').addEventListener('change', _refreshShippingConstraints);
+  document.getElementById('container-type-id').addEventListener('change', _refreshShippingConstraints);
+
+  // Spec fields that affect belt description
+  ['cover-grade-id', 'fabric-type-id', 'belt-rating-id', 'edge-construction',
+   'construction-type', 'belt-type-id'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', updateBeltDescription);
+  });
+  // Breaker checkboxes and plies also affect belt description
+  ['breaker-top-plies', 'breaker-bottom-plies'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateBeltDescription);
+  });
+
+  // Reel type → live packing preview
+  document.getElementById('reel-type-id').addEventListener('change', recalcPacking);
+
+  // Splicing toggle
+  document.getElementById('splicing-required').addEventListener('change', (e) => {
+    const on  = e.target.checked;
+    document.getElementById('splicing-fields').style.display       = on ? 'block' : 'none';
+    document.getElementById('splice-toggle-text').textContent      = on ? 'Yes' : 'No';
+    document.getElementById('splice-toggle-text').style.color      = on
+      ? '#fff' : 'rgba(255,255,255,.65)';
+    if (on) {
+      // Pre-fill joints from current num-rolls (1 joint per roll end)
+      const rolls = val('num-rolls');
+      if (rolls) set('num-joints', rolls);
+      recalcSplicing();
+    }
+  });
+  document.getElementById('vulcanization-method').addEventListener('change', recalcSplicing);
+  document.getElementById('num-joints').addEventListener('input', recalcSplicing);
+
+  // Manual override toggle
+  document.getElementById('btn-toggle-override')?.addEventListener('click', togglePackingOverride);
+
+  // Override fields - real-time display update + splicing sync
+  document.getElementById('num-rolls-override')?.addEventListener('input', () => {
+    const v = +document.getElementById('num-rolls-override').value || null;
+    if (v !== null) {
+      document.getElementById('pc-rolls').textContent = v;
+      // Sync num-joints = num-rolls when splicing is on
+      if (document.getElementById('splicing-required')?.checked) {
+        set('num-joints', String(v));
+        recalcSplicing();
+      }
+    }
+  });
+  document.getElementById('length-per-roll')?.addEventListener('input', () => {
+    const v = parseFloat(document.getElementById('length-per-roll').value);
+    if (!isNaN(v)) document.getElementById('pc-lpr').textContent = v.toFixed(2);
+  });
+  document.getElementById('net-weight-kg-override')?.addEventListener('input', () => {
+    const v = parseFloat(document.getElementById('net-weight-kg-override').value);
+    if (!isNaN(v)) document.getElementById('pc-net').textContent = v.toFixed(2);
+  });
+  document.getElementById('gross-weight-kg-override')?.addEventListener('input', () => {
+    const v = parseFloat(document.getElementById('gross-weight-kg-override').value);
+    if (!isNaN(v)) document.getElementById('pc-gross').textContent = v.toFixed(2);
+  });
+
+  // Footer buttons
+  document.getElementById('btn-add-belt')?.addEventListener('click', addBeltToQueue);
+  document.getElementById('btn-save-draft').addEventListener('click', () => submitTDS('draft'));
+  document.getElementById('btn-preview-pdf').addEventListener('click', () => submitTDS('preview'));
+}
+
+/**
+ * Reset all EAV-dependent computed values and chip displays back to their initial state.
+ * Called when the user changes Standard or Fabric Type, invalidating any previous lookup result.
+ * Hides the weight/packing panels since they depend on the now-invalid lookupData.
+ */
+function resetLookupState() {
+  lookupData = null;
+  document.getElementById('lookup-result').style.display = 'none';
+  document.getElementById('grade-hint').textContent = '';
+  setText('cv-plies',   '-');
+  setText('cv-carcass', '-');
+  setText('cv-skim',    '-');
+  set('carcass-thickness-mm', '');
+  set('total-thickness-mm',   '');
+  set('cv-plies-field',  '');
+  set('cv-skim-field',   '');
+  set('belt-description', '');
+  const panels = ['weight-calc-panel', 'packing-calc-panel'];
+  panels.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   MULTI-BELT QUEUE
+══════════════════════════════════════════════════════════ */
+
+/**
+ * Capture all belt-specific form fields into a plain object for the queue.
+ * Shared customer/document fields (purpose, standard, customer, etc.) are
+ * NOT captured here - they are added at submit time as sharedFields.
+ */
+function captureBeltSpec() {
+  const numPlies   = parseInt(val('cv-plies-field'), 10) || 0;
+  const splicingOn = document.getElementById('splicing-required').checked;
+  return {
+    belt_description:     val('belt-description').trim() || null,
+    belt_length_m:        parseFloat(val('belt-length-m')),
+    belt_width_mm:        +val('belt-width-mm'),
+    edge_construction:    val('edge-construction'),
+    construction_type:    val('construction-type') || 'Open-End',
+    cover_grade_id:       +val('cover-grade-id'),
+    fabric_type_id:       +val('fabric-type-id'),
+    fabric_style_id:      +val('fabric-style-id')   || null,
+    make_of_fabric:       val('make-of-fabric')      || 'MIT',
+    belt_rating_id:       +val('belt-rating-id'),
+    num_plies:            numPlies,
+    top_cover_mm:         parseFloat(val('top-cover-mm')),
+    bottom_cover_mm:      parseFloat(val('bottom-cover-mm')),
+    carcass_from_rating:  parseFloat(lookupData?.belt_rating?.carcass_thickness_mm ?? val('carcass-thickness-mm')),
+    carcass_thickness_mm: parseFloat(val('carcass-thickness-mm')),
+    breaker_top:          document.getElementById('breaker-top')?.checked    || false,
+    breaker_top_plies:    +val('breaker-top-plies')    || null,
+    breaker_bottom:       document.getElementById('breaker-bottom')?.checked || false,
+    breaker_bottom_plies: +val('breaker-bottom-plies') || null,
+    reel_type_id:         +val('reel-type-id')    || null,
+    packing_type_id:      +val('packing-type-id') || null,
+    num_rolls:            +val('num-rolls-override')      || +val('num-rolls')        || null,
+    roll_dimensions:      val('roll-dimensions')          || null,
+    length_per_roll_m:    parseFloat(val('length-per-roll')) || null,
+    net_weight_kg:        parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
+    gross_weight_kg:      parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
+    splicing_required:    splicingOn,
+    vulcanization_method: splicingOn ? (val('vulcanization-method') || 'Hot') : null,
+    num_joints:           splicingOn ? (+val('num-joints') || null) : null,
+    _splicingOn:          splicingOn,   // internal - stripped before API call
+  };
+}
+
+/**
+ * Validate belt-specific required fields only (no customer/document check).
+ * @returns {string[]} Array of error messages; empty = valid.
+ */
+function validateBeltSpec() {
+  const errors = [];
+  if (!val('cover-grade-id'))       errors.push('Cover Grade is required.');
+  if (!val('fabric-type-id'))       errors.push('Fabric Type is required.');
+  if (!val('belt-rating-id'))       errors.push('Belt Rating is required.');
+  if (!val('top-cover-mm'))         errors.push('Top Cover thickness is required.');
+  if (!val('bottom-cover-mm'))      errors.push('Bottom Cover thickness is required.');
+  if (!val('carcass-thickness-mm')) errors.push('Carcass Thickness not loaded - select Belt Rating first.');
+  if (!val('belt-width-mm'))        errors.push('Belt Width is required.');
+  if (!val('belt-length-m'))        errors.push('Belt Length is required.');
+  if (!val('edge-construction'))    errors.push('Edge Construction is required.');
+  if (document.getElementById('splicing-required').checked && !val('num-joints'))
+    errors.push('Number of splice joints is required when splicing is enabled.');
+  return errors;
+}
+
+/**
+ * Validate current belt spec, push it onto beltQueue, then clear belt fields
+ * so the user can fill the next belt's specification.
+ */
+function addBeltToQueue() {
+  const errors = validateBeltSpec();
+  const errEl  = document.getElementById('nav-error');
+  if (errors.length) {
+    errEl.textContent = '⚠ ' + errors[0];
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  errEl.textContent = '';
+
+  beltQueue.push(captureBeltSpec());
+  renderBeltQueue();
+  clearBeltSpecFields();
+
+  const num = beltQueue.length;
+  showToast(`Belt ${num} added to queue. Fill Belt ${num + 1} specification below.`, 'success', 3000);
+  document.getElementById('tds-form-wrap')?.querySelector('.section-card')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Remove a belt from the queue by index. Exposed on window for inline onclick.
+ * @param {number} index - Zero-based index of the belt to remove
+ */
+function removeBeltFromQueue(index) {
+  beltQueue.splice(index, 1);
+  renderBeltQueue();
+}
+window.removeBeltFromQueue = removeBeltFromQueue;
+
+/**
+ * Reset all belt-specific fields (sections ②③④⑤) to their blank/default state
+ * after a belt has been added to the queue.
+ * Shared customer/document fields (section ①) are left untouched.
+ */
+function clearBeltSpecFields() {
+  // ② Belt Specification
+  set('fabric-type-id',  '');
+  loadBeltRatings('');        // clears belt-rating-id and fabric-style-id dropdowns
+  set('cover-grade-id',  '');
+  set('top-cover-mm',    '');
+  set('bottom-cover-mm', '');
+  set('belt-width-mm',   '');
+  set('make-of-fabric',  'MIT');
+
+  // ③ Belt Configuration
+  set('belt-length-m',    '');
+  set('edge-construction', 'Cut Edge');
+  const brkTopNo = document.querySelector('input[name="brk-top"][value="no"]');
+  const brkBotNo = document.querySelector('input[name="brk-bot"][value="no"]');
+  if (brkTopNo) { brkTopNo.checked = true; window._brkTop(false); }
+  if (brkBotNo) { brkBotNo.checked = true; window._brkBot(false); }
+
+  // ④ Packing
+  set('reel-type-id',      '');
+  set('packing-type-id',   '');
+  set('num-rolls',         '');
+  set('roll-dimensions',   '');
+  set('net-weight-kg',     '');
+  set('gross-weight-kg',   '');
+  const overrideFields = document.getElementById('packing-override-fields');
+  if (overrideFields) overrideFields.style.display = 'none';
+
+  // ⑤ Splicing
+  const splReq = document.getElementById('splicing-required');
+  if (splReq) splReq.checked = false;
+  const splFields = document.getElementById('splicing-fields');
+  if (splFields) splFields.style.display = 'none';
+  const splText = document.getElementById('splice-toggle-text');
+  if (splText) { splText.textContent = 'No'; splText.style.color = ''; }
+  set('num-joints', '');
+
+  // Reset all EAV-computed values
+  resetLookupState();
+}
+
+/**
+ * Render the queued belt cards in #belt-queue-container.
+ * Also updates the footer badge count and the "+ Add Belt" button label.
+ */
+function renderBeltQueue() {
+  // Update footer badge
+  const badge = document.getElementById('belt-queue-badge');
+  if (badge) badge.style.display = beltQueue.length ? 'inline-block' : 'none';
+  const countEl = document.getElementById('belt-queue-count');
+  if (countEl) countEl.textContent = beltQueue.length;
+
+  // Update add-belt button label
+  const addBtn = document.getElementById('btn-add-belt');
+  if (addBtn) {
+    addBtn.textContent = beltQueue.length
+      ? `+ Add Belt (${beltQueue.length + 1} total)`
+      : '+ Add Belt';
+  }
+
+  // Render queue cards
+  const container = document.getElementById('belt-queue-container');
+  if (!container) return;
+  if (beltQueue.length === 0) { container.innerHTML = ''; container.style.display = 'none'; return; }
+
+  container.style.display = 'block';
+  container.innerHTML = `
+    <div class="section-card" style="border-color:var(--gold-border);">
+      <div class="section-card-header" style="background:#1e3a5f;">
+        <h3 style="color:#fff;">Queued Belts - ${beltQueue.length} ready</h3>
+        <span class="sub" style="color:rgba(255,255,255,.7);">
+          Fill the form below for Belt ${beltQueue.length + 1}
+        </span>
+      </div>
+      <div class="section-card-body" style="padding:10px 14px;">
+        ${beltQueue.map((b, i) => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;
+                      padding:8px 12px;background:var(--bg-section);border:1px solid var(--border);
+                      border-radius:var(--radius);margin-bottom:6px;">
+            <div style="min-width:0;flex:1;">
+              <span style="font-family:var(--font-head);font-size:11px;font-weight:700;
+                           color:var(--navy);white-space:nowrap;">Belt ${i + 1}</span>
+              <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">
+                ${b.belt_description || `${b.belt_width_mm || '?'}mm × ${b.belt_length_m || '?'}m`}
+              </span>
+            </div>
+            <button type="button" onclick="removeBeltFromQueue(${i})"
+                    style="flex-shrink:0;padding:2px 8px;font-size:10px;background:transparent;
+                           border:1px solid #dc2626;border-radius:3px;color:#dc2626;
+                           cursor:pointer;font-weight:600;">× Remove</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+}
+
+/**
+ * Navigate to tds-multi-preview.html - same experience as single-belt tds-preview.html
+ * but with belt tabs. Sidebar, inline row checkboxes, Download/Print all identical.
+ * @param {Array} results - Array of TDSOut objects returned from createTDS calls
+ */
+function showMultiTDSSuccess(results) {
+  const tdsIds  = results.map(r => r.tds_id).join(',');
+  const tdsNums = results.map(r => r.tds_number).join(',');
+  const qs = new URLSearchParams({ tds_ids: tdsIds, tds_numbers: tdsNums });
+  showToast(`${results.length} TDS created! Opening preview…`, 'success', 1500);
+  setTimeout(() => {
+    window.location.href = `tds-multi-preview.html?${qs.toString()}`;
+  }, 600);
+}
+
+/* ══════════════════════════════════════════════════════════
+   PACKING OVERRIDE TOGGLE
+══════════════════════════════════════════════════════════ */
+/**
+ * Toggle the visibility of the manual packing override fields.
+ * Normally, packing fields (num_rolls, roll_dimensions, weights) are auto-filled
+ * by the packing calculator. This override lets the user manually correct them
+ * if the calculated values need adjustment (e.g. non-standard reel from the factory).
+ */
+function togglePackingOverride() {
+  const fields = document.getElementById('packing-override-fields');
+  const btn    = document.getElementById('btn-toggle-override');
+  const open   = fields.style.display !== 'none';
+  fields.style.display = open ? 'none' : 'block';
+  btn.textContent      = open ? '✏ Manual Override' : '✕ Hide Override';
+
+  // When opening: pre-fill override fields with current auto-computed values
+  // so the user edits from the calculated baseline rather than from scratch,
+  // and num-joints syncs immediately without the user needing to retype.
+  if (!open) {
+    const curRolls = val('num-rolls');
+    const curLpr   = val('length-per-roll');
+    const curNet   = val('net-weight-kg');
+    const curGross = val('gross-weight-kg');
+
+    if (curRolls) {
+      const el = document.getElementById('num-rolls-override');
+      if (el && !el.value) el.value = curRolls;
+    }
+    if (curLpr) {
+      const el = document.getElementById('length-per-roll');
+      // length-per-roll is a shared field - only set if still empty
+      if (el && !el.value) el.value = curLpr;
+    }
+    if (curNet) {
+      const el = document.getElementById('net-weight-kg-override');
+      if (el && !el.value) el.value = curNet;
+    }
+    if (curGross) {
+      const el = document.getElementById('gross-weight-kg-override');
+      if (el && !el.value) el.value = curGross;
+    }
+
+    // Sync num-joints from the pre-filled num-rolls value (if splicing is on)
+    const numRollsOverride = +val('num-rolls-override') || +val('num-rolls') || 0;
+    if (numRollsOverride && document.getElementById('splicing-required')?.checked) {
+      set('num-joints', String(numRollsOverride));
+      recalcSplicing();
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   VALIDATION
+══════════════════════════════════════════════════════════ */
+/**
+ * Validate all required form fields before submitting.
+ * Checks: Purpose, Belt Type, Standard, Brand, Customer, Cover Grade,
+ *         Fabric Type, Belt Rating, Top/Bottom Cover, Carcass Thickness,
+ *         Belt Width, Belt Length, Edge Construction,
+ *         and number of joints if splicing is required.
+ *
+ * @returns {string[]} Array of human-readable error messages. Empty array = valid.
+ */
+function validateForm() {
+  const errors = [];
+
+  if (!val('purpose-id'))              errors.push('Purpose is required.');
+  if (!val('belt-type-id'))            errors.push('Belt Type is required.');
+  if (!val('standard-id'))             errors.push('Standard is required.');
+  if (!val('brand-id'))                errors.push('Brand is required.');
+
+  const customerId = val('customer-id');
+  const newForm    = document.getElementById('new-customer-form');
+  // Valid states: an existing customer is selected (customerId set),
+  // OR the "Add new customer" mini-form is open (newForm has 'open' class).
+  // Typing in the search box WITHOUT selecting from the dropdown is not enough -
+  // the customer would never be saved to the DB.
+  if (!customerId && !newForm.classList.contains('open'))
+    errors.push('Please select an existing customer or click "➕ Add new customer" from the dropdown.');
+  if (newForm.classList.contains('open') && !val('nc-name').trim())
+    errors.push('New customer company name is required.');
+
+  if (!val('cover-grade-id'))         errors.push('Cover Grade is required.');
+  if (!val('fabric-type-id'))         errors.push('Fabric Type is required.');
+  if (!val('belt-rating-id'))         errors.push('Belt Rating is required.');
+  if (!val('top-cover-mm'))           errors.push('Top Cover thickness is required.');
+  if (!val('bottom-cover-mm'))        errors.push('Bottom Cover thickness is required.');
+  if (!val('carcass-thickness-mm'))   errors.push('Carcass Thickness not loaded - select Belt Rating first.');
+
+  if (!val('belt-width-mm'))          errors.push('Belt Width is required.');
+  if (!val('belt-length-m'))          errors.push('Belt Length is required.');
+  if (!val('edge-construction'))      errors.push('Edge Construction is required.');
+
+  if (document.getElementById('splicing-required').checked && !val('num-joints'))
+    errors.push('Number of splice joints is required when splicing is enabled.');
+
+  return errors;
+}
+
+/* ══════════════════════════════════════════════════════════
+   PDF OPTIONS BUILDER
+══════════════════════════════════════════════════════════ */
+/**
+ * Build the PDF customisation panel - a checklist of parameter groups and individual
+ * parameters the user can include or exclude from the printed TDS.
+ * Renders one group checkbox per section, with individual parameter checkboxes indented below.
+ * Checking/unchecking a group disables all its child parameter checkboxes.
+ *
+ * @param {boolean} splicingRequired - If false, the "Splicing Parameters" group is omitted.
+ */
+function buildPdfGroupOptions(splicingRequired) {
+  const container = document.getElementById('pdf-group-options');
+  const groups    = splicingRequired
+    ? ALL_PARAM_GROUPS
+    : ALL_PARAM_GROUPS.filter(g => g !== 'Splicing Parameters');
+  const hasParams = allParameters && Object.keys(allParameters).length > 0;
+
+  container.innerHTML = groups.map(g => {
+    const params    = hasParams ? (allParameters[g] || []) : [];
+    const paramsHtml = params.map(p => `
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;
+                    cursor:pointer;padding:2px 0;color:var(--text-muted);">
+        <input type="checkbox" class="pdf-param-cb" value="${p.parameter_id}" data-group="${g}" checked />
+        ${p.parameter_name}
+      </label>`).join('');
+    return `
+      <div style="margin-bottom:6px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;padding:3px 0;font-weight:600;">
+          <input type="checkbox" class="pdf-group-cb" value="${g}" checked /> ${g}
+        </label>
+        ${params.length ? `<div class="pdf-param-list" data-group="${g}"
+          style="padding-left:20px;border-left:2px solid var(--border);margin-left:6px;margin-top:2px;">
+          ${paramsHtml}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  container.querySelectorAll('.pdf-group-cb').forEach(groupCb => {
+    groupCb.addEventListener('change', () => {
+      const paramList = container.querySelector(
+        `.pdf-param-list[data-group="${groupCb.value.replace(/"/g, '\\"')}"]`
+      );
+      if (!paramList) return;
+      paramList.querySelectorAll('.pdf-param-cb').forEach(cb => {
+        cb.disabled = !groupCb.checked;
+        cb.parentElement.style.opacity = groupCb.checked ? '1' : '0.4';
+      });
+    });
+  });
+}
+
+/**
+ * Read the current state of the PDF options panel and return a structured options object.
+ * Used by loadPreview() and the download/print flow in tds-preview.html.
+ *
+ * @returns {{ excludeGroups: string[], excludeParams: number[], showSection: boolean, showTestMethod: boolean, showReference: boolean }}
+ */
+function getPdfOptions() {
+  return {
+    excludeGroups:  [...document.querySelectorAll('.pdf-group-cb:not(:checked)')].map(cb => cb.value),
+    excludeParams:  [...document.querySelectorAll('.pdf-param-cb:not(:checked):not([disabled])')].map(cb => +cb.value),
+    showSection:    document.getElementById('opt-show-section').checked,
+    showTestMethod: document.getElementById('opt-show-testmethod').checked,
+    showReference:  document.getElementById('opt-show-reference').checked,
+  };
+}
+
+/* ══════════════════════════════════════════════════════════
+   PREVIEW LOADER
+══════════════════════════════════════════════════════════ */
+/**
+ * Build the PDF URL from current PDF options and load it into the embedded iframe.
+ * Switches the view from the parameter-selection panel to the preview pane,
+ * shows a loading spinner while the PDF renders (can take 1-3 seconds via WeasyPrint),
+ * and scrolls the preview into view.
+ *
+ * @param {number} tdsId     - Database ID of the just-created TDS record
+ * @param {string} tdsNumber - Human-readable TDS number (e.g. "0042") for display
+ */
+function loadPreview(tdsId, tdsNumber) {
+  const opts    = getPdfOptions();
+  const params  = new URLSearchParams();
+
+  if (opts.excludeGroups.length)  params.set('exclude_groups',  opts.excludeGroups.join(','));
+  if (opts.excludeParams.length)  params.set('exclude_params',  opts.excludeParams.join(','));
+  if (!opts.showSection)          params.set('show_section',    'false');
+  if (!opts.showTestMethod)       params.set('show_test_method','false');
+  if (!opts.showReference)        params.set('show_reference',  'false');
+
+  const pdfUrl = `/api/tds/${tdsId}/pdf?${params.toString()}`;
+
+  const paramPanel  = document.getElementById('param-select-panel');
+  const previewPane = document.getElementById('preview-panel');
+  const loading     = document.getElementById('preview-loading');
+  const iframe      = document.getElementById('tds-preview-iframe');
+
+  // Hide selection panel, show preview
+  paramPanel.style.display  = 'none';
+  previewPane.style.display = 'block';
+  loading.style.display     = 'block';
+  iframe.style.display      = 'none';
+
+  iframe.onload = () => {
+    loading.style.display = 'none';
+    iframe.style.display  = 'block';
+  };
+  iframe.src = pdfUrl;
+
+  previewPane.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ══════════════════════════════════════════════════════════
+   SUBMIT
+══════════════════════════════════════════════════════════ */
+/**
+ * Validate the form, create (or update) the customer, then POST the TDS record to the API.
+ * Handles two modes:
+ *   'preview' - navigates to tds-preview.html (single belt) or tds-multi-preview.html
+ *               (multi-belt queue) with sidebar column toggles and inline row checkboxes.
+ *   'draft'   - saves and shows a toast; stays on the form page.
+ *
+ * Steps:
+ *  1. Run validateForm() - abort with error banner if invalid.
+ *  2. Create a new customer via POST /api/customers, or PATCH an existing one
+ *     if the user updated their contact/application/location.
+ *  3. Build the full TDS payload (matches TDSCreateIn schema in schemas.py).
+ *  4. POST to /api/tds - server auto-computes thickness, weight, packing, and splicing.
+ *  5a. Multi-belt: loop all queued belts + current, then navigate to tds-multi-preview.html.
+ *  5b. Single-belt preview: navigate to tds-preview.html with tds_id + splicing flag.
+ *  5c. Draft mode: show success toast, re-enable buttons.
+ *
+ * @param {'preview'|'draft'} [mode='preview'] - What to do after the TDS is created
+ */
+async function submitTDS(mode = 'preview') {
+  const errors = validateForm();
+  const errEl  = document.getElementById('nav-error');
+  if (errors.length) {
+    errEl.textContent = '⚠ ' + errors[0];
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  errEl.textContent = '';
+
+  const saveDraftBtn  = document.getElementById('btn-save-draft');
+  const previewBtn    = document.getElementById('btn-preview-pdf');
+  const addBeltBtn    = document.getElementById('btn-add-belt');
+  const submitText    = document.getElementById('submit-text');
+
+  saveDraftBtn.disabled  = true;
+  previewBtn.disabled    = true;
+  if (addBeltBtn) addBeltBtn.disabled = true;
+  submitText.textContent = beltQueue.length > 0
+    ? `Generating ${beltQueue.length + 1} TDS…`
+    : 'Generating…';
+
+  try {
+    // ── Step 1: Create or update customer ────────────────────────────────────
+    // Case A - new customer typed by user: POST /api/customers
+    // Case B - existing customer selected: PATCH /api/customers/{id} to update
+    //          contact/application/location if the user filled them in
+    let customerId = +val('customer-id') || null;
+    const newForm  = document.getElementById('new-customer-form');
+    if (newForm?.classList.contains('open')) {
+      // Case A: brand-new customer
+      // Note: contact/application/location use the shared cust-* fields
+      // (nc-* only covers the company name; the detail fields below the
+      //  autocomplete are shared between new and existing customer flows)
+      const nc = await createCustomer({
+        customer_name:  val('nc-name').trim(),
+        contact_person: val('cust-contact').trim()     || null,
+        application:    val('cust-application').trim() || null,
+        plant_location: val('cust-location').trim()    || null,
+      });
+      customerId = nc.customer_id;
+      allCustomers.push(nc); // keep in-memory cache up to date
+    } else if (customerId) {
+      // Case B: existing customer - patch contact/application/location if filled
+      const contact  = val('cust-contact').trim()     || null;
+      const applic   = val('cust-application').trim() || null;
+      const location = val('cust-location').trim()    || null;
+      if (contact || applic || location) {
+        await updateCustomer(customerId, {
+          contact_person: contact,
+          application:    applic,
+          plant_location: location,
+        });
+      }
+    }
+
+    // ── Step 2: Resolve derived values ────────────────────────────────────────
+    const numPlies   = parseInt(val('cv-plies-field'), 10) || 0;
+    const splicingOn = document.getElementById('splicing-required').checked;
+    const isIntl     = _isInternational();
+
+    // ── Step 3: Build TDS payload (matches TDSCreateIn schema in schemas.py) ──
+    // Notes:
+    //   - total_thickness_mm is server-computed (top + bottom + carcass)
+    //   - interply_skim_mm is server-fetched from belt_rating_values (param_id=5)
+    //   - step_length_mm / splice_length_mm / total_extra_length_m are server-computed
+    const payload = {
+      // Identification
+      purpose_id:        +val('purpose-id'),
+      belt_type_id:      +val('belt-type-id'),
+      brand_id:          +val('brand-id'),
+      standard_id:       +val('standard-id'),
+      tds_doc_number:    val('tds-doc-number').trim() || null,
+      construction_type: val('construction-type') || 'Open-End',
+
+      // International logistics - only included when purpose = International
+      // Validated server-side: both are required when purpose_id == 2
+      shipping_region:    isIntl ? (val('shipping-region') || null) : null,
+      container_type_id:  isIntl ? (+val('container-type-id') || null) : null,
+
+      // Customer
+      customer_id:       customerId,
+
+      // Belt identity
+      belt_description:  val('belt-description').trim() || null,
+      belt_length_m:     parseFloat(val('belt-length-m')),
+      belt_width_mm:     +val('belt-width-mm'),
+      edge_construction: val('edge-construction'),
+
+      // Spec selection
+      cover_grade_id:    +val('cover-grade-id'),
+      fabric_type_id:    +val('fabric-type-id'),
+      fabric_style_id:   +val('fabric-style-id')  || null,
+      make_of_fabric:    val('make-of-fabric')     || 'MIT',
+      belt_rating_id:    +val('belt-rating-id'),
+
+      // Construction dimensions
+      // carcass_from_rating = the original rating default (for reference on the TDS)
+      // carcass_thickness_mm = the final value (may differ if the user overrode it)
+      num_plies:            numPlies,
+      top_cover_mm:         parseFloat(val('top-cover-mm')),
+      bottom_cover_mm:      parseFloat(val('bottom-cover-mm')),
+      carcass_from_rating:  parseFloat(lookupData?.belt_rating?.carcass_thickness_mm ?? val('carcass-thickness-mm')),
+      carcass_thickness_mm: parseFloat(val('carcass-thickness-mm')),
+
+      // Optional breaker plies (reinforcement layers above/below carcass)
+      breaker_top:          document.getElementById('breaker-top')?.checked    || false,
+      breaker_top_plies:    +val('breaker-top-plies')    || null,
+      breaker_bottom:       document.getElementById('breaker-bottom')?.checked || false,
+      breaker_bottom_plies: +val('breaker-bottom-plies') || null,
+
+      // Packing - reel/packing type for reference; computed values sent directly
+      // so the server stores them regardless of whether packing_type_id is chosen.
+      // (If num_rolls is supplied the server skips its own compute_packing() call.)
+      // Override fields (-override suffix) take priority over the auto-computed
+      // readonly fields when the user has manually adjusted them.
+      reel_type_id:       +val('reel-type-id')    || null,
+      packing_type_id:    +val('packing-type-id') || null,
+      num_rolls:          +val('num-rolls-override')      || +val('num-rolls')        || null,
+      roll_dimensions:    val('roll-dimensions')          || null,
+      length_per_roll_m:  parseFloat(val('length-per-roll')) || null,
+      net_weight_kg:      parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
+      gross_weight_kg:    parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
+
+      // Splicing - server computes step/splice length from the belt rating
+      splicing_required:    splicingOn,
+      vulcanization_method: splicingOn ? (val('vulcanization-method') || 'Hot') : null,
+      num_joints:           splicingOn ? (+val('num-joints') || null) : null,
+    };
+
+    // ── Step 4: POST to API ────────────────────────────────────────────────────
+
+    // Multi-belt: loop through every queued belt + the current form as the last belt
+    if (beltQueue.length > 0) {
+      const sharedFields = {
+        purpose_id:        +val('purpose-id'),
+        belt_type_id:      +val('belt-type-id'),
+        brand_id:          +val('brand-id'),
+        standard_id:       +val('standard-id'),
+        tds_doc_number:    val('tds-doc-number').trim() || null,
+        shipping_region:   isIntl ? (val('shipping-region') || null) : null,
+        container_type_id: isIntl ? (+val('container-type-id') || null) : null,
+        customer_id:       customerId,
+      };
+      const allBelts = [...beltQueue, captureBeltSpec()];
+      const results  = [];
+      for (const beltSpec of allBelts) {
+        // Strip internal _splicingOn key before sending to API
+        const { _splicingOn: _s, ...beltFields } = beltSpec;
+        const beltPayload = { ...sharedFields, ...beltFields };
+        const created = await createTDS(beltPayload);
+        results.push(created);
+      }
+      showMultiTDSSuccess(results);
+      beltQueue = [];
+      renderBeltQueue();
+      return;
+    }
+
+    // Single-belt flow (unchanged)
+    const tds = await createTDS(payload);
+    createdTdsId = tds.tds_id;
+
+    // ── Step 5: Build the PDF options panel now that we know splicing status ───
+    // (group checkboxes - Splicing Parameters only shown when splicing_required)
+    buildPdfGroupOptions(splicingOn);
+
+    // ── Step 6: Handle mode ───────────────────────────────────────────────────
+    if (mode === 'preview') {
+      // Navigate directly to the preview page (options sidebar is built in)
+      showToast(`TDS-${tds.tds_number} created! Opening preview…`, 'success', 2000);
+      setTimeout(() => {
+        const qs = new URLSearchParams({
+          tds_id:      tds.tds_id,
+          tds_number:  tds.tds_number,
+          splicing:    splicingOn ? 'true' : 'false',
+        });
+        window.location.href = `tds-preview.html?${qs.toString()}`;
+      }, 800);
+      return; // don't fall through to finally re-enabling buttons
+    } else {
+      // Draft save - just confirm, stay on form
+      showToast(`TDS-${tds.tds_number} saved as draft.`, 'success', 5000);
+    }
+
+  } catch (err) {
+    // Display error in the sticky nav bar and scroll to top
+    errEl.textContent = '⚠ ' + err.message;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    showToast('Error: ' + err.message, 'error', 8000);
+  } finally {
+    // Always re-enable submit buttons regardless of success/failure
+    saveDraftBtn.disabled  = false;
+    previewBtn.disabled    = false;
+    if (addBeltBtn) addBeltBtn.disabled = false;
+    submitText.textContent = 'Generate & Preview PDF';
+  }
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+// ES modules are deferred by default so the DOM is ready when this executes.
+// Only initialise if the user is authenticated (requireAuth redirects otherwise).
+if (session) {
+  init().catch(err => {
+    console.error('TDS form init failed:', err);
+    showToast('Page load error: ' + err.message, 'error');
+  });
+}

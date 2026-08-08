@@ -1,0 +1,1057 @@
+<!--
+  admin.html - Admin Panel (Overview / Users / Analytics / All TDS / System
+  Info) for the Ravasco TDS Automation App.
+
+  Protected + role-gated: requireAuth() (js/auth.js) enforces login, and the
+  inline script additionally checks session.role === 'admin' - a non-admin
+  (user or viewer) is toasted "Access denied", the redirect to home.html is
+  scheduled, and the script throws immediately after so no admin data is
+  ever fetched or rendered for that visitor. This is still a client-side
+  convenience layer only; the real authorization boundary is server-side
+  (django_backend/apps/api/permissions.py's IsAdmin, applied to the
+  create/update-user endpoints in users_views.py).
+
+  Three roles exist: 'admin' (full access), 'user' (create/edit/approve/
+  decline/delete TDS, no admin panel, no user management), and 'viewer'
+  (search + view + download TDS only - cannot create/edit/delete anything,
+  no admin panel, no user management). The 'tds_creator' role that used to
+  sit between 'user' and 'viewer' has been removed from the system entirely
+  (backend and frontend) - it was never selectable from this UI anyway.
+
+  All panel data (users, KPIs, analytics breakdowns, the All-TDS table) is
+  derived client-side from two calls made once in loadAll(): listUsers() and
+  listTDS({ limit: 200 }) (js/api.js) - there is no separate analytics API.
+
+  Sidebar buttons (.snav-item[data-panel]) just toggle which .admin-panel
+  div is visible; all five panels are already rendered in the DOM.
+
+  The Add/Edit User form (#uf-overlay) now offers all three roles in
+  #uf-role (viewer / user / admin). New users default to 'viewer' (least
+  privilege) unless the admin explicitly picks a higher role; editing an
+  existing user preselects their current role. Submitting the form calls
+  createUser()/updateUser() (js/api.js), which POST/PATCH to
+  /api/users[/id] (django_backend/apps/api/routers/users_views.py) and
+  write directly to the 'users' table via TDSUser.save() - this is a real
+  database write, not a client-side-only change.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Panel - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* ── Layout ──────────────────────────────────────── */
+    .admin-wrap {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 860px) { .admin-wrap { grid-template-columns: 1fr; } }
+
+    /* ── Sidebar ──────────────────────────────────────── */
+    .admin-sidebar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      position: sticky;
+      top: calc(var(--nav-h) + 20px);
+    }
+    .sidebar-head {
+      background: var(--navy);
+      border-bottom: 3px solid var(--gold-light);
+      padding: 16px 18px;
+    }
+    .sidebar-head h3 {
+      font-family: var(--font-head); font-size: 11px; font-weight: 800;
+      letter-spacing: .12em; text-transform: uppercase; color: var(--gold-bright);
+    }
+    .sidebar-head p { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 3px; }
+    .sidebar-nav { padding: 8px 0; }
+    .snav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 18px; font-size: 12px; font-weight: 500;
+      color: var(--text-dim); cursor: pointer; transition: all .13s;
+      border: none; background: none; width: 100%; text-align: left;
+      border-left: 3px solid transparent;
+    }
+    .snav-item:hover { background: var(--bg-section); color: var(--text); }
+    .snav-item.active { background: var(--gold-dim); color: var(--gold); border-left-color: var(--gold); font-weight: 600; }
+    .snav-item .si { font-size: 15px; width: 20px; text-align: center; }
+    .snav-badge {
+      margin-left: auto; background: var(--gold-pale);
+      color: var(--gold); border: 1px solid var(--gold-border);
+      border-radius: 10px; font-size: 9px; font-weight: 700;
+      padding: 1px 7px; letter-spacing: .04em;
+    }
+    .snav-sep { height: 1px; background: var(--border); margin: 6px 12px; }
+
+    /* ── Panel cards ──────────────────────────────────── */
+    .admin-panel { display: none; }
+    .admin-panel.active { display: block; }
+    .pc {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 20px;
+    }
+    .pc-head {
+      padding: 14px 20px; background: var(--bg-section);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pc-head h3 {
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-light);
+    }
+    .pc-head p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .pc-body { padding: 20px; }
+
+    /* ── KPI strip ────────────────────────────────────── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+    @media (max-width: 720px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
+    .kpi {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 16px 18px;
+      display: flex; align-items: center; gap: 14px;
+      transition: box-shadow .15s;
+    }
+    .kpi:hover { box-shadow: var(--shadow-md); }
+    .kpi-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+      background: var(--gold-dim); border: 1px solid var(--gold-border);
+    }
+    .kpi-icon.blue  { background: var(--blue-pale);   border-color: var(--blue-border); }
+    .kpi-icon.green { background: var(--green-pale);  border-color: var(--green-border); }
+    .kpi-icon.orange{ background: var(--orange-dim);  border-color: rgba(217,107,10,.3); }
+    .kpi-icon.navy  { background: rgba(26,37,53,.07); border-color: rgba(26,37,53,.15); }
+    .kpi-label { font-size: 10px; font-weight: 600; letter-spacing: .07em;
+                 text-transform: uppercase; color: var(--text-muted); }
+    .kpi-value { font-family: var(--font-head); font-size: 26px; font-weight: 900;
+                 color: var(--navy); line-height: 1.1; }
+    .kpi-sub   { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+    /* ── Breakdown bars ───────────────────────────────── */
+    .breakdown-list { display: flex; flex-direction: column; gap: 8px; }
+    .bdrow { display: flex; align-items: center; gap: 10px; }
+    .bdrow-label { font-size: 11px; color: var(--text-dim); width: 140px; flex-shrink: 0;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bdrow-bar-wrap { flex: 1; background: var(--bg-section); border-radius: 4px; height: 8px; overflow: hidden; }
+    .bdrow-bar { height: 100%; border-radius: 4px; background: var(--gold);
+                 transition: width .4s ease; }
+    .bdrow-count { font-size: 11px; font-weight: 700; color: var(--gold); width: 28px; text-align: right; flex-shrink: 0; }
+
+    /* ── Monthly sparkline table ──────────────────────── */
+    .month-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    @media (max-width: 600px) { .month-grid { grid-template-columns: repeat(3,1fr); } }
+    .month-cell {
+      background: var(--bg-section); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 8px; text-align: center;
+    }
+    .month-cell.highlight { background: var(--gold-dim); border-color: var(--gold-border); }
+    .month-name { font-size: 9px; font-weight: 700; letter-spacing: .08em;
+                  text-transform: uppercase; color: var(--text-muted); }
+    .month-count { font-family: var(--font-head); font-size: 20px; font-weight: 900;
+                   color: var(--navy); line-height: 1; margin: 4px 0 2px; }
+    .month-cell.highlight .month-count { color: var(--gold); }
+    .month-bar-wrap { background: var(--border); border-radius: 2px; height: 4px; margin: 0 auto; width: 80%; }
+    .month-bar { height: 100%; border-radius: 2px; background: var(--gold); }
+
+    /* ── Users grid ───────────────────────────────────── */
+    .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .user-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); overflow: hidden;
+      transition: box-shadow .15s, border-color .15s;
+    }
+    .user-card:hover { box-shadow: var(--shadow-md); border-color: var(--gold-border); }
+    .user-card-head {
+      padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .user-avatar {
+      width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #C17F0A 0%, #1A2535 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-head); font-size: 14px; font-weight: 800; color: #fff;
+    }
+    .user-avatar.inactive { background: linear-gradient(135deg, #A0AEC0, #718096); }
+    .user-card-info { flex: 1; min-width: 0; }
+    .user-card-name { font-size: 13px; font-weight: 600; color: var(--text);
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .user-card-email { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+    .user-card-desig { font-size: 10px; color: var(--text-light); }
+    .user-card-stats {
+      display: grid; grid-template-columns: repeat(3,1fr);
+      border-bottom: 1px solid var(--border);
+    }
+    .ucs { padding: 10px 8px; text-align: center; border-right: 1px solid var(--border); }
+    .ucs:last-child { border-right: none; }
+    .ucs-val { font-family: var(--font-head); font-size: 18px; font-weight: 900; color: var(--navy); }
+    .ucs-label { font-size: 9px; font-weight: 600; letter-spacing: .07em;
+                 text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
+    .user-card-foot {
+      padding: 10px 16px; display: flex; align-items: center;
+      justify-content: space-between; gap: 8px;
+    }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+    .status-pill.active  { background: var(--green-pale);  color: var(--green);  border: 1px solid var(--green-border); }
+    .status-pill.active::before  { background: var(--green-light); }
+    .status-pill.inactive{ background: var(--bg-section);  color: var(--text-muted); border: 1px solid var(--border); }
+    .status-pill.inactive::before{ background: var(--text-light); }
+
+    /* ── User TDS drawer ──────────────────────────────── */
+    .user-tds-drawer {
+      display: none; border-top: 1px solid var(--border);
+      background: var(--bg-section);
+    }
+    .user-tds-drawer.open { display: block; }
+    .drawer-head {
+      padding: 10px 16px; display: flex; align-items: center;
+      justify-content: space-between; border-bottom: 1px solid var(--border);
+    }
+    .drawer-head h4 {
+      font-family: var(--font-head); font-size: 10px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-light);
+    }
+    .drawer-body { max-height: 260px; overflow-y: auto; }
+    .drawer-row {
+      display: grid; grid-template-columns: 90px 1fr 80px 70px;
+      gap: 8px; align-items: center;
+      padding: 7px 16px; border-bottom: 1px solid var(--border);
+      font-size: 11px; transition: background .1s;
+    }
+    .drawer-row:last-child { border-bottom: none; }
+    .drawer-row:hover { background: var(--bg-card); }
+    .drawer-row-head {
+      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted);
+      background: var(--bg-card); position: sticky; top: 0; z-index: 1;
+    }
+    .dr-num { font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700; color: var(--navy); }
+    .dr-date { color: var(--text-muted); font-size: 10px; }
+
+    /* ── All TDS table ────────────────────────────────── */
+    .tds-all-table th, .tds-all-table td { font-size: 11px; }
+
+    /* ── User form modal ──────────────────────────────── */
+    .uf-overlay {
+      position: fixed; inset: 0; z-index: 800;
+      background: rgba(0,0,0,.55); backdrop-filter: blur(3px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .uf-overlay.open { display: flex; }
+    .uf-modal {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); width: 460px; max-width: 96vw;
+      overflow: hidden; box-shadow: var(--shadow-lg);
+    }
+    .uf-modal-head {
+      padding: 18px 24px; background: var(--navy);
+      border-bottom: 3px solid var(--gold-light);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .uf-modal-head h3 {
+      font-family: var(--font-head); font-size: 13px; font-weight: 800;
+      letter-spacing: .06em; color: #fff;
+    }
+    .uf-body { padding: 22px 24px; }
+    .uf-row { margin-bottom: 15px; }
+    .uf-label { display: block; font-size: 11px; font-weight: 600;
+                letter-spacing: .06em; text-transform: uppercase;
+                color: var(--text-dim); margin-bottom: 5px; }
+    .uf-input {
+      width: 100%; padding: 9px 12px; border: 1px solid var(--border-mid);
+      border-radius: var(--radius); font-size: 13px; background: var(--bg-input);
+      color: var(--text); outline: none; transition: border-color .15s; box-sizing: border-box;
+    }
+    .uf-input:focus { border-color: var(--gold); }
+    .uf-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .uf-err { display: none; padding: 9px 12px; background: var(--red-pale);
+              border: 1px solid var(--red-border); border-radius: var(--radius);
+              font-size: 12px; color: var(--red); margin-bottom: 12px; }
+    .uf-err.show { display: block; }
+    .uf-foot {
+      padding: 14px 24px; background: var(--bg-section);
+      border-top: 1px solid var(--border);
+      display: flex; justify-content: flex-end; gap: 10px;
+    }
+
+    /* ── Section label ────────────────────────────────── */
+    .sec-label {
+      font-family: var(--font-head); font-size: 9px; font-weight: 700;
+      letter-spacing: .14em; text-transform: uppercase; color: var(--gold);
+      margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px solid var(--gold-border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Indus Belts" class="nav-logo" onerror="this.style.display='none'" />
+      <div class="nav-brand-text"><h1>TDS System</h1><p>Ravasco Transmission &amp; Packing</p></div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html" class="nav-link">Search TDS</a>
+      <a href="admin.html" class="nav-link active" id="nav-admin-link">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">✓ ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap wide" style="padding-top:28px;">
+
+    <div class="page-header">
+      <div class="breadcrumb"><a href="home.html">Dashboard</a><span>›</span><span>Admin Panel</span></div>
+      <h2>Admin Panel</h2>
+      <p>System overview, user management, and TDS analytics</p>
+    </div>
+
+    <div class="admin-wrap">
+
+      <!-- Sidebar -->
+      <div class="admin-sidebar">
+        <div class="sidebar-head">
+          <h3>⚙ Management</h3>
+          <p id="sidebar-role-hint">Loading…</p>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="snav-item active" data-panel="overview">
+            <span class="si">📊</span><span>Overview</span>
+          </button>
+          <button class="snav-item" data-panel="users">
+            <span class="si">👥</span><span>Users</span>
+            <span class="snav-badge" id="snav-user-count">-</span>
+          </button>
+          <button class="snav-item" data-panel="analytics">
+            <span class="si">📈</span><span>Analytics</span>
+          </button>
+          <button class="snav-item" data-panel="all-tds">
+            <span class="si">📋</span><span>All TDS</span>
+            <span class="snav-badge" id="snav-tds-count">-</span>
+          </button>
+          <div class="snav-sep"></div>
+          <button class="snav-item" data-panel="system">
+            <span class="si">🔧</span><span>System Info</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Main panels -->
+      <div>
+
+        <!-- ══════════ OVERVIEW ══════════ -->
+        <div class="admin-panel active" id="panel-overview">
+
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-icon">📄</div>
+              <div>
+                <div class="kpi-label">Total TDS</div>
+                <div class="kpi-value" id="kpi-total">-</div>
+                <div class="kpi-sub">All time</div>
+              </div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon blue">👥</div>
+              <div>
+                <div class="kpi-label">Active Users</div>
+                <div class="kpi-value" id="kpi-users">-</div>
+                <div class="kpi-sub" id="kpi-users-sub">-</div>
+              </div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon orange">🏭</div>
+              <div>
+                <div class="kpi-label">Customers</div>
+                <div class="kpi-value" id="kpi-customers">-</div>
+                <div class="kpi-sub">Unique companies</div>
+              </div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-icon green">📅</div>
+              <div>
+                <div class="kpi-label">This Month</div>
+                <div class="kpi-value" id="kpi-month">-</div>
+                <div class="kpi-sub" id="kpi-month-sub">-</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top creators + top customers side by side -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            <div class="pc">
+              <div class="pc-head"><div><h3>Top Creators</h3><p>TDS generated per user</p></div></div>
+              <div class="pc-body" id="ov-top-creators"></div>
+            </div>
+            <div class="pc">
+              <div class="pc-head"><div><h3>Top Customers</h3><p>TDS generated per customer</p></div></div>
+              <div class="pc-body" id="ov-top-customers"></div>
+            </div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="pc">
+            <div class="pc-head">
+              <div><h3>Recent Activity</h3><p>Last 10 TDS documents</p></div>
+              <a href="search-tds.html" class="btn btn-outline btn-sm">View All</a>
+            </div>
+            <div id="ov-recent"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ USERS ══════════ -->
+        <div class="admin-panel" id="panel-users">
+
+          <div class="pc" style="margin-bottom:16px;">
+            <div class="pc-head">
+              <div>
+                <h3>User Accounts</h3>
+                <p id="users-subtitle">All registered users and their activity</p>
+              </div>
+              <button class="btn btn-primary btn-sm" id="btn-add-user" style="display:none;">+ Add User</button>
+            </div>
+          </div>
+
+          <div class="users-grid" id="users-grid">
+            <div class="loading-overlay"><div class="spinner"></div><span>Loading users…</span></div>
+          </div>
+        </div>
+
+        <!-- ══════════ ANALYTICS ══════════ -->
+        <div class="admin-panel" id="panel-analytics">
+
+          <!-- Monthly volume -->
+          <div class="pc">
+            <div class="pc-head"><div><h3>Monthly Volume</h3><p>TDS generated per month (last 12)</p></div></div>
+            <div class="pc-body">
+              <div class="month-grid" id="ana-monthly"></div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <!-- Standards breakdown -->
+            <div class="pc">
+              <div class="pc-head"><div><h3>By Standard</h3></div></div>
+              <div class="pc-body" id="ana-standards"></div>
+            </div>
+            <!-- Fabric types -->
+            <div class="pc">
+              <div class="pc-head"><div><h3>By Fabric</h3></div></div>
+              <div class="pc-body" id="ana-fabrics"></div>
+            </div>
+            <!-- Belt widths -->
+            <div class="pc">
+              <div class="pc-head"><div><h3>By Width (mm)</h3></div></div>
+              <div class="pc-body" id="ana-widths"></div>
+            </div>
+          </div>
+
+          <!-- Top customers full list -->
+          <div class="pc" style="margin-top:16px;">
+            <div class="pc-head"><div><h3>Customer Breakdown</h3><p>TDS count per customer</p></div></div>
+            <div class="pc-body" id="ana-customers"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ ALL TDS ══════════ -->
+        <div class="admin-panel" id="panel-all-tds">
+          <div class="pc">
+            <div class="pc-head">
+              <div><h3>All TDS Records</h3><p id="all-tds-count-label">Loading…</p></div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="atds-search" type="text" placeholder="Search TDS / customer…"
+                       class="filter-control" style="width:200px;" />
+                <button class="btn btn-ghost btn-sm" id="atds-refresh">↻</button>
+              </div>
+            </div>
+            <div id="all-tds-table" style="overflow-x:auto;"></div>
+          </div>
+        </div>
+
+        <!-- ══════════ SYSTEM ══════════ -->
+        <div class="admin-panel" id="panel-system">
+          <div class="pc">
+            <div class="pc-head"><div><h3>System Information</h3></div></div>
+            <div class="pc-body">
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">Application</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">INDUS TDS Automation System</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">Phase</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">Phase 1 - Domestic · Flat Belt · Open-End</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">Standards</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">IS 1891, ISO 14890, DIN 22102, AS 1332, SANS 1173, ASTM D378</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">Backend</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">Django 5.2 · Django REST Framework · PostgreSQL</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">PDF Engine</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">WeasyPrint · Jinja2</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">Auth</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">JWT HS256 · bcrypt · 12 h token TTL</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px;">
+                <span style="color:var(--text-muted);">OTP Reset</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">6-digit email OTP · 10 min expiry · smtplib</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:12px;">
+                <span style="color:var(--text-muted);">ISO Cert.</span>
+                <span style="font-weight:500;color:var(--text);text-align:right;">ISO 9001:2015 - Ravasco Transmission and Packing Limited</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pc">
+            <div class="pc-head"><div><h3>Role Permissions</h3></div></div>
+            <div style="overflow-x:auto;">
+              <table>
+                <thead><tr>
+                  <th>Capability</th>
+                  <th style="text-align:center;">Admin</th>
+                  <th style="text-align:center;">TDS Creator</th>
+                  <th style="text-align:center;">Viewer</th>
+                </tr></thead>
+                <tbody>
+                  <tr>
+                    <td style="font-size:12px;">Generate TDS</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">Download PDF</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">Search / View TDS</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">Delete TDS</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">View Admin Panel</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">View All Users</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">Create / Edit Users</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                    <td style="text-align:center;color:var(--text-light);">✗</td>
+                  </tr>
+                  <tr>
+                    <td style="font-size:12px;">Change Own Password</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                    <td style="text-align:center;color:var(--green);">✓</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /main -->
+    </div><!-- /admin-wrap -->
+  </div>
+
+  <!-- ══ USER FORM MODAL ══ -->
+  <div class="uf-overlay" id="uf-overlay">
+    <div class="uf-modal">
+      <div class="uf-modal-head">
+        <h3 id="uf-title">Add User</h3>
+        <button id="uf-close" style="background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+      </div>
+      <div class="uf-body">
+        <div id="uf-err" class="uf-err"></div>
+        <div class="uf-row">
+          <label class="uf-label">Full Name</label>
+          <input id="uf-fullname" type="text" class="uf-input" placeholder="Dishant Barot" />
+        </div>
+        <div class="uf-row">
+          <label class="uf-label">Email <span style="color:var(--red)">*</span></label>
+          <input id="uf-email" type="email" class="uf-input" placeholder="user@company.com" />
+        </div>
+        <div class="uf-row" id="uf-pw-row">
+          <label class="uf-label">Password <span style="color:var(--red)">*</span></label>
+          <input id="uf-password" type="password" class="uf-input" placeholder="Min. 8 characters" />
+          <p class="uf-hint">User can change this via Change Password after signing in.</p>
+        </div>
+        <div class="uf-row">
+          <label class="uf-label">Designation</label>
+          <input id="uf-designation" type="text" class="uf-input" placeholder="Technical Manager" />
+        </div>
+        <div class="uf-row">
+          <label class="uf-label">Role <span style="color:var(--red)">*</span></label>
+          <select id="uf-role" class="uf-input">
+            <option value="viewer">Viewer - search &amp; download only</option>
+            <option value="user">User - create &amp; manage TDS</option>
+            <option value="admin">Admin - full access</option>
+          </select>
+        </div>
+        <div class="uf-row" id="uf-active-row" style="display:none;">
+          <label class="uf-label">Status</label>
+          <select id="uf-active" class="uf-input">
+            <option value="true">Active</option>
+            <option value="false">Inactive (blocked)</option>
+          </select>
+        </div>
+      </div>
+      <div class="uf-foot">
+        <button class="btn btn-ghost" id="uf-cancel">Cancel</button>
+        <button class="btn btn-primary" id="uf-submit">Create User</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser, showToast } from './js/auth.js';
+    import { listUsers, createUser, updateUser, listTDS } from './js/api.js';
+
+    const session = requireAuth();
+    if (!session) throw new Error('redirect');
+    if (session.role !== 'admin') {
+      showToast('Access denied. Admin only.', 'error');
+      setTimeout(() => { window.location.href = 'home.html'; }, 1200);
+      throw new Error('redirect');  // halt this module's execution now — do NOT let
+                                     // loadAll() run and render real user/TDS data
+                                     // during the 1.2s before the redirect fires
+    }
+    populateNavUser();
+
+    const isAdmin  = session.role === 'admin';
+    let allUsers   = [];
+    let allTDS     = [];
+    let editingUid = null;
+
+    /* ── Sidebar ─────────────────────────────────── */
+    document.querySelectorAll('.snav-item[data-panel]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.snav-item').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(`panel-${btn.dataset.panel}`)?.classList.add('active');
+      });
+    });
+
+    /* ── Load all data ───────────────────────────── */
+    async function loadAll() {
+      try {
+        [allTDS, allUsers] = await Promise.all([listTDS({ limit: 200 }), listUsers()]);
+        buildOverview();
+        buildUsers();
+        buildAnalytics();
+        buildAllTDS(allTDS);
+
+        document.getElementById('snav-user-count').textContent = allUsers.length;
+        document.getElementById('snav-tds-count').textContent  = allTDS.length;
+        document.getElementById('sidebar-role-hint').textContent =
+          isAdmin ? 'Admin - full access' : 'TDS Creator - read-only';
+
+        if (isAdmin) {
+          document.getElementById('btn-add-user').style.display = 'inline-flex';
+          document.getElementById('users-subtitle').textContent = 'Create, edit, and manage user accounts';
+        }
+      } catch (err) {
+        showToast('Load failed: ' + err.message, 'error');
+      }
+    }
+
+    /* ── OVERVIEW ────────────────────────────────── */
+    function buildOverview() {
+      const now   = new Date();
+      const month = allTDS.filter(t => {
+        const d = new Date(t.tds_date);
+        return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+      }).length;
+      const uniqueC = new Set(allTDS.map(t=>t.customer?.customer_name).filter(Boolean)).size;
+      const activeU = allUsers.filter(u=>u.is_active).length;
+
+      setText('kpi-total',      allTDS.length);
+      setText('kpi-users',      activeU);
+      setText('kpi-users-sub',  `${allUsers.length} total registered`);
+      setText('kpi-customers',  uniqueC);
+      setText('kpi-month',      month);
+      setText('kpi-month-sub',  now.toLocaleString('default',{month:'long',year:'numeric'}));
+
+      // Top creators
+      const byUser = {};
+      allTDS.forEach(t => {
+        const name = t.created_by_user?.full_name || t.created_by_user?.email || `User ${t.created_by}`;
+        byUser[name] = (byUser[name]||0) + 1;
+      });
+      renderBreakdown('ov-top-creators', byUser, 5);
+
+      // Top customers
+      const byCust = {};
+      allTDS.forEach(t => {
+        const c = t.customer?.customer_name || '(No Customer)';
+        byCust[c] = (byCust[c]||0) + 1;
+      });
+      renderBreakdown('ov-top-customers', byCust, 5);
+
+      // Recent
+      renderRecentTable('ov-recent', allTDS.slice(0,10));
+    }
+
+    /* ── USERS ───────────────────────────────────── */
+    function buildUsers() {
+      // TDS per user
+      const tdsPerUser = {};
+      const lastTDSDate = {};
+      const customerSet = {};
+      allTDS.forEach(t => {
+        const uid = t.created_by;
+        tdsPerUser[uid] = (tdsPerUser[uid]||0) + 1;
+        if (!lastTDSDate[uid] || t.tds_date > lastTDSDate[uid]) lastTDSDate[uid] = t.tds_date;
+        if (t.customer?.customer_name) {
+          if (!customerSet[uid]) customerSet[uid] = new Set();
+          customerSet[uid].add(t.customer.customer_name);
+        }
+      });
+
+      const grid = document.getElementById('users-grid');
+      if (!allUsers.length) {
+        grid.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><h3>No users</h3></div>`;
+        return;
+      }
+
+      grid.innerHTML = allUsers.map(u => {
+        const init = (u.full_name||u.email||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+        const count = tdsPerUser[u.user_id] || 0;
+        const custs = customerSet[u.user_id]?.size || 0;
+        const last  = lastTDSDate[u.user_id]
+          ? new Date(lastTDSDate[u.user_id]).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})
+          : 'Never';
+        const rl    = (u.role||'').replace(/_/g,' ');
+        // Three distinct role badge colors, matching the nav dropdown: admin=gold, user=green, viewer=blue.
+        const rc    = u.role==='admin'?'#C17F0A':u.role==='viewer'?'#2B6CB0':'#1A7A4A';
+        const rb    = u.role==='admin'?'#FEF3C7':u.role==='viewer'?'#EBF8FF':'#F0FFF4';
+        const rbr   = u.role==='admin'?'#F0B429':u.role==='viewer'?'#BEE3F8':'#C6F6D5';
+
+        return `
+        <div class="user-card" id="ucard-${u.user_id}">
+          <div class="user-card-head">
+            <div class="user-avatar ${u.is_active?'':'inactive'}">${init}</div>
+            <div class="user-card-info">
+              <div class="user-card-name">${u.full_name||'-'}</div>
+              <div class="user-card-email">${u.email}</div>
+              ${u.designation?`<div class="user-card-desig">${u.designation}</div>`:''}
+            </div>
+            <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:9px;
+                         font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+                         background:${rb};color:${rc};border:1px solid ${rbr};flex-shrink:0;">
+              ${rl}</span>
+          </div>
+
+          <!-- Stats strip -->
+          <div class="user-card-stats">
+            <div class="ucs">
+              <div class="ucs-val">${count}</div>
+              <div class="ucs-label">TDS Made</div>
+            </div>
+            <div class="ucs">
+              <div class="ucs-val">${custs}</div>
+              <div class="ucs-label">Customers</div>
+            </div>
+            <div class="ucs">
+              <div class="ucs-val" style="font-size:12px;padding-top:4px;">${last}</div>
+              <div class="ucs-label">Last TDS</div>
+            </div>
+          </div>
+
+          <!-- Footer actions -->
+          <div class="user-card-foot">
+            <span class="status-pill ${u.is_active?'active':'inactive'}">${u.is_active?'Active':'Inactive'}</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              ${count>0 ? `
+              <button class="btn btn-ghost btn-sm"
+                      onclick="toggleDrawer(${u.user_id})"
+                      id="drawer-btn-${u.user_id}">View TDS ▾</button>` : `
+              <span style="font-size:11px;color:var(--text-muted);">No TDS yet</span>`}
+              ${isAdmin ? `
+              <button class="btn btn-outline btn-sm" onclick="editUser(${u.user_id})">Edit</button>
+              <button class="btn btn-${u.is_active?'warning':'success'} btn-sm"
+                      onclick="toggleActive(${u.user_id},${!u.is_active})">
+                ${u.is_active?'Deactivate':'Activate'}</button>` : ''}
+            </div>
+          </div>
+
+          <!-- TDS drawer -->
+          <div class="user-tds-drawer" id="drawer-${u.user_id}">
+            <div class="drawer-head">
+              <h4>TDS Created by ${u.full_name||u.email}</h4>
+              <span style="font-size:10px;color:var(--text-muted);">${count} document${count!==1?'s':''}</span>
+            </div>
+            <div class="drawer-body">
+              <div class="drawer-row drawer-row-head">
+                <span>Number</span><span>Customer</span><span>Width × L</span><span>Date</span>
+              </div>
+              ${allTDS.filter(t=>t.created_by===u.user_id).map(t=>`
+              <div class="drawer-row">
+                <span class="dr-num">${t.tds_number}</span>
+                <span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  ${t.customer?.customer_name||'-'}</span>
+                <span class="dr-date">${t.belt_width_mm}×${parseFloat(t.belt_length_m).toFixed(0)}m</span>
+                <span class="dr-date">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</span>
+              </div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    window.toggleDrawer = (uid) => {
+      const drawer = document.getElementById(`drawer-${uid}`);
+      const btn    = document.getElementById(`drawer-btn-${uid}`);
+      const open   = drawer.classList.toggle('open');
+      if (btn) btn.textContent = open ? 'Hide TDS ▴' : 'View TDS ▾';
+    };
+
+    /* ── ANALYTICS ───────────────────────────────── */
+    function buildAnalytics() {
+      // Monthly (last 12)
+      const monthly = {};
+      const now = new Date();
+      for (let i=11; i>=0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        monthly[key] = { label: d.toLocaleString('default',{month:'short'}), year: d.getFullYear(), count: 0 };
+      }
+      allTDS.forEach(t => {
+        const d   = new Date(t.tds_date);
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if (monthly[key]) monthly[key].count++;
+      });
+      const maxM = Math.max(...Object.values(monthly).map(m=>m.count), 1);
+      const currKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      document.getElementById('ana-monthly').innerHTML = Object.entries(monthly).map(([key,m])=>`
+        <div class="month-cell ${key===currKey?'highlight':''}">
+          <div class="month-name">${m.label} ${m.year!==now.getFullYear()?`'${String(m.year).slice(2)}`:''}  </div>
+          <div class="month-count">${m.count}</div>
+          <div class="month-bar-wrap">
+            <div class="month-bar" style="width:${Math.round(m.count/maxM*100)}%"></div>
+          </div>
+        </div>`).join('');
+
+      // Standards
+      const byStd = {};
+      allTDS.forEach(t=>{
+        const s=(t.standard?.standard_name||'Unknown').split(':')[0].trim();
+        byStd[s]=(byStd[s]||0)+1;
+      });
+      renderBreakdown('ana-standards', byStd, 8, '#2B6CB0');
+
+      // Fabrics
+      const byFab = {};
+      allTDS.forEach(t=>{
+        const f=t.belt_rating?.rating_name?.split('/')[0]?.trim()||'Unknown';
+        byFab[f]=(byFab[f]||0)+1;
+      });
+      renderBreakdown('ana-fabrics', byFab, 8, '#1A7A4A');
+
+      // Widths
+      const byW = {};
+      allTDS.forEach(t=>{ byW[`${t.belt_width_mm} mm`]=(byW[`${t.belt_width_mm} mm`]||0)+1; });
+      renderBreakdown('ana-widths', byW, 8, '#C17F0A');
+
+      // Customers full
+      const byCust = {};
+      allTDS.forEach(t=>{
+        const c=t.customer?.customer_name||'(No Customer)';
+        byCust[c]=(byCust[c]||0)+1;
+      });
+      renderBreakdown('ana-customers', byCust, 20);
+    }
+
+    /* ── ALL TDS TABLE ───────────────────────────── */
+    function buildAllTDS(records) {
+      const count = records.length;
+      document.getElementById('all-tds-count-label').textContent = `${count} record${count!==1?'s':''}`;
+      const wrap = document.getElementById('all-tds-table');
+      if (!records.length) {
+        wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">📄</div><h3>No TDS yet</h3></div>`;
+        return;
+      }
+      wrap.innerHTML = `<table class="tds-all-table">
+        <thead><tr>
+          <th>TDS No.</th><th>Date</th><th>Customer</th>
+          <th>Standard</th><th>Width × L</th><th>Rating</th><th>Created By</th>
+        </tr></thead>
+        <tbody>
+          ${records.map(t=>`<tr>
+            <td class="td-mono" style="font-size:10px;">${t.tds_number}</td>
+            <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+            <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
+            <td><span class="badge badge-muted" style="font-size:9px;">
+              ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
+            <td class="td-muted">${t.belt_width_mm}×${parseFloat(t.belt_length_m).toFixed(0)}m</td>
+            <td class="td-muted" style="font-size:10px;">${t.belt_rating?.rating_name||'-'}</td>
+            <td>
+              <div style="font-size:11px;font-weight:500;color:var(--text);">
+                ${t.created_by_user?.full_name||t.created_by_user?.email||`User ${t.created_by}`}</div>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    }
+
+    // Search filter for All TDS
+    document.getElementById('atds-search').addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) { buildAllTDS(allTDS); return; }
+      buildAllTDS(allTDS.filter(t =>
+        t.tds_number.toLowerCase().includes(q) ||
+        (t.customer?.customer_name||'').toLowerCase().includes(q) ||
+        (t.created_by_user?.full_name||'').toLowerCase().includes(q) ||
+        (t.created_by_user?.email||'').toLowerCase().includes(q)
+      ));
+    });
+    document.getElementById('atds-refresh').addEventListener('click', loadAll);
+
+    /* ── HELPERS ─────────────────────────────────── */
+    function renderBreakdown(elId, obj, maxRows=8, color='var(--gold)') {
+      const el = document.getElementById(elId);
+      const sorted = Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,maxRows);
+      if (!sorted.length) { el.innerHTML='<p style="font-size:11px;color:var(--text-muted);">No data</p>'; return; }
+      const maxVal = sorted[0][1];
+      el.innerHTML = `<div class="breakdown-list">
+        ${sorted.map(([label,count])=>`
+        <div class="bdrow">
+          <span class="bdrow-label" title="${label}">${label}</span>
+          <div class="bdrow-bar-wrap">
+            <div class="bdrow-bar" style="width:${Math.round(count/maxVal*100)}%;background:${color};"></div>
+          </div>
+          <span class="bdrow-count" style="color:${color};">${count}</span>
+        </div>`).join('')}
+      </div>`;
+    }
+
+    function renderRecentTable(elId, items) {
+      const el = document.getElementById(elId);
+      if (!items.length) { el.innerHTML=`<div class="empty-state"><div class="empty-icon">📄</div><h3>No TDS yet</h3></div>`; return; }
+      el.innerHTML=`<div style="overflow-x:auto;"><table>
+        <thead><tr>
+          <th>TDS No.</th><th>Date</th><th>Customer</th>
+          <th>Standard</th><th>Width × L</th><th>Created By</th>
+        </tr></thead>
+        <tbody>
+          ${items.map(t=>`<tr>
+            <td class="td-mono" style="font-size:10px;">${t.tds_number}</td>
+            <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+            <td>${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
+            <td><span class="badge badge-muted" style="font-size:9px;">
+              ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
+            <td class="td-muted">${t.belt_width_mm}mm×${parseFloat(t.belt_length_m).toFixed(0)}m</td>
+            <td style="font-size:11px;">
+              ${t.created_by_user?.full_name||t.created_by_user?.email||`User ${t.created_by}`}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>`;
+    }
+
+    function setText(id, val) { const e=document.getElementById(id); if(e) e.textContent=val; }
+
+    /* ── User form ───────────────────────────────── */
+    document.getElementById('btn-add-user').addEventListener('click', () => openForm(null));
+    ['uf-close','uf-cancel'].forEach(id => document.getElementById(id).addEventListener('click', closeForm));
+    document.getElementById('uf-overlay').addEventListener('click', (e) => { if(e.target===document.getElementById('uf-overlay')) closeForm(); });
+
+    window.editUser = (id) => { const u=allUsers.find(x=>x.user_id===id); if(u) openForm(u); };
+    window.toggleActive = async (id, active) => {
+      try {
+        await updateUser(id, { is_active: active });
+        showToast(`User ${active?'activated':'deactivated'}.`,'success');
+        await loadAll();
+      } catch(e) { showToast('Failed: '+e.message,'error'); }
+    };
+
+    function openForm(user) {
+      editingUid = user?.user_id||null;
+      const edit = !!user;
+      document.getElementById('uf-title').textContent    = edit ? 'Edit User' : 'Add User';
+      document.getElementById('uf-submit').textContent   = edit ? 'Save Changes' : 'Create User';
+      document.getElementById('uf-fullname').value       = user?.full_name   ||'';
+      document.getElementById('uf-email').value          = user?.email       ||'';
+      document.getElementById('uf-designation').value    = user?.designation ||'';
+      document.getElementById('uf-role').value           = user?.role        ||'viewer';
+      document.getElementById('uf-password').value       = '';
+      document.getElementById('uf-pw-row').style.display     = edit ? 'none' : 'block';
+      document.getElementById('uf-active-row').style.display = edit ? 'block' : 'none';
+      if (edit) document.getElementById('uf-active').value   = String(user.is_active);
+      document.getElementById('uf-email').readOnly = edit;
+      document.getElementById('uf-err').classList.remove('show');
+      document.getElementById('uf-overlay').classList.add('open');
+      document.getElementById('uf-fullname').focus();
+    }
+
+    function closeForm() { document.getElementById('uf-overlay').classList.remove('open'); editingUid=null; }
+
+    document.getElementById('uf-submit').addEventListener('click', async () => {
+      const errEl = document.getElementById('uf-err');
+      errEl.classList.remove('show');
+      const fn   = document.getElementById('uf-fullname').value.trim();
+      const em   = document.getElementById('uf-email').value.trim();
+      const pw   = document.getElementById('uf-password').value;
+      const dsg  = document.getElementById('uf-designation').value.trim();
+      const role = document.getElementById('uf-role').value;
+      const act  = document.getElementById('uf-active').value==='true';
+      if (!em) { errEl.textContent='Email is required.'; errEl.classList.add('show'); return; }
+      if (!editingUid && (!pw||pw.length<8)) { errEl.textContent='Password must be ≥ 8 characters.'; errEl.classList.add('show'); return; }
+      const btn = document.getElementById('uf-submit');
+      btn.disabled=true; btn.textContent='Saving…';
+      try {
+        if (editingUid) { await updateUser(editingUid,{full_name:fn,designation:dsg,role,is_active:act}); showToast('User updated.','success'); }
+        else            { await createUser({email:em,password:pw,full_name:fn,designation:dsg,role});       showToast('User created.','success'); }
+        closeForm(); await loadAll();
+      } catch(e) { errEl.textContent=e.message; errEl.classList.add('show'); }
+      finally { btn.disabled=false; btn.textContent=editingUid?'Save Changes':'Create User'; }
+    });
+
+    loadAll();
+  </script>
+
+</body>
+</html>

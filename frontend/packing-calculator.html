@@ -1,0 +1,505 @@
+<!--
+  packing-calculator.html - Standalone packing/logistics calculator.
+
+  Reachable from the home dashboard's "Packing Calculator" quick-action card.
+  Lets a user compute roll count, reel dimensions, and net/gross order weight
+  from just belt width/length/thickness + reel type, WITHOUT creating a TDS
+  record - no POST is ever made here. The only network call is
+  loadReelTypes(), which reads GET /api/bootstrap for the reel-type dropdown.
+
+  Everything else runs client-side, and DELIBERATELY duplicates formulas that
+  also live in generate-tds.html's flow (recalcPacking() in js/generate-tds.js)
+  and, server-side, in django_backend/apps/services/packing_service.py:
+    - reelDiam() mirrors computeReelDiam() (circular/twin/elliptical reel-core
+      diameter formulas).
+    - recalc()'s net/gross weight lines mirror the Net/Gross formulas
+      documented at the top of js/generate-tds.js.
+    - CONTAINER_TYPES / REGION_WEIGHT_LIMITS are copied verbatim from
+      js/generate-tds.js's same-named constants (kept in sync by hand - if
+      container dimensions or regional weight limits ever change, update
+      both places).
+
+  If a maintainer ever needs to change the packing math, this file's recalc()
+  and generate-tds.js's recalcPacking() must be updated together, or this
+  standalone calculator will silently disagree with the numbers on the
+  generated TDS/PDF.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/img/indus_logo.png" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Packing &amp; Logistics Calculator - INDUS TDS System</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .calc-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media(max-width: 860px) { .calc-layout { grid-template-columns: 1fr; } }
+
+    .calc-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow-sm);
+    }
+    .calc-card-head {
+      font-family: var(--font-head);
+      font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 22px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .calc-card-head::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    .flbl {
+      display: block; font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      text-transform: uppercase; color: var(--navy); margin-bottom: 4px;
+    }
+    .flbl .req { color: #F5A623; margin-left: 2px; }
+    .finp {
+      width: 100%; padding: 8px 12px;
+      background: var(--bg-input); border: 1px solid var(--border-mid);
+      border-radius: var(--radius); color: var(--text); font-size: 13px;
+      font-family: var(--font-body); outline: none; appearance: none;
+      box-sizing: border-box; transition: border-color .15s, box-shadow .15s;
+    }
+    .finp:focus { border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
+    .frow { margin-bottom: 14px; }
+    .fhint { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+    .frc-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* Results */
+    .result-highlight {
+      background: var(--gold-pale); border: 1.5px solid var(--gold-border);
+      border-radius: var(--radius-lg); padding: 18px 22px; margin-bottom: 16px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .result-highlight-label { font-size: 11px; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+    .result-highlight-val { font-family: var(--font-head); font-size: 32px; font-weight: 900; color: var(--gold); line-height: 1; }
+    .result-highlight-sub { font-size: 10px; color: var(--gold); opacity: .7; margin-top: 3px; }
+
+    .result-table { width: 100%; border-collapse: collapse; }
+    .result-table tr { border-bottom: 1px solid var(--border); }
+    .result-table tr:last-child { border-bottom: none; }
+    .result-table td { padding: 10px 4px; font-size: 13px; vertical-align: middle; }
+    .result-table .rl { color: var(--text-muted); font-size: 11px; }
+    .result-table .rv { font-family: var(--font-head); font-weight: 700; color: var(--navy); text-align: right; }
+    .result-table .ru { font-size: 10px; color: var(--text-muted); margin-left: 3px; }
+
+    .empty-state {
+      text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 13px;
+    }
+    .empty-state .empty-icon { font-size: 42px; margin-bottom: 12px; opacity: .4; }
+
+    /* International fields */
+    .intl-section { display: none; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+    .intl-section.visible { display: block; }
+    .constraint-badge {
+      font-size: 10px; color: #166534; background: #f0fdf4; border: 1px solid #86efac;
+      border-radius: var(--radius); padding: 6px 10px; margin-top: 8px; display: none;
+    }
+    .weight-warn {
+      font-size: 11px; color: #b91c1c; background: #fef2f2; border: 1px solid #fca5a5;
+      border-radius: var(--radius); padding: 8px 12px; margin-top: 10px; display: none;
+    }
+
+    /* Section label inside results */
+    .res-section-label {
+      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--text-muted); padding: 8px 4px 4px;
+      border-bottom: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Nav -->
+  <nav class="topnav">
+    <a href="home.html" class="nav-brand">
+      <img src="img/indus_logo.png" alt="Ravasco" class="nav-logo" onerror="this.style.display='none'" />
+      <div class="nav-brand-text">
+        <h1>TDS System</h1>
+        <p>Ravasco Transmission &amp; Packing</p>
+      </div>
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Dashboard</a>
+      <a href="generate-tds.html" class="nav-link">Generate TDS</a>
+      <a href="search-tds.html" class="nav-link">Search TDS</a>
+      <a href="admin.html" class="nav-link" id="nav-admin-link" style="display:none;">Admin</a>
+    </div>
+    <div class="nav-user"></div>
+    <span class="iso-badge">ISO 9001:2015</span>
+  </nav>
+
+  <div class="page-wrap" style="padding-bottom: 60px;">
+
+    <div class="page-header" style="margin-bottom: 28px;">
+      <div class="breadcrumb">
+        <a href="home.html">Dashboard</a>
+        <span>›</span>
+        <span>Packing &amp; Logistics Calculator</span>
+      </div>
+      <h2>Packing &amp; Logistics Calculator</h2>
+      <p style="font-size:13px; color:var(--text-muted); margin-top:5px; max-width:520px;">
+        Calculate roll count, dimensions, and order weights for any belt spec - no TDS needed.
+      </p>
+    </div>
+
+    <div class="calc-layout">
+
+      <!-- ── INPUTS ─────────────────────────────────────────────── -->
+      <div class="calc-card">
+        <div class="calc-card-head">📦 Belt &amp; Reel Inputs</div>
+
+        <div class="frc-2">
+          <div class="frow">
+            <label class="flbl">Belt Width <span class="req">*</span></label>
+            <input type="number" id="p-width" class="finp" placeholder="e.g. 600" min="100" max="2400" step="50" />
+            <div class="fhint">mm</div>
+          </div>
+          <div class="frow">
+            <label class="flbl">Belt Length <span class="req">*</span></label>
+            <input type="number" id="p-length" class="finp" placeholder="e.g. 500" min="1" />
+            <div class="fhint">metres</div>
+          </div>
+        </div>
+
+        <div class="frc-2">
+          <div class="frow">
+            <label class="flbl">Total Thickness <span class="req">*</span></label>
+            <input type="number" id="p-thick" class="finp" placeholder="e.g. 12" min="1" step="0.5" />
+            <div class="fhint">mm (top cover + carcass + bottom cover)</div>
+          </div>
+          <div class="frow">
+            <label class="flbl">Specific Gravity</label>
+            <input type="number" id="p-sg" class="finp" value="1.15" min="0.8" max="2.5" step="0.01" />
+            <div class="fhint">default 1.15 for rubber</div>
+          </div>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Reel Type <span class="req">*</span></label>
+          <select id="p-reel" class="finp">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+
+        <div class="frow">
+          <label class="flbl">Purpose</label>
+          <select id="p-purpose" class="finp">
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </select>
+        </div>
+
+        <!-- International section -->
+        <div id="p-intl-section" class="intl-section">
+          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); margin-bottom:12px;">
+            🌍 International Logistics
+          </div>
+          <div class="frc-2">
+            <div class="frow">
+              <label class="flbl">Shipping Region</label>
+              <select id="p-region" class="finp">
+                <option value="">Select Region</option>
+                <option value="USA">USA</option>
+                <option value="Rest of World">Rest of World</option>
+              </select>
+            </div>
+            <div class="frow">
+              <label class="flbl">Container Type</label>
+              <select id="p-container" class="finp">
+                <option value="">Select Container</option>
+              </select>
+            </div>
+          </div>
+          <div id="p-constraint" class="constraint-badge"></div>
+          <div id="p-warn" class="weight-warn"></div>
+        </div>
+      </div>
+
+      <!-- ── RESULTS ────────────────────────────────────────────── -->
+      <div class="calc-card">
+        <div class="calc-card-head">📊 Results</div>
+
+        <div id="p-empty" class="empty-state">
+          <div class="empty-icon">📦</div>
+          Fill in belt width, length, thickness and select a reel type to calculate.
+        </div>
+
+        <div id="p-body" style="display:none;">
+          <!-- Rolls highlight -->
+          <div class="result-highlight">
+            <div>
+              <div class="result-highlight-label">Number of Rolls</div>
+              <div class="result-highlight-sub">for this order</div>
+            </div>
+            <div class="result-highlight-val" id="p-r-rolls">-</div>
+          </div>
+
+          <!-- Dimensions -->
+          <div class="res-section-label">Roll Dimensions</div>
+          <table class="result-table">
+            <tr>
+              <td class="rl">Length per Roll</td>
+              <td class="rv"><span id="p-r-lpr">-</span><span class="ru">m</span></td>
+            </tr>
+            <tr>
+              <td class="rl">Roll Height (Outer Diameter)</td>
+              <td class="rv"><span id="p-r-h">-</span><span class="ru">m</span></td>
+            </tr>
+            <tr>
+              <td class="rl">Roll Width</td>
+              <td class="rv"><span id="p-r-w">-</span><span class="ru">m</span></td>
+            </tr>
+            <tr>
+              <td class="rl">Dimensions (H × W)</td>
+              <td class="rv" style="font-size:12px;"><span id="p-r-dims">-</span></td>
+            </tr>
+          </table>
+
+          <!-- Weights -->
+          <div class="res-section-label" style="margin-top:8px;">Order Weights</div>
+          <table class="result-table">
+            <tr>
+              <td class="rl">Net Weight (Total Order)</td>
+              <td class="rv"><span id="p-r-net">-</span><span class="ru">kg</span></td>
+            </tr>
+            <tr>
+              <td class="rl">Gross Weight (Total Order)</td>
+              <td class="rv"><span id="p-r-gross">-</span><span class="ru">kg</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script type="module">
+    import { requireAuth, populateNavUser, getAuthHeaders } from './js/auth.js';
+
+    const session = requireAuth();
+    if (session) populateNavUser();
+
+    // ── Master data loaded live from the backend ──────────────────
+    // Container types and shipping-region weight limits used to be hardcoded
+    // here as a copy-pasted "mirror" of generate-tds.js's own hardcoded copy -
+    // two independent hardcoded copies of the same numbers, either of which
+    // could silently drift from the database (and from each other). Both are
+    // now fetched from the real backend endpoints instead:
+    //   container_types   -> GET /api/bootstrap (same call already used for reel types)
+    //   height/width/weight limits -> GET /api/shipping-constraints (live per region+container)
+    let allReelTypes = [];
+    let shippingConstraintsCache = { key: null, data: null };
+
+    // ── Load reel types + container types from API ─────────────────
+    async function loadReelTypes() {
+      try {
+        const res  = await fetch('/api/bootstrap', { headers: getAuthHeaders() });
+        const data = await res.json();
+        allReelTypes = data.reel_types || [];
+        const sel = document.getElementById('p-reel');
+        sel.innerHTML =
+          '<option value="">- Select Reel Type -</option>' +
+          allReelTypes.map(r => `<option value="${r.id}">${r.reel_name}</option>`).join('');
+
+        const containerSel = document.getElementById('p-container');
+        containerSel.innerHTML =
+          '<option value="">Select Container</option>' +
+          (data.container_types || []).map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      } catch {
+        document.getElementById('p-reel').innerHTML = '<option value="">Failed to load reel types</option>';
+        document.getElementById('p-container').innerHTML = '<option value="">Failed to load</option>';
+      }
+    }
+
+    // ── Fetch live shipping constraints for the selected container + region ─
+    async function fetchShippingConstraints(ctId, region) {
+      const key = `${ctId}|${region}`;
+      if (shippingConstraintsCache.key === key) return shippingConstraintsCache.data;
+      try {
+        const res = await fetch(
+          `/api/shipping-constraints?container_type_id=${encodeURIComponent(ctId)}&region=${encodeURIComponent(region)}`,
+          { headers: getAuthHeaders() }
+        );
+        if (!res.ok) { shippingConstraintsCache = { key: null, data: null }; return null; }
+        const data = await res.json();
+        shippingConstraintsCache = { key, data };
+        return data;
+      } catch {
+        shippingConstraintsCache = { key: null, data: null };
+        return null;
+      }
+    }
+
+    // ── Reel diameter formula ─────────────────────────────────────
+    function reelDiam(formulaKey, d_m, L, k, l) {
+      if (formulaKey === 'twin')
+        return Math.sqrt((4 / Math.PI) * d_m * (L / 2) + k * k);
+      if (formulaKey === 'elliptical') {
+        const term = k + (2 * l / Math.PI);
+        return Math.sqrt((4 / Math.PI) * d_m * L + term * term) - (2 * l / Math.PI);
+      }
+      return Math.sqrt((4 / Math.PI) * d_m * L + k * k); // circular
+    }
+
+    // ── Main calculation ──────────────────────────────────────────
+    function recalc() {
+      const width   = parseFloat(document.getElementById('p-width').value)  || 0;
+      const length  = parseFloat(document.getElementById('p-length').value) || 0;
+      const thick   = parseFloat(document.getElementById('p-thick').value)  || 0;
+      const sg      = parseFloat(document.getElementById('p-sg').value)     || 1.15;
+      const reelId  = document.getElementById('p-reel').value;
+      const isIntl  = document.getElementById('p-purpose').value === 'international';
+
+      const empty = document.getElementById('p-empty');
+      const body  = document.getElementById('p-body');
+
+      if (!width || !length || !thick || !reelId) {
+        empty.style.display = '';
+        body.style.display  = 'none';
+        return;
+      }
+
+      const reel = allReelTypes.find(r => String(r.id) === reelId);
+      if (!reel) return;
+
+      const k    = parseFloat(reel.core_diameter_m);
+      const l    = reel.center_to_center_m ? parseFloat(reel.center_to_center_m) : 1.32;
+      const base = parseInt(reel.num_rolls_base, 10);
+      const d_m  = thick / 1000;  // +0.5 is gross weight only, NOT reel diameter
+
+      // Container constraints - read from the live cache populated by
+      // fetchShippingConstraints() (called from updateConstraint() below).
+      // Never hardcoded: if nothing has been fetched yet for this exact
+      // container+region pair, constraints stays null and no cap is applied
+      // until the fetch resolves and recalc() is re-run.
+      let constraints = null;
+      if (isIntl) {
+        const ctId   = parseInt(document.getElementById('p-container').value, 10) || 0;
+        const region = document.getElementById('p-region').value || '';
+        const key    = `${ctId}|${region}`;
+        if (ctId && region && shippingConstraintsCache.key === key) {
+          const c = shippingConstraintsCache.data;
+          constraints = { max_height_m: c.max_height_m, max_width_m: c.max_width_m, max_gross_kg: c.max_gross_weight_kg };
+        }
+      }
+
+      const reelMaxD = parseFloat(reel.max_roll_diameter_m) || Infinity;
+      const maxD     = constraints ? Math.min(reelMaxD, constraints.max_height_m) : reelMaxD;
+
+      let D = reelDiam(reel.formula_key, d_m, length, k, l);
+      let numRolls, lenPerRoll;
+
+      if (D > maxD) {
+        if (reel.formula_key === 'twin') {
+          const lps     = (maxD * maxD - k * k) * Math.PI / (4 * d_m);
+          const numPairs = Math.ceil(length / (2 * lps));
+          numRolls   = numPairs * 2;
+          lenPerRoll = length / numRolls;
+        } else if (reel.formula_key === 'elliptical') {
+          const off  = 2 * l / Math.PI;
+          const lpr0 = ((maxD + off) ** 2 - (k + off) ** 2) * Math.PI / (4 * d_m);
+          numRolls   = Math.ceil(length / lpr0);
+          lenPerRoll = length / numRolls;
+        } else {
+          const lpr0 = (maxD * maxD - k * k) * Math.PI / (4 * d_m);
+          numRolls   = Math.ceil(length / lpr0);
+          lenPerRoll = length / numRolls;
+        }
+        D = maxD;
+      } else {
+        numRolls   = base;
+        lenPerRoll = length / base;
+      }
+
+      const rollH   = D.toFixed(3);
+      const rollW   = ((width + 100) / 1000).toFixed(3);
+      const netWt   = (sg * thick         * (width / 1000) * length).toFixed(1);
+      const grossWt = (sg * (thick + 0.5) * (width / 1000) * length).toFixed(1);
+
+      document.getElementById('p-r-rolls').textContent = numRolls;
+      document.getElementById('p-r-lpr').textContent   = lenPerRoll.toFixed(1);
+      document.getElementById('p-r-h').textContent     = rollH;
+      document.getElementById('p-r-w').textContent     = rollW;
+      document.getElementById('p-r-dims').textContent  = `H: ${rollH} m × W: ${rollW} m`;
+      document.getElementById('p-r-net').textContent   = netWt;
+      document.getElementById('p-r-gross').textContent = grossWt;
+
+      empty.style.display = 'none';
+      body.style.display  = '';
+
+      // Weight / width warning
+      const warn = document.getElementById('p-warn');
+      if (constraints) {
+        const msgs = [];
+        if (parseFloat(grossWt) > constraints.max_gross_kg)
+          msgs.push(`Gross weight ${parseFloat(grossWt).toLocaleString()} kg exceeds container limit of ${constraints.max_gross_kg.toLocaleString()} kg`);
+        if (parseFloat(rollW) > constraints.max_width_m)
+          msgs.push(`Roll width ${rollW} m exceeds container width limit of ${constraints.max_width_m} m`);
+        warn.innerHTML = msgs.length ? '⚠ ' + msgs.join(' | ') : '';
+        warn.style.display = msgs.length ? '' : 'none';
+      } else {
+        warn.style.display = 'none';
+      }
+    }
+
+    // ── Toggle international section ──────────────────────────────
+    function toggleIntl() {
+      const isIntl  = document.getElementById('p-purpose').value === 'international';
+      const section = document.getElementById('p-intl-section');
+      section.classList.toggle('visible', isIntl);
+      if (!isIntl) {
+        document.getElementById('p-region').value    = '';
+        document.getElementById('p-container').value = '';
+        document.getElementById('p-constraint').style.display = 'none';
+        document.getElementById('p-warn').style.display       = 'none';
+      }
+      recalc();
+    }
+
+    // ── Update constraint info badge (fetches live limits from the DB) ─────
+    async function updateConstraint() {
+      const ctId   = parseInt(document.getElementById('p-container').value, 10) || 0;
+      const region = document.getElementById('p-region').value || '';
+      const badge  = document.getElementById('p-constraint');
+      if (!ctId || !region) { badge.style.display = 'none'; recalc(); return; }
+
+      badge.textContent = 'Loading limits…';
+      badge.style.display = '';
+      const c = await fetchShippingConstraints(ctId, region);
+      if (c) {
+        badge.textContent = `Max height: ${c.max_height_m} m | Max width: ${c.max_width_m} m | Max gross: ${c.max_gross_weight_kg.toLocaleString()} kg`;
+        badge.style.display = '';
+      } else {
+        badge.textContent = 'Could not load container limits for this region.';
+      }
+      recalc();
+    }
+
+    // ── Wire all inputs ───────────────────────────────────────────
+    ['p-width', 'p-length', 'p-thick', 'p-sg', 'p-reel'].forEach(id =>
+      document.getElementById(id).addEventListener('input', recalc)
+    );
+    document.getElementById('p-purpose').addEventListener('change', toggleIntl);
+    document.getElementById('p-region').addEventListener('change', updateConstraint);
+    document.getElementById('p-container').addEventListener('change', updateConstraint);
+
+    await loadReelTypes();
+  </script>
+
+</body>
+</html>
