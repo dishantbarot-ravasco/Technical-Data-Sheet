@@ -5,10 +5,15 @@ services:
   - type: web
     name: tds-automation
     runtime: python
-    pythonVersion: "3.13"             # Render's latest stable — Python 3.14 not yet on Render
-    plan: free                        # upgrade to starter/standard for production use
+    plan: free
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: cd django_backend && gunicorn config.wsgi:application --workers 2 --bind 0.0.0.0:$PORT --timeout 120 --log-level info
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.0"
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+    
 
     # ── Environment variables ───────────────────────────────────────────────────
     envVars:
