@@ -117,6 +117,12 @@ def device_verify(request):
     # Alert admins that a new device was trusted on this account (non-blocking)
     notify_admins_new_device_login(user, request)
 
+    # Audit: this completes a login (password + email OTP) that started back
+    # in TDSLoginView — that view only logs ACTION_LOGIN for the *trusted*-
+    # device branch, so this is where a new-device login gets its entry.
+    from apps.core.audit_log import log_tds_action, TDSAuditLog
+    log_tds_action(request, TDSAuditLog.ACTION_LOGIN, actor=user, detail='new device (email OTP verified)')
+
     # Clear pending session state
     request.session.pop('pending_user_id', None)
 
@@ -145,6 +151,12 @@ def logout_view(request):
     """
     from django.conf import settings
     from apps.services.device_service import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
+
+    # Audit: log BEFORE flushing the session / clearing cookies, while
+    # request.user (resolved from the still-valid tds_access cookie earlier
+    # in the request) is still available to credit as the actor.
+    from apps.core.audit_log import log_tds_action, TDSAuditLog
+    log_tds_action(request, TDSAuditLog.ACTION_LOGOUT, actor=getattr(request, 'user', None))
 
     request.session.flush()
     response = Response({'detail': 'Logged out successfully.'})

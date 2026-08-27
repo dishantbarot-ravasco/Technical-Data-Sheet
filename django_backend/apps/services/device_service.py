@@ -224,6 +224,19 @@ def send_device_otp(user) -> str:
         log.info("send_device_otp: verification email sent to %s", user.email)
     except Exception as exc:
         log.error("send_device_otp: email send failed for %s: %s", user.email, exc)
+        # DEV CONVENIENCE (fixed): apps/services/otp_service.py's password-reset
+        # OTP already falls back to printing the code to the console when SMTP
+        # isn't configured/working in DEBUG, specifically so local development
+        # doesn't require a real mail server. This login/new-device-verification
+        # OTP is the SAME kind of code sent the SAME way, but had no such
+        # fallback -- meaning a dev environment with no working SMTP could not
+        # log in at all (every login needs device verification), even though
+        # the very same situation on the password-reset flow degrades cleanly.
+        # Mirror that behavior here for consistency; still raise afterward so
+        # production (DEBUG=False) behaves exactly as before -- a hard failure,
+        # never a silently-degraded delivery.
+        if settings.DEBUG:
+            print(f"\n{'='*50}\nLogin OTP for {user.email}: {otp}\n{'='*50}\n")
         raise   # caller (serializer) catches this and returns a user-friendly 400
 
     return otp

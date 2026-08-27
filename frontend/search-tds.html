@@ -40,6 +40,10 @@
     .modal-tab.active { color:var(--gold-light);border-bottom-color:var(--gold); }
     .tab-panel { display:none; }
     .tab-panel.active { display:block; }
+    /* Fixed body height so the modal card doesn't visibly resize as you switch
+       tabs (Overview/Belt Specs/Packing/Splicing have different row counts) -
+       content scrolls inside instead. */
+    #detail-modal .modal-body { height:420px; overflow-y:auto; }
     .confirm-overlay { position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;
                        display:flex;align-items:center;justify-content:center;
                        opacity:0;pointer-events:none;transition:opacity .2s; }
@@ -222,8 +226,39 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-danger btn-sm" id="modal-btn-delete">Delete</button>
-        <button class="btn btn-outline btn-sm" id="modal-btn-pdf">⬇ Download PDF</button>
         <button class="btn btn-ghost btn-sm" id="modal-btn-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── QAP pre-download: PO / Enquiry popup ───────────────────────
+       Triggered from the "📋 QAP" button in the results table's Actions
+       column. Entered fresh every download - nothing here is saved to the
+       DB. Same pattern as tds-preview.html's #qap-ref-modal. -->
+  <div class="modal-backdrop" id="qap-ref-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>QAP Reference Details</h3>
+        <button class="modal-close" id="qap-ref-close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label><input type="radio" name="qap-doc-type" value="PO" checked /> Purchase Order (PO)</label>
+          &nbsp;&nbsp;
+          <label><input type="radio" name="qap-doc-type" value="ENQUIRY" /> Enquiry</label>
+        </div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label id="qap-ref-no-label" for="qap-ref-no">PO No</label>
+          <input type="text" id="qap-ref-no" class="form-control" placeholder="Enter PO No" />
+        </div>
+        <div class="form-group">
+          <label id="qap-ref-date-label" for="qap-ref-date">PO Date</label>
+          <input type="date" id="qap-ref-date" class="form-control" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline btn-sm" id="qap-ref-cancel">Cancel</button>
+        <button class="btn btn-sm" id="qap-ref-confirm">Generate QAP</button>
       </div>
     </div>
   </div>

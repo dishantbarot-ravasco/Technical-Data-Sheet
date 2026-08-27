@@ -17,7 +17,7 @@ Usage
     tds_number = next_tds_number()   # e.g. "0001"
 """
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
 
 from apps.core.models import TDSSequence
 
@@ -41,8 +41,26 @@ def next_tds_number() -> str:
         )
 
         if seq is None:
-            seq = TDSSequence(year=0, last_number=1)
-            seq.save()
+            # First-ever call: the sentinel row doesn't exist yet, so there's
+            # nothing for select_for_update() to lock. Two concurrent first
+            # calls can both reach this branch and both try to INSERT
+            # year=0 — the loser hits an IntegrityError on the primary key.
+            # Isolate that attempt in its own savepoint and, if it loses the
+            # race, fall back to a locked re-read + increment on the row the
+            # winner just committed, so this never surfaces as an unhandled
+            # 500 or a duplicate TDS number.
+            try:
+                with transaction.atomic():
+                    seq = TDSSequence(year=0, last_number=1)
+                    seq.save()
+            except IntegrityError:
+                seq = (
+                    TDSSequence.objects
+                    .select_for_update()
+                    .get(year=0)
+                )
+                seq.last_number += 1
+                seq.save()
         else:
             seq.last_number += 1
             seq.save()

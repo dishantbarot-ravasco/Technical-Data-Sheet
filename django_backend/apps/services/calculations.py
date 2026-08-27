@@ -57,6 +57,38 @@ def validate_endless_belt_length(construction_type: str, belt_length_m) -> None:
         )
 
 
+def validate_international_shipping_fields(purpose_type: str, shipping_region, container_type_id) -> None:
+    """
+    Raise ValueError if purpose_type is 'International' and either
+    shipping_region or container_type_id is missing.
+
+    BUG FIX: apps/core/models.py's own docstring for TDSInput says
+    "International orders require shipping_region + container_type on
+    TDSInput", and the frontend (generate-tds.js's submitTDS()) does mark
+    these fields required in the UI when Purpose = International - but
+    nothing enforced this server-side. A direct API call (or any client bug
+    that skips the UI's own check) could silently create an "International"
+    TDS with shipping_region=None and container_type_id=None: the exact data
+    the PDF's shipping-constraint section and packing's international
+    reel/weight caps (see recalcPacking()'s _isInternational() branch and
+    get_container_constraints() below) depend on to even run. Enforce the
+    same rule the model docstring already promises, the same way
+    validate_endless_belt_length() enforces its own documented constraint.
+    """
+    if (purpose_type or '').strip().lower() != 'international':
+        return
+    missing = []
+    if not shipping_region:
+        missing.append('shipping_region')
+    if not container_type_id:
+        missing.append('container_type_id')
+    if missing:
+        raise ValueError(
+            "International orders require " + " and ".join(missing) +
+            f" ({'this field is' if len(missing) == 1 else 'these fields are'} mandatory for shipping/packing constraints)."
+        )
+
+
 # ── International container constraints ───────────────────────────────────────
 
 @dataclass(frozen=True)

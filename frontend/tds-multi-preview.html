@@ -540,10 +540,14 @@
           '  <td style="text-align:center;">'          + width + '</td>',
           '  <td style="text-align:center;">'          + length + '</td>',
           '  <td style="text-align:center;">'          + statusBadge(r.status) + '</td>',
-          '  <td style="text-align:center;">',
+          '  <td style="text-align:center;white-space:nowrap;">',
           '    <button class="btn btn-ghost btn-sm pdf-btn" style="font-size:10px;padding:3px 8px;"',
           '            data-tds-id="' + r.tds_id + '" data-label="' + escHtml(r.tds_number) + '">',
           '      Preview',
+          '    </button>',
+          '    <button class="btn btn-ghost btn-sm edit-btn" style="font-size:10px;padding:3px 8px;"',
+          '            data-action="edit" data-tds-id="' + r.tds_id + '">',
+          '      ✏ Edit',
           '    </button>',
           '  </td>',
           '</tr>',
@@ -606,9 +610,19 @@
 
     function wirePdfButtons() {
       document.getElementById('records-tbody').addEventListener('click', function(e) {
-        /* clicking anywhere on the row opens that record's preview */
         const row = e.target.closest('tr.preview-row');
         if (!row) return;
+        // "Edit" opens the single-belt edit page for just this one belt in
+        // the batch (same edit mechanism generate-tds.js's ?edit=<tds_id>
+        // uses everywhere else) — a customer change request on one belt
+        // weeks later doesn't mean redoing the whole batch. Must be checked
+        // before the generic row-click, since the button lives inside the row.
+        const editBtn = e.target.closest('[data-action="edit"]');
+        if (editBtn) {
+          window.location.href = 'generate-tds.html?edit=' + editBtn.dataset.tdsId;
+          return;
+        }
+        /* clicking anywhere else on the row opens that record's preview */
         goToPreview(parseInt(row.dataset.tdsId, 10), row.dataset.label);
       });
     }

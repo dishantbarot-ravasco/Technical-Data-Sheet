@@ -83,6 +83,7 @@
     .frc-4 { grid-template-columns: repeat(4, 1fr); }
     .frc-3 { grid-template-columns: repeat(3, 1fr); }
     .frc-6 { grid-template-columns: repeat(6, 1fr); }
+    .frc-7 { grid-template-columns: repeat(7, 1fr); }
     .frc-mt { margin-top: 10px; }
     .sp2 { grid-column: span 2; }
     .sp4 { grid-column: span 4; }
@@ -341,13 +342,13 @@
     }
     @media (max-width: 900px) {
       .frc-4 { grid-template-columns: 1fr 1fr; }
-      .frc-6 { grid-template-columns: repeat(3, 1fr); }
+      .frc-6, .frc-7 { grid-template-columns: repeat(3, 1fr); }
       .sp2   { grid-column: span 1; }
       .sp4   { grid-column: span 2; }
       .shared-config-grid { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 580px) {
-      .frc-4, .frc-6 { grid-template-columns: 1fr 1fr; }
+      .frc-4, .frc-6, .frc-7 { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -975,7 +976,7 @@
           <div class="section-card-header"><h3>Packing &amp; Logistics</h3></div>
           <div class="section-card-body">
 
-            <div class="form-row-c frc-6">
+            <div class="form-row-c frc-7">
               <div>
                 <label class="flbl">Reel Type</label>
                 <select id="reel-type-id" class="finp"><option value="">Loading…</option></select>
@@ -987,6 +988,10 @@
               <div>
                 <label class="flbl">No. of Rolls <span class="badge-auto">AUTO</span></label>
                 <input type="number" id="num-rolls" class="finp auto-field" readonly placeholder="Auto" />
+              </div>
+              <div>
+                <label class="flbl">Length / Roll (m) <span class="badge-auto">AUTO</span></label>
+                <input type="number" id="length-per-roll" class="finp auto-field" readonly placeholder="Auto" />
               </div>
               <div>
                 <label class="flbl">Roll Dimensions <span class="badge-auto">AUTO</span></label>
@@ -1013,7 +1018,7 @@
                   </div>
                   <div>
                     <label class="flbl">Override Length / Roll (m)</label>
-                    <input type="number" id="length-per-roll" class="finp" min="1" step="0.5" placeholder="Auto" />
+                    <input type="number" id="length-per-roll-override" class="finp" min="1" step="0.5" placeholder="Auto" />
                   </div>
                   <div>
                     <label class="flbl">Override Net Weight (kg)</label>
@@ -1299,6 +1304,17 @@
   (function () {
     'use strict';
 
+    /* SECURITY: escape any dynamic value (parsed belt-line fields, lookup
+       names, server error text) before it's interpolated into an innerHTML
+       template string in this IIFE — mirrors js/generate-tds.js#escapeHtml,
+       duplicated here because this inline script is not a module and can't
+       import it. */
+    function _escHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
     const API = '/api';
     let _bootstrap = null;
     let _rowIdx    = 0;   // ever-increasing row key
@@ -1454,7 +1470,7 @@
       if (reelSel) {
         reelSel.innerHTML = '<option value="">- None -</option>' +
           _bootstrap.reel_types.map(function(r){
-            return '<option value="' + r.id + '">' + r.reel_name + '</option>';
+            return '<option value="' + _escHtml(r.id) + '">' + _escHtml(r.reel_name) + '</option>';
           }).join('');
       }
 
@@ -1463,7 +1479,7 @@
       if (pkSel) {
         pkSel.innerHTML = '<option value="">- None -</option>' +
           _bootstrap.packing_types.map(function(p){
-            return '<option value="' + p.id + '">' + p.packing_name + '</option>';
+            return '<option value="' + _escHtml(p.id) + '">' + _escHtml(p.packing_name) + '</option>';
           }).join('');
       }
     }
@@ -1573,21 +1589,21 @@
         belts.forEach(function(b) {
           var tr = document.createElement('tr');
           tr.innerHTML =
-            '<td>' + b.line_num  + '</td>'
-          + '<td>' + b.width     + '</td>'
-          + '<td>' + b.fabric    + '</td>'
-          + '<td>' + b.rating    + '</td>'
-          + '<td>' + b.top       + '</td>'
-          + '<td>' + b.bottom    + '</td>'
-          + '<td>' + b.grade     + '</td>'
-          + '<td>' + b.edge      + '</td>'
-          + '<td>' + b.end_type  + '</td>'
-          + '<td>' + b.belt_type + '</td>'
-          + '<td>' + b.length    + '</td>'
-          + '<td>' + (b.bot_plies || '1') + '</td>'
-          + '<td>' + (b.bob_plies || '1') + '</td>'
+            '<td>' + _escHtml(b.line_num)  + '</td>'
+          + '<td>' + _escHtml(b.width)     + '</td>'
+          + '<td>' + _escHtml(b.fabric)    + '</td>'
+          + '<td>' + _escHtml(b.rating)    + '</td>'
+          + '<td>' + _escHtml(b.top)       + '</td>'
+          + '<td>' + _escHtml(b.bottom)    + '</td>'
+          + '<td>' + _escHtml(b.grade)     + '</td>'
+          + '<td>' + _escHtml(b.edge)      + '</td>'
+          + '<td>' + _escHtml(b.end_type)  + '</td>'
+          + '<td>' + _escHtml(b.belt_type) + '</td>'
+          + '<td>' + _escHtml(b.length)    + '</td>'
+          + '<td>' + _escHtml(b.bot_plies || '1') + '</td>'
+          + '<td>' + _escHtml(b.bob_plies || '1') + '</td>'
           + '<td style="color:' + (b.carcass_mm ? '#7a5000' : '#aaa') + ';">'
-            + (b.carcass_mm || '<em style="color:#aaa;font-size:9px;">AUTO</em>') + '</td>';
+            + (b.carcass_mm ? _escHtml(b.carcass_mm) : '<em style="color:#aaa;font-size:9px;">AUTO</em>') + '</td>';
           tbody.appendChild(tr);
         });
         _refreshBadge(belts.length);
@@ -1600,7 +1616,7 @@
         errBox.style.display = '';
         errBox.innerHTML = '<div style="font-weight:700;margin-bottom:6px;font-size:12px;">⚠ Please fix the following errors before submitting:</div>'
           + errors.map(function(e) {
-              return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + e + '</div>';
+              return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + _escHtml(e) + '</div>';
             }).join('');
       }
     }
@@ -1688,7 +1704,7 @@
       var payload = _collect();
       if (payload.parseErrors.length) {
         errBox.innerHTML = payload.parseErrors.map(function(e) {
-          return '<div>⚠ ' + e + '</div>';
+          return '<div>⚠ ' + _escHtml(e) + '</div>';
         }).join('');
         errBox.style.display = '';
         navErr.textContent   = 'Fix belt line errors above';
@@ -1751,7 +1767,7 @@
             if (lineErrs.length) {
               errBox.innerHTML = '<div style="font-weight:700;margin-bottom:6px;font-size:12px;">⚠ Server rejected one or more belt lines:</div>'
                 + lineErrs.map(function(le) {
-                    return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + le + '</div>';
+                    return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + _escHtml(le) + '</div>';
                   }).join('');
               errBox.style.display = '';
               msg = lineErrs.length + ' belt line error(s) — see details above';

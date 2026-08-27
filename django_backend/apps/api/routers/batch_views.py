@@ -824,6 +824,22 @@ def download_batch_zip(request, batch_id):
     resp = DjangoHttpResponse(buf.read(), content_type='application/zip')
     resp['Content-Disposition'] = f'attachment; filename="{safe_customer}.zip"'
 
+    if failed:
+        logger.warning(
+            "Batch %s zip: %d TDS PDFs skipped (generation errors): %s",
+            batch_id, len(failed), failed,
+        )
+
+    # BUG FIX: this function built `resp` above but never returned it, so it
+    # fell through to an implicit `return None`. DRF's finalize_response()
+    # then hit `assert isinstance(response, HttpResponseBase)` and raised,
+    # turning every single call to "Download All PDFs (ZIP)" into a 500 -
+    # the endpoint was completely non-functional. The sibling
+    # download_batch_merged_zip() below already does `return resp` correctly;
+    # this was a straightforward missing-return in the plain (non-merged) ZIP
+    # endpoint.
+    return resp
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

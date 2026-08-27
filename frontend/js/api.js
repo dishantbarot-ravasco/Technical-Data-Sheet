@@ -298,6 +298,18 @@ export const createTDS = (payload) =>
   apiFetch('/tds', { method: 'POST', body: JSON.stringify(payload) });
 
 /**
+ * Edit an existing TDS record in place (same payload shape as createTDS).
+ * Used by generate-tds.js's edit mode (?edit=<tds_id>) so a mistake caught
+ * on the preview page, or a customer-requested change made later, updates
+ * the same record instead of creating a new one. Requires admin/tds_creator.
+ * @param {number} id      - The TDS database ID to update
+ * @param {Object} payload - Same shape as createTDS's payload
+ * @returns {Promise<Object>} Updated TDS record
+ */
+export const updateTDS = (id, payload) =>
+  apiFetch(`/tds/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+
+/**
  * Create a TDSBatch with N belt records atomically.
  * Used by the belt-queue multi-belt flow in generate-tds.js.
  *
@@ -503,5 +515,40 @@ export async function downloadPdf(id, tdsNumber, opts = {}) {
   document.body.removeChild(a);
 
   // Delay revoke so the browser has time to start the download before the URL is freed
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/**
+ * Download the QAP (Quality Assurance Plan) PDF for a TDS to the user's
+ * computer. Mirrors downloadPdf() above, but hits the separate QAP endpoint
+ * and requires the PO/Enquiry reference details the QAP document header
+ * shows (entered fresh on every download — never persisted server-side,
+ * see qap_service.py's build_qap_context docstring).
+ *
+ * @param {number} id        - The TDS database ID
+ * @param {string} tdsNumber - Used for the downloaded filename
+ * @param {Object} ref       - { docType: 'PO'|'ENQUIRY', refNo: string, refDate: string }
+ * @returns {Promise<void>}
+ * @throws {Error} If the server returns a non-2xx status
+ */
+export async function downloadQapPdf(id, tdsNumber, ref = {}) {
+  const qs = new URLSearchParams({
+    doc_type: ref.docType || 'PO',
+    ref_no:   ref.refNo   || '',
+    ref_date: ref.refDate || '',
+  });
+  const res = await fetch(`${API_BASE}/tds/${id}/qap/pdf?${qs.toString()}`, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `QAP export failed: HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `QAP-${tdsNumber}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }

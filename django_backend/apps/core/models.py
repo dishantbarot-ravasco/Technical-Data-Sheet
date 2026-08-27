@@ -938,6 +938,12 @@ class QAPTemplate(models.Model):
         ('OR',     'Oil Resistant'),
         ('FR_CAN', 'Fire Resistant (CAN/NTPC)'),
     ]
+    # Explicit AutoField (not the project-wide BigAutoField default) — these
+    # tables were created by migration 0010 with an int4 'id' column; without
+    # pinning this, makemigrations sees a mismatch against DEFAULT_AUTO_FIELD
+    # and wants to ALTER the live column (and every FK pointing at it) to
+    # bigint for no functional benefit on a table this small.
+    id           = models.AutoField(primary_key=True)
     category     = models.CharField(max_length=20, choices=CATEGORY_CHOICES, unique=True)
     display_name = models.CharField(max_length=100)
     is_active    = models.BooleanField(default=True)
@@ -956,6 +962,8 @@ class QAPSection(models.Model):
     A section heading row within a QAP template.
     Examples: '1.0 Raw Material', '2.0 In-Process Inspection', '3.0 Finished Product'
     """
+    # See QAPTemplate.id above — same reasoning applies to every QAP model.
+    id           = models.AutoField(primary_key=True)
     template     = models.ForeignKey(QAPTemplate, on_delete=models.CASCADE,
                                      related_name='sections')
     section_code = models.CharField(max_length=10)    # '1.0', '2.0', '3.0'
@@ -985,6 +993,8 @@ class QAPItem(models.Model):
     instead of a FK (same pattern as TrustedDevice.user_id) to avoid Django
     generating a FK constraint against an unmanaged table.
     """
+    # See QAPTemplate.id above — same reasoning applies to every QAP model.
+    id                 = models.AutoField(primary_key=True)
     section            = models.ForeignKey(QAPSection, on_delete=models.CASCADE,
                                            related_name='items')
     sn                 = models.CharField(max_length=20)        # '1.1', '2.1a', etc.
@@ -1023,6 +1033,8 @@ class QAPRecord(models.Model):
     in the PDF for manual fill-in before dispatch. Revision defaults to '00'.
     doc_number is auto-set to 'QAP-{tds_number}' at generation time.
     """
+    # See QAPTemplate.id above — same reasoning applies to every QAP model.
+    id           = models.AutoField(primary_key=True)
     tds_id       = models.IntegerField(unique=True, db_index=True)
     template     = models.ForeignKey(QAPTemplate, on_delete=models.SET_NULL,
                                      null=True, related_name='records')

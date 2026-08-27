@@ -65,7 +65,7 @@ import {
   getCoverGrades,
   getFabricStyles, getBeltRatings,
   createCustomer, updateCustomer,
-  tdsLookup, createTDS, createBatch, downloadPdf, getParameters,
+  tdsLookup, createTDS, updateTDS, getTDS, createBatch, downloadPdf, getParameters,
   getDimensionalSpecs, getShippingConstraints,
 } from './api.js';
 
@@ -107,6 +107,12 @@ let lookupData    = null; // result of last /api/tds/lookup call
 let createdTdsId  = null; // tds_id returned after a successful createTDS call
 let allParameters = {};   // { groupName: [{parameter_id, parameter_name}] } for PDF options
 let beltQueue     = [];   // array of captured belt-spec objects waiting to be submitted
+// Set from ?edit=<tds_id> in the URL (see init()). Non-null means this page
+// is editing an existing TDS in place — submitTDS() calls updateTDS()
+// instead of createTDS(), and the record is never re-numbered/re-created.
+// This is also how the preview page's "← Back" link avoids losing data:
+// it links back here with the same ?edit=<tds_id> instead of history.back().
+let editingTdsId  = null;
 
 /* ── DOM utility helpers ──────────────────────────────────── */
 /**
@@ -177,6 +183,25 @@ const ALL_PARAM_GROUPS = [
  * Sets the date field to today, populates the user's name in the footer,
  * loads all dropdown data from the API, and wires all event listeners.
  */
+/**
+ * Number inputs (belt width, covers, plies, weights, ...) change their value
+ * when the mouse wheel scrolls over them while focused - a well-known
+ * browser default that has nothing to do with intentionally editing the
+ * field. On a long form like this one it's easy to scroll the page with the
+ * cursor sitting over a number field and silently corrupt a value without
+ * noticing. Blur any focused number input as soon as a wheel event reaches
+ * it, so the wheel just scrolls the page like normal instead of nudging
+ * the value.
+ */
+function _disableNumberInputScroll() {
+  document.addEventListener('wheel', (e) => {
+    const el = document.activeElement;
+    if (el && el.tagName === 'INPUT' && el.type === 'number' && el === e.target) {
+      el.blur();
+    }
+  }, { passive: true });
+}
+
 async function init() {
   // Set today's date
   const today = new Date().toISOString().slice(0, 10);
@@ -191,6 +216,7 @@ async function init() {
 
   await loadAllDropdowns();
   wireEvents();
+  _disableNumberInputScroll();
 
   // Wrap every <select> with a live-search input.
   // Done AFTER loadAllDropdowns() so options are already present,
@@ -202,6 +228,208 @@ async function init() {
     'reel-type-id', 'packing-type-id', 'edge-construction', 'construction-type',
     'shipping-region', 'container-type-id', 'vulcanization-method', 'make-of-fabric',
   ].forEach(makeSearchable);
+
+  // ── Edit mode: ?edit=<tds_id> ────────────────────────────────────────────
+  // Reached either from search-tds.html's "Edit" button, or from
+  // tds-preview.html's "← Back" link (so backing out of a mistake edits the
+  // very record Preview just created, instead of abandoning it and forcing
+  // a full re-entry — see prefillFormFromRecord() below).
+  const editId = new URLSearchParams(window.location.search).get('edit');
+  if (editId) {
+    editingTdsId = +editId;
+    try {
+      const record = await getTDS(editingTdsId);
+      await prefillFormFromRecord(record);
+      _enterEditModeUI(record);
+    } catch (err) {
+      showToast('Could not load TDS-' + editId + ' for editing: ' + err.message, 'error', 8000);
+      editingTdsId = null;
+    }
+  }
+}
+
+/**
+ * Switch the page's chrome into "editing an existing TDS" mode: banner at
+ * the top, and the submit buttons relabelled so it's never ambiguous
+ * whether clicking them creates a new record or updates this one.
+ */
+function _enterEditModeUI(record) {
+  const heading = document.querySelector('.page-title, h1');
+  const banner  = document.createElement('div');
+  banner.className   = 'edit-mode-banner';
+  banner.style.cssText = 'background:#FEF3C7;color:#92400E;border:1px solid #F0B429;' +
+    'border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:13px;font-weight:600;';
+  banner.textContent  = `✏ Editing TDS-${record.tds_number} — saving will update this existing record, not create a new one.`;
+  (heading?.parentNode || document.body).insertBefore(banner, heading?.nextSibling || document.body.firstChild);
+
+  const previewBtn  = document.getElementById('btn-preview-pdf');
+  const draftBtn    = document.getElementById('btn-save-draft');
+  // IMPORTANT: never set previewBtn.textContent directly - it destroys the
+  // #submit-text span that lives inside it, which submitTDS() (and the
+  // batch-generation flow elsewhere in this file) keeps looking up by ID
+  // to show progress text ("Generating…", "Saving…", ...). Update just the
+  // span's own text instead so that span keeps existing.
+  const previewSpan = previewBtn?.querySelector('#submit-text');
+  if (previewSpan) previewSpan.textContent = 'Save Changes & Preview PDF';
+  if (draftBtn) draftBtn.textContent = 'Save Changes';
+}
+
+/**
+ * Load an existing TDS record's fields back into the form, replaying the
+ * same cascading lookups a fresh entry would trigger (brand → standards,
+ * standard → cover grades, fabric type → belt ratings/styles, then the EAV
+ * lookup itself) so every dependent dropdown and computed chip ends up in
+ * the same state it would from manual entry — not just the raw field values.
+ *
+ * Deliberately calls the loader functions directly (loadCoverGrades(),
+ * loadBeltRatings(), runLookup()) rather than dispatching synthetic 'change'
+ * events, so each step can be awaited in the correct order before the next
+ * one depends on it.
+ */
+async function prefillFormFromRecord(record) {
+  // ── Customer ───────────────────────────────────────────────────────────
+  if (record.customer_id) {
+    const hidId = document.getElementById('customer-id');
+    const search = document.getElementById('customer-search');
+    if (hidId)  hidId.value  = record.customer_id;
+    if (search) search.value = record.customer_name || record.customer?.customer_name || '';
+    set('cust-application', record.customer?.application    || '');
+    set('cust-location',    record.customer?.plant_location || '');
+  }
+
+  // ── Identification ─────────────────────────────────────────────────────
+  set('purpose-id',        record.purpose_id      ?? '');
+  set('belt-type-id',      record.belt_type_id    ?? '');
+  set('tds-doc-number',    record.tds_doc_number  ?? '');
+  set('construction-type', record.construction_type || 'Open-End');
+  _toggleIntlRow();
+  if (_isInternational()) {
+    set('shipping-region',   record.shipping_region    ?? '');
+    set('container-type-id', record.container_type_id  ?? '');
+  }
+
+  // ── Brand → Standard (cascading) ──────────────────────────────────────
+  set('brand-id', record.brand_id ?? '');
+  populateStandardsForBrand(record.brand_id);
+  set('standard-id', record.standard_id ?? '');
+  await loadCoverGrades(record.standard_id);
+  set('cover-grade-id', record.cover_grade_id ?? '');
+
+  // ── Fabric type → Belt rating / Fabric style (cascading) ───────────────
+  set('fabric-type-id', record.fabric_type_id ?? '');
+  await loadBeltRatings(record.fabric_type_id);
+  set('belt-rating-id', record.belt_rating_id ?? '');
+  set('make-of-fabric', record.make_of_fabric || 'MIT');
+
+  // ── Run the EAV lookup — populates carcass/skim/plies chips + fabric
+  //    style from the server, exactly as a fresh manual selection would.
+  await runLookup();
+
+  // If the stored fabric style differs from what auto-selection just chose,
+  // the user had manually picked a different one at creation time — restore it.
+  if (record.fabric_style_id && String(val('fabric-style-id')) !== String(record.fabric_style_id)) {
+    set('fabric-style-id', record.fabric_style_id);
+  }
+
+  // If the stored carcass thickness differs from the auto-filled value,
+  // the user had the override toggle on originally — restore that state.
+  const autoCarcass = lookupData?.belt_rating?.carcass_thickness_mm;
+  if (record.carcass_thickness_mm != null && String(autoCarcass) !== String(record.carcass_thickness_mm)) {
+    const toggle = document.getElementById('carcass-override-toggle');
+    if (toggle && !toggle.checked) { toggle.checked = true; toggle.dispatchEvent(new Event('change')); }
+    set('carcass-thickness-mm', record.carcass_thickness_mm);
+  }
+
+  // ── Belt identity / dimensions ──────────────────────────────────────────
+  set('belt-width-mm',    record.belt_width_mm  ?? '');
+  set('belt-length-m',    record.belt_length_m  ?? '');
+  set('edge-construction', record.edge_construction || 'Moulded');
+  set('top-cover-mm',     record.top_cover_mm    ?? '');
+  set('bottom-cover-mm',  record.bottom_cover_mm ?? '');
+  recalcTotal();
+  _enforceEndlessMax();
+
+  // Belt description: only restore the stored text if it differs from what
+  // auto-assembly would now produce — belt-description is user-editable, so
+  // a manually-customised description should survive re-editing the record.
+  updateBeltDescription();
+  if (record.belt_description && val('belt-description') !== record.belt_description) {
+    set('belt-description', record.belt_description);
+  }
+
+  // ── Breakers ──────────────────────────────────────────────────────────
+  const brkTopYes = document.querySelector('input[name="brk-top"][value="yes"]');
+  const brkTopNo  = document.querySelector('input[name="brk-top"][value="no"]');
+  if (record.breaker_top) {
+    if (brkTopYes) brkTopYes.checked = true;
+    window._brkTop(true);
+    set('breaker-top-plies', record.breaker_top_plies ?? '');
+  } else if (brkTopNo) { brkTopNo.checked = true; window._brkTop(false); }
+
+  const brkBotYes = document.querySelector('input[name="brk-bot"][value="yes"]');
+  const brkBotNo  = document.querySelector('input[name="brk-bot"][value="no"]');
+  if (record.breaker_bottom) {
+    if (brkBotYes) brkBotYes.checked = true;
+    window._brkBot(true);
+    set('breaker-bottom-plies', record.breaker_bottom_plies ?? '');
+  } else if (brkBotNo) { brkBotNo.checked = true; window._brkBot(false); }
+
+  // ── Packing ───────────────────────────────────────────────────────────
+  set('reel-type-id',    record.reel_type_id    ?? '');
+  set('packing-type-id', record.packing_type_id ?? '');
+  recalcPacking();
+  // If the stored packing values differ from what auto-recompute just
+  // produced, the user had manually overridden them — reopen the override
+  // panel and restore the exact stored values.
+  //
+  // BUG FIX: this used to compare String(autoLpr) !== String(record.length_per_roll_m)
+  // etc. Auto fields are formatted client-side with .toFixed(2) (e.g. "300.00"),
+  // while the API returns plain floats (e.g. 300, stringifying to "300") - so the
+  // string comparison mismatched on essentially every decimal packing field, on
+  // every single edit-load, regardless of whether the user had ever touched the
+  // override panel. That false positive opened the override panel and repopulated
+  // it with the *previously stored* (now stale) packing values; since submitTDS()
+  // always prefers the override fields over the freshly-recalculated auto fields,
+  // any edit that changed belt length/width (which legitimately changes packing)
+  // silently re-saved the OLD, now-inconsistent packing numbers - e.g. a belt
+  // edited from 300m to 450m kept "1 roll x 300m" instead of recomputing to
+  // "2 rolls x 225m". Compare numerically (with a small tolerance for float
+  // rounding) instead, so only a *genuine* stored/recomputed mismatch reopens
+  // the override panel.
+  const numsDiffer = (a, b, eps = 0.005) => {
+    const na = Number(a), nb = Number(b);
+    if (Number.isNaN(na) || Number.isNaN(nb)) return String(a) !== String(b);
+    return Math.abs(na - nb) > eps;
+  };
+  const autoRolls = val('num-rolls'), autoLpr = val('length-per-roll'),
+        autoNet   = val('net-weight-kg'), autoGross = val('gross-weight-kg');
+  const overridden =
+    (record.num_rolls != null          && numsDiffer(autoRolls, record.num_rolls)) ||
+    (record.length_per_roll_m != null  && numsDiffer(autoLpr,   record.length_per_roll_m)) ||
+    (record.net_weight_kg != null      && numsDiffer(autoNet,   record.net_weight_kg)) ||
+    (record.gross_weight_kg != null    && numsDiffer(autoGross, record.gross_weight_kg));
+  if (overridden) {
+    const fields = document.getElementById('packing-override-fields');
+    if (fields && fields.style.display === 'none') togglePackingOverride();
+    set('num-rolls-override',       record.num_rolls         ?? '');
+    set('length-per-roll-override', record.length_per_roll_m ?? '');
+    set('net-weight-kg-override',   record.net_weight_kg     ?? '');
+    set('gross-weight-kg-override', record.gross_weight_kg   ?? '');
+  } else if (record.roll_dimensions) {
+    set('roll-dimensions', record.roll_dimensions);
+  }
+
+  // ── Splicing ──────────────────────────────────────────────────────────
+  const splicingCb = document.getElementById('splicing-required');
+  if (splicingCb) {
+    splicingCb.checked = !!record.splicing_required;
+    splicingCb.dispatchEvent(new Event('change'));
+  }
+  if (record.splicing_required) {
+    set('vulcanization-method', record.vulcanization_method || 'Hot');
+    set('num-joints',           record.num_joints ?? '');
+    recalcSplicing();
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1430,8 +1658,8 @@ function wireEvents() {
       }
     }
   });
-  document.getElementById('length-per-roll')?.addEventListener('input', () => {
-    const v = parseFloat(document.getElementById('length-per-roll').value);
+  document.getElementById('length-per-roll-override')?.addEventListener('input', () => {
+    const v = parseFloat(document.getElementById('length-per-roll-override').value);
     if (!isNaN(v)) document.getElementById('pc-lpr').textContent = v.toFixed(2);
   });
   document.getElementById('net-weight-kg-override')?.addEventListener('input', () => {
@@ -1509,7 +1737,7 @@ function captureBeltSpec() {
     packing_type_id:      +val('packing-type-id') || null,
     num_rolls:            +val('num-rolls-override')      || +val('num-rolls')        || null,
     roll_dimensions:      val('roll-dimensions')          || null,
-    length_per_roll_m:    parseFloat(val('length-per-roll')) || null,
+    length_per_roll_m:    parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
     net_weight_kg:        parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
     gross_weight_kg:      parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
     splicing_required:    splicingOn,
@@ -1725,8 +1953,7 @@ function togglePackingOverride() {
       if (el && !el.value) el.value = curRolls;
     }
     if (curLpr) {
-      const el = document.getElementById('length-per-roll');
-      // length-per-roll is a shared field - only set if still empty
+      const el = document.getElementById('length-per-roll-override');
       if (el && !el.value) el.value = curLpr;
     }
     if (curNet) {
@@ -1950,6 +2177,15 @@ async function submitTDS(mode = 'preview') {
     ? `Generating ${beltQueue.length + 1} TDS…`
     : 'Generating…';
 
+  // RACE FIX: `return` inside the try block below still runs `finally` before
+  // actually returning, so on a successful submit the buttons were being
+  // re-enabled immediately, up to ~800ms before the setTimeout()-delayed
+  // navigation actually left the page — a fast double-click in that window
+  // could fire a second create-TDS/create-batch POST. This flag lets `finally`
+  // know a redirect is already scheduled, so it leaves the buttons disabled
+  // instead (the page is about to unload anyway).
+  let navigatingAway = false;
+
   try {
     // ── Step 1: Create or update customer ────────────────────────────────────
     // Case A - new customer typed by user: POST /api/customers
@@ -2048,7 +2284,7 @@ async function submitTDS(mode = 'preview') {
       packing_type_id:    +val('packing-type-id') || null,
       num_rolls:          +val('num-rolls-override')      || +val('num-rolls')        || null,
       roll_dimensions:    val('roll-dimensions')          || null,
-      length_per_roll_m:  parseFloat(val('length-per-roll')) || null,
+      length_per_roll_m:  parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
       net_weight_kg:      parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
       gross_weight_kg:    parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
 
@@ -2108,6 +2344,7 @@ async function submitTDS(mode = 'preview') {
       } else {
         const createdCount = batchResult.count || batchResult.tds_records?.length || 0;
         showToast(`${createdCount} TDS created! Opening preview…`, 'success', 1500);
+        navigatingAway = true;
         setTimeout(() => {
           window.location.href = 'tds-multi-preview.html?batch_id=' + batchId;
         }, 600);
@@ -2115,8 +2352,11 @@ async function submitTDS(mode = 'preview') {
       return;
     }
 
-    // Single-belt flow (unchanged)
-    const tds = await createTDS(payload);
+    // Single-belt flow — update the existing record if we're in edit mode
+    // (editingTdsId set from ?edit=<id> in init()), otherwise create new.
+    const tds = editingTdsId
+      ? await updateTDS(editingTdsId, payload)
+      : await createTDS(payload);
     createdTdsId = tds.tds_id;
 
     // ── Step 5: Build the PDF options panel now that we know splicing status ───
@@ -2124,9 +2364,11 @@ async function submitTDS(mode = 'preview') {
     buildPdfGroupOptions(splicingOn);
 
     // ── Step 6: Handle mode ───────────────────────────────────────────────────
+    const verb = editingTdsId ? 'updated' : 'created';
     if (mode === 'preview') {
       // Navigate directly to the preview page (options sidebar is built in)
-      showToast(`TDS-${tds.tds_number} created! Opening preview…`, 'success', 2000);
+      showToast(`TDS-${tds.tds_number} ${verb}! Opening preview…`, 'success', 2000);
+      navigatingAway = true;
       setTimeout(() => {
         const qs = new URLSearchParams({
           tds_id:         tds.tds_id,
@@ -2139,7 +2381,7 @@ async function submitTDS(mode = 'preview') {
       return; // don't fall through to finally re-enabling buttons
     } else {
       // Draft save - just confirm, stay on form
-      showToast(`TDS-${tds.tds_number} saved as draft.`, 'success', 5000);
+      showToast(`TDS-${tds.tds_number} ${editingTdsId ? 'updated' : 'saved as draft'}.`, 'success', 5000);
     }
 
   } catch (err) {
@@ -2148,11 +2390,15 @@ async function submitTDS(mode = 'preview') {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     showToast('Error: ' + err.message, 'error', 8000);
   } finally {
-    // Always re-enable submit buttons regardless of success/failure
-    saveDraftBtn.disabled  = false;
-    previewBtn.disabled    = false;
-    if (addBeltBtn) addBeltBtn.disabled = false;
-    submitText.textContent = 'Generate & Preview PDF';
+    // Re-enable submit buttons on error or a stay-on-page success (draft
+    // save). A navigate-away success (navigatingAway) leaves them disabled
+    // until the redirect actually happens, closing the double-submit window.
+    if (!navigatingAway) {
+      saveDraftBtn.disabled  = false;
+      previewBtn.disabled    = false;
+      if (addBeltBtn) addBeltBtn.disabled = false;
+      submitText.textContent = 'Generate & Preview PDF';
+    }
   }
 }
 

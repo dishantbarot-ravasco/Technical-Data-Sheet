@@ -292,6 +292,16 @@ EMAIL_HOST_PASSWORD   = os.environ.get('SMTP_PASS', '')
 EMAIL_USE_SSL         = _smtp_port == 465
 EMAIL_USE_TLS         = _smtp_port == 587
 DEFAULT_FROM_EMAIL    = os.environ.get('SMTP_FROM', EMAIL_HOST_USER)
+# SECURITY/RELIABILITY (fixed): Django's SMTP backend has no timeout by
+# default (timeout=None -> blocks on the OS's own TCP timeout, which can be
+# minutes). request_otp/login/password-reset all send mail synchronously
+# inside the request, so a slow or unreachable mail server previously meant
+# that request -- and, on the single-worker dev server, every other request
+# -- hung until the connection eventually timed out or the client gave up.
+# A fixed timeout turns that into a fast, clean failure (still surfaced to
+# the user as an error, and to the console OTP fallback in DEBUG) instead of
+# an indefinite hang.
+EMAIL_TIMEOUT         = 10
 
 # ── Daily report cron secret ───────────────────────────────────────────────────
 # Shared secret required by GET/POST /api/internal/send-daily-report/ (see

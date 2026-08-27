@@ -201,13 +201,19 @@ def google_callback(request):
         request.session.save()
 
         redirect_response = HttpResponseRedirect(f'{_FRONTEND_LOGIN}?oauth_ready=1')
-        # Also set the httpOnly tds_access cookie directly on this redirect, so
-        # cookie-based auth is already active the instant the browser lands back
-        # on index.html — the session-token pickup above is still what hands the
-        # frontend its display info (name/role/email) and a body copy of the
-        # token for non-cookie API clients.
-        from apps.services.device_service import set_access_cookie
+        # Also set the httpOnly tds_access / tds_refresh cookies directly on
+        # this redirect, so cookie-based auth (including the 30-day 'remember
+        # me' refresh cookie — see device_service.py#set_refresh_cookie) is
+        # already active the instant the browser lands back on index.html —
+        # the session-token pickup above is still what hands the frontend its
+        # display info (name/role/email) and a body copy of the token for
+        # non-cookie API clients.
+        from apps.services.device_service import set_access_cookie, set_refresh_cookie
         set_access_cookie(redirect_response, access)
+        set_refresh_cookie(redirect_response, str(refresh))
+
+        from apps.core.audit_log import log_tds_action, TDSAuditLog
+        log_tds_action(request, TDSAuditLog.ACTION_LOGIN, actor=user, detail='Google OAuth, trusted device')
         return redirect_response
     else:
         # New device — send OTP and redirect to device-verify step

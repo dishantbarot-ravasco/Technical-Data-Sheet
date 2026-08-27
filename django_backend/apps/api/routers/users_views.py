@@ -104,10 +104,29 @@ def request_otp(request):
         try:
             send_otp_email(email, otp, user.full_name or "")
         except RuntimeError as exc:
-            return Response(
-                {'detail': f"Could not send OTP email: {exc}"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
+            # BUG FIX: this used to return a 503 here, which broke two things
+            # at once, discovered by actually running the "forgot password"
+            # flow end-to-end with SMTP unreachable (the same situation the
+            # login/device-OTP flow was already fixed for earlier):
+            #   1. This function's own docstring promises "Always returns
+            #      200 - even if email is not registered (prevents
+            #      enumeration)". A 503 only ever happens for an email that
+            #      IS registered (otp is only generated inside this `if`
+            #      branch) - so the status code itself leaked account
+            #      existence, the exact thing the 200-always contract exists
+            #      to prevent.
+            #   2. generate_otp(email) above already committed a valid,
+            #      checkable OTP before this send attempt, and
+            #      send_otp_email() already prints it to the console as a
+            #      DEBUG-mode fallback (see otp_service.py) - so the code was
+            #      real and usable, but the 503 response stopped the
+            #      frontend's Change Password modal from ever advancing to
+            #      the "enter OTP" step, blocking password resets entirely
+            #      whenever the mail server hiccups.
+            # Log the failure for operators and fall through to the same 200
+            # every other path returns - never surface email-transport
+            # failures to the caller.
+            logger.error("request_otp: failed to send OTP email to %s: %s", email, exc)
     return Response({'message': 'If that email is registered, an OTP has been sent.'})
 
 

@@ -35,6 +35,7 @@ Groups:
 """
 from django.contrib import admin
 
+from .audit_log import TDSAuditLog
 from .models import (
     # Reference data
     Purpose, BeltType, IndusBrand, Standard,
@@ -423,3 +424,25 @@ class BrandBeltTypeAdmin(admin.ModelAdmin):
     list_display = ('brand', 'belt_type')
     list_filter  = ('brand', 'belt_type')
     ordering     = ('brand', 'belt_type')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 14. Audit log — append-only; read-only in Admin (see audit_log.py)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@admin.register(TDSAuditLog)
+class TDSAuditLogAdmin(admin.ModelAdmin):
+    list_display  = ('timestamp', 'action', 'tds_number', 'actor_email', 'ip_address', 'detail')
+    list_filter   = ('action',)
+    search_fields = ('tds_number', 'actor_email', 'ip_address', 'detail')
+    ordering      = ('-timestamp',)
+    readonly_fields = [f.name for f in TDSAuditLog._meta.get_fields()]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

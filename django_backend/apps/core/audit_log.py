@@ -65,6 +65,8 @@ class TDSAuditLog(models.Model):
     ACTION_PACKING  = 'packing_recompute'
     ACTION_BATCH    = 'batch_create'
     ACTION_DOWNLOAD = 'download_pdf'
+    ACTION_LOGIN    = 'login'
+    ACTION_LOGOUT   = 'logout'
 
     ACTION_CHOICES = [
         (ACTION_CREATE,   'Create'),
@@ -75,6 +77,8 @@ class TDSAuditLog(models.Model):
         (ACTION_PACKING,  'Packing Recompute'),
         (ACTION_BATCH,    'Batch Create'),
         (ACTION_DOWNLOAD, 'Download PDF'),
+        (ACTION_LOGIN,    'Login'),
+        (ACTION_LOGOUT,   'Logout'),
     ]
 
     timestamp    = models.DateTimeField(default=timezone.now, db_index=True)
@@ -115,7 +119,7 @@ def _get_client_ip(request):
     return get_client_ip(request)
 
 
-def log_tds_action(request, action, tds=None, detail=''):
+def log_tds_action(request, action, tds=None, detail='', actor=None):
     """
     Write one audit row.  Never raises — failures are logged and swallowed so
     a broken audit system can't block a legitimate user action.
@@ -124,20 +128,30 @@ def log_tds_action(request, action, tds=None, detail=''):
         log_tds_action(request, TDSAuditLog.ACTION_APPROVE, tds=tds_instance)
         log_tds_action(request, TDSAuditLog.ACTION_DELETE,  tds=tds_instance, detail='User requested deletion')
         log_tds_action(request, TDSAuditLog.ACTION_BATCH,   detail=f'{len(belt_list)} belts')
+        log_tds_action(request, TDSAuditLog.ACTION_LOGIN,   actor=user, detail='trusted device')
 
     Args:
-        request  — DRF/Django request (provides actor + IP)
+        request  — DRF/Django request (provides IP always, and the actor too
+                   when `actor` isn't passed explicitly)
         action   — one of TDSAuditLog.ACTION_* constants
-        tds      — TDSInput instance, or None for batch-level actions
+        tds      — TDSInput instance, or None for batch-level/login/logout actions
         detail   — optional free-text annotation
+        actor    — TDSUser instance to credit as the actor. Required for
+                   ACTION_LOGIN (request.user is still anonymous at that point
+                   in the flow — the JWT/session that would authenticate it
+                   doesn't exist until *after* login succeeds) and for
+                   ACTION_LOGOUT sites that flush the session before this is
+                   called. Falls back to request.user when omitted, which is
+                   correct for every already-authenticated action (create,
+                   update, delete, download, ...).
     """
     try:
-        user = getattr(request, 'user', None)
+        user = actor if actor is not None else getattr(request, 'user', None)
         TDSAuditLog.objects.create(
             action      = action,
             tds_id      = tds.tds_id      if tds else None,
             tds_number  = tds.tds_number  if tds else '',
-            actor_id    = user.pk         if user and user.is_authenticated else None,
+            actor_id    = user.pk         if user and getattr(user, 'is_authenticated', True) else None,
             actor_email = getattr(user, 'email', '') or '',
             ip_address  = _get_client_ip(request),
             detail      = detail,

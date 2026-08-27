@@ -273,7 +273,7 @@
         <button class="btn-download-qap"  id="btn-download-qap">📋 Download QAP</button>
         <button class="btn-print-save"    id="btn-print-save">🖨 Print PDF</button>
 
-        <a href="javascript:history.back()" class="btn btn-outline btn-sm"
+        <a href="index.html" id="btn-back" class="btn btn-outline btn-sm"
            style="text-align:center;margin-top:4px;">← Back</a>
 
       </aside>
@@ -321,6 +321,15 @@
     /* true when generate-tds.js / tds-multi-preview.html passed splicing=true.
        Used to auto-download the splicing manual alongside the PDF download. */
     const tdsHasSplicing = urlParams.get('splicing') === 'true';
+
+    // "Back" used to be plain history.back() — but by the time this page is
+    // showing, the TDS record was already permanently created/updated (see
+    // generate-tds.js submitTDS()), so going back to a blank form abandoned
+    // that record with no way to recover its data. Routing back into edit
+    // mode for this exact tds_id means "Back" now really means "let me fix
+    // what I just entered", not "throw it away and start over".
+    const backBtn = document.getElementById('btn-back');
+    if (backBtn && tdsId) backBtn.href = `generate-tds.html?edit=${tdsId}`;
 
     /* ── Splicing manual auto-download ──────────────────────────────────── */
     function _downloadSplicingManual() {

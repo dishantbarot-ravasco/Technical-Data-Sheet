@@ -6,7 +6,10 @@ Endpoints
 POST /api/auth/login          — credentials → device-trust / email-OTP intermediate state
 POST /api/auth/token/refresh  — refresh an expiring access token
 POST /api/auth/token/verify   — verify a token is still valid
-POST /api/auth/logout         — clear the httpOnly JWT cookie
+
+Logout (POST /api/auth/logout) lives in apps/api/routers/device_views.py, not
+here — it needs to clear both the tds_access AND tds_refresh cookies, and it
+sits next to device_verify() which shares its "pending device" session state.
 
 Live login flow (device-trust + email OTP — see auth_serializers.py and
 apps/api/routers/device_views.py):
@@ -20,14 +23,9 @@ apps/api/routers/device_views.py):
   totp_service.py / totp_views.py but was never wired into apps/api/urls.py and
   has since been removed — the device-trust + email-OTP flow above is the only
   2FA this app implements.)
-
-Logout:
-  The httpOnly cookie (tds_access) is set after successful login/verification.
-  Logout clears it server-side and returns 204 No Content.
 """
 
 import logging
-from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -85,6 +83,16 @@ class TDSLoginView(TokenObtainPairView):
             set_access_cookie(response, response.data['access_token'])
             if response.data.get('refresh'):
                 set_refresh_cookie(response, response.data['refresh'])
+
+            # Audit: trusted-device login (skipped OTP). New-device logins are
+            # logged separately in device_views.py#device_verify, once the OTP
+            # step actually completes — this branch only fires for a device
+            # that was already trusted, so it's the whole login right here.
+            from apps.core.audit_log import log_tds_action, TDSAuditLog
+            from apps.core.models import TDSUser
+            user = TDSUser.objects.filter(pk=response.data.get('user_id')).first()
+            if user:
+                log_tds_action(request, TDSAuditLog.ACTION_LOGIN, actor=user, detail='trusted device')
         return response
 
 
@@ -124,36 +132,6 @@ class TDSTokenRefreshView(TokenRefreshView):
 
 
 TDSTokenVerifyView = TokenVerifyView
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Logout — clears the httpOnly cookie (Phase 5)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@api_view(['POST'])
-@permission_classes([AllowAny])  # AllowAny so expired-cookie sessions can still log out
-def logout_view(request):
-    """
-    POST /api/auth/logout
-
-    Deletes the httpOnly JWT cookie (tds_access) and returns 204 No Content.
-    The frontend (auth.js) calls this before clearing sessionStorage and
-    redirecting to the login page.
-
-    Permission: AllowAny — we want to allow logout even if the token has
-    just expired so the user is never stuck with a stale cookie.
-    """
-    response = Response(status=status.HTTP_204_NO_CONTENT)
-    response.delete_cookie(
-        key      = settings.TDS_COOKIE_NAME,
-        path     = '/',
-        samesite = settings.TDS_COOKIE_SAMESITE,
-    )
-    logger.info(
-        'logout: cookie cleared for %s',
-        getattr(request.user, 'email', 'anonymous'),
-    )
-    return response
 
 
 # ─────────────────────────────────────────────────────────────────────────────

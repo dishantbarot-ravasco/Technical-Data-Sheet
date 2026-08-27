@@ -16,7 +16,7 @@
  *   listTDS, getTDS, deleteTDS, downloadPdf, getStandards (from api.js)
  */
 import { requireAuth, populateNavUser, showToast } from './auth.js';
-import { listTDS, getTDS, deleteTDS, downloadPdf, getStandards } from './api.js';
+import { listTDS, getTDS, deleteTDS, downloadPdf, downloadQapPdf, getStandards } from './api.js';
 
 /**
  * Escape a value for safe insertion into an innerHTML template string.
@@ -38,11 +38,19 @@ function escapeHtml(value) {
 const session = await requireAuth();
 if (session) populateNavUser();
 
+// Edit/Delete are backend-gated to admin + tds_creator (apps/api/permissions.py's
+// IsEditor/IsCreator) - a viewer would previously see these buttons, fill out a
+// whole edit, and only get rejected on save. Hide them client-side too so a
+// viewer only ever sees actions they can actually perform.
+const canEdit = session && ['admin', 'tds_creator'].includes(session.role);
+
 // Module-level state
 let allRecords      = [];  // Full list of all TDS records from the API
 let filteredRecs    = [];  // Subset after applying the current filter values
 let activeModalId   = null; // tds_id currently open in the detail modal (null = closed)
 let pendingDeleteId = null; // tds_id queued for deletion in the confirm overlay
+let pendingQapId    = null; // tds_id queued for QAP download in the ref-details popup
+let pendingQapNum   = null; // matching tds_number, used for the downloaded filename
 
 /* ═══════════════════════════════════════════════════════════
    INIT
@@ -57,6 +65,7 @@ async function init() {
   wireFilters();
   wireModal();
   wireConfirmDelete();
+  wireQapRefModal();
   document.getElementById('btn-refresh').addEventListener('click', loadRecords);
 }
 
@@ -201,8 +210,14 @@ function renderTable() {
             <td>
               <div class="table-actions">
                 <button class="btn btn-ghost btn-sm" data-action="view" data-id="${t.tds_id}">View</button>
+                ${canEdit ? `<button class="btn btn-outline btn-sm" data-action="edit"
+                        data-id="${t.tds_id}" title="Edit">✏ Edit</button>` : ''}
+                <button class="btn btn-outline btn-sm" data-action="qap"
+                        data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}" title="Download QAP">📋 QAP</button>
                 <button class="btn btn-outline btn-sm" data-action="pdf"
-                        data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}">⬇ PDF</button>
+                        data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}" title="Download PDF">⬇ PDF</button>
+                ${canEdit ? `<button class="btn btn-danger btn-sm" data-action="delete"
+                        data-id="${t.tds_id}" title="Delete">🗑</button>` : ''}
               </div>
             </td>
           </tr>`).join('')}
@@ -254,8 +269,11 @@ function getSelectedExcludeGroups() {
  */
 async function handleRowAction(e) {
   const { action, id, num } = e.currentTarget.dataset;
-  if (action === 'view') openModal(+id);
-  if (action === 'pdf')  handleDownloadPdf(+id, num);
+  if (action === 'view')   openModal(+id);
+  if (action === 'edit')   window.location.href = `generate-tds.html?edit=${id}`;
+  if (action === 'pdf')    handleDownloadPdf(+id, num);
+  if (action === 'qap')    openQapRefModal(+id, num);
+  if (action === 'delete') openConfirmDelete(+id);
 }
 
 /**
@@ -274,6 +292,63 @@ async function handleDownloadPdf(id, num) {
   } catch (err) {
     showToast('PDF error: ' + err.message, 'error');
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   QAP DOWNLOAD (PO / Enquiry popup)
+   Triggered from the "📋 QAP" button in the results table's Actions
+   column. Asks for PO/Enquiry reference details fresh on every download
+   (never persisted) before generating - same pattern as tds-preview.html's
+   #qap-ref-modal.
+═══════════════════════════════════════════════════════════ */
+function openQapRefModal(id, num) {
+  pendingQapId  = id;
+  pendingQapNum = num;
+  const isEnquiry = document.querySelector('input[name="qap-doc-type"]:checked')?.value === 'ENQUIRY';
+  document.getElementById('qap-ref-no-label').textContent   = isEnquiry ? 'Enquiry No'   : 'PO No';
+  document.getElementById('qap-ref-date-label').textContent = isEnquiry ? 'Enquiry Date' : 'PO Date';
+  document.getElementById('qap-ref-no').placeholder = isEnquiry ? 'Enter Enquiry No' : 'Enter PO No';
+  document.getElementById('qap-ref-modal').classList.add('open');
+}
+function closeQapRefModal() {
+  document.getElementById('qap-ref-modal').classList.remove('open');
+}
+
+function wireQapRefModal() {
+  document.querySelectorAll('input[name="qap-doc-type"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isEnquiry = r.value === 'ENQUIRY' && r.checked;
+      if (!r.checked) return;
+      document.getElementById('qap-ref-no-label').textContent   = isEnquiry ? 'Enquiry No'   : 'PO No';
+      document.getElementById('qap-ref-date-label').textContent = isEnquiry ? 'Enquiry Date' : 'PO Date';
+      document.getElementById('qap-ref-no').placeholder = isEnquiry ? 'Enter Enquiry No' : 'Enter PO No';
+    });
+  });
+  document.getElementById('qap-ref-close').addEventListener('click', closeQapRefModal);
+  document.getElementById('qap-ref-cancel').addEventListener('click', closeQapRefModal);
+
+  document.getElementById('qap-ref-confirm').addEventListener('click', async () => {
+    if (!pendingQapId) return;
+    const docType = document.querySelector('input[name="qap-doc-type"]:checked')?.value || 'PO';
+    const refNo   = document.getElementById('qap-ref-no').value.trim();
+    const refDate = document.getElementById('qap-ref-date').value;
+    const id      = pendingQapId;
+    const num     = pendingQapNum;
+    closeQapRefModal();
+
+    const btn = document.getElementById('qap-ref-confirm');
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Generating…';
+    try {
+      await downloadQapPdf(id, num, { docType, refNo, refDate });
+      showToast('QAP downloaded.', 'success');
+    } catch (err) {
+      showToast('QAP download failed: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = original;
+      pendingQapId = null; pendingQapNum = null;
+    }
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -298,15 +373,14 @@ function wireModal() {
     });
   });
 
-  document.getElementById('modal-btn-pdf').addEventListener('click', () => {
-    if (activeModalId) {
-      const rec = allRecords.find(r => r.tds_id === activeModalId);
-      handleDownloadPdf(activeModalId, rec?.tds_number || activeModalId);
-    }
-  });
-  document.getElementById('modal-btn-delete').addEventListener('click', () => {
-    if (activeModalId) openConfirmDelete(activeModalId);
-  });
+  const modalDeleteBtn = document.getElementById('modal-btn-delete');
+  if (canEdit) {
+    modalDeleteBtn.addEventListener('click', () => {
+      if (activeModalId) openConfirmDelete(activeModalId);
+    });
+  } else {
+    modalDeleteBtn.style.display = 'none';
+  }
 }
 
 /**

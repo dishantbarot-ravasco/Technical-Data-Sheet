@@ -10,12 +10,12 @@ Endpoints:
 import logging
 
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.core.models import PackingType, ReelType, TDSInput
 from apps.services.packing_service import compute_packing
+from apps.api.permissions import IsCreator
 
 logger = logging.getLogger(__name__)
 
@@ -81,27 +81,35 @@ def _compute_and_save(tds_id, reel_type_id, packing_type_id):
     return record
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def compute_packing_for_tds(request, tds_id):
-    """Compute and save packing fields for an existing draft TDS."""
-    data           = request.data
-    reel_type_id   = data.get('reel_type_id')
+def _parse_ids(data):
+    """Parse + validate reel_type_id/packing_type_id from the request body.
+
+    Raises a clean ValidationError (400) for missing or non-numeric values
+    instead of letting a bare int() crash through as an unhandled 500.
+    """
+    reel_type_id    = data.get('reel_type_id')
     packing_type_id = data.get('packing_type_id')
     if not reel_type_id or not packing_type_id:
         raise ValidationError({'detail': 'reel_type_id and packing_type_id are required.'})
-    record = _compute_and_save(tds_id, int(reel_type_id), int(packing_type_id))
+    try:
+        return int(reel_type_id), int(packing_type_id)
+    except (TypeError, ValueError):
+        raise ValidationError({'detail': 'reel_type_id and packing_type_id must be integers.'})
+
+
+@api_view(['POST'])
+@permission_classes([IsCreator])
+def compute_packing_for_tds(request, tds_id):
+    """Compute and save packing fields for an existing draft TDS."""
+    reel_type_id, packing_type_id = _parse_ids(request.data)
+    record = _compute_and_save(tds_id, reel_type_id, packing_type_id)
     return Response(_packing_result(record))
 
 
 @api_view(['PATCH'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsCreator])
 def recompute_packing_for_tds(request, tds_id):
     """Recompute packing fields, overwriting any previously saved values."""
-    data           = request.data
-    reel_type_id   = data.get('reel_type_id')
-    packing_type_id = data.get('packing_type_id')
-    if not reel_type_id or not packing_type_id:
-        raise ValidationError({'detail': 'reel_type_id and packing_type_id are required.'})
-    record = _compute_and_save(tds_id, int(reel_type_id), int(packing_type_id))
+    reel_type_id, packing_type_id = _parse_ids(request.data)
+    record = _compute_and_save(tds_id, reel_type_id, packing_type_id)
     return Response(_packing_result(record))
