@@ -225,7 +225,7 @@
     import { requireAuth, populateNavUser, showToast } from './js/auth.js';
     import { listTDS } from './js/api.js';
 
-    const session = requireAuth();
+    const session = await requireAuth();
     if (!session) throw new Error('redirect');
 
     populateNavUser();

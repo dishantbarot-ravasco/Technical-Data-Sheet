@@ -81,8 +81,10 @@ class TDSLoginView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200 and response.data.get('status') == 'ok':
-            from apps.services.device_service import set_access_cookie
+            from apps.services.device_service import set_access_cookie, set_refresh_cookie
             set_access_cookie(response, response.data['access_token'])
+            if response.data.get('refresh'):
+                set_refresh_cookie(response, response.data['refresh'])
         return response
 
 
@@ -91,16 +93,32 @@ class TDSLoginView(TokenObtainPairView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TDSTokenRefreshView(TokenRefreshView):
-    # POST /api/auth/token/refresh
-    #
-    # Not currently called by the frontend (no session ever outlives the 12h
-    # access token yet), but kept correct for API clients that do use it:
-    # refreshing also re-sets the tds_access cookie to the new token so cookie
-    # auth doesn't go stale independently of a Bearer-header caller's copy.
+    """
+    POST /api/auth/token/refresh
+
+    Now the backbone of the 'remember me' flow: the tds_refresh cookie is
+    httpOnly, so page JS can't read it to put it in the request body itself --
+    instead, if the body doesn't already carry a `refresh` value (the normal
+    case for a same-origin browser call), we pull it from the cookie before
+    handing off to simplejwt's serializer. Non-browser API clients (Postman,
+    scripts) can still pass `refresh` in the body directly, same as before.
+
+    On success, re-sets the tds_access cookie to the new token so cookie auth
+    doesn't go stale independently of a Bearer-header caller's copy.
+    """
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == 200 and response.data.get('access'):
-            from apps.services.device_service import set_access_cookie
+        from apps.services.device_service import REFRESH_COOKIE_NAME, set_access_cookie
+
+        data = request.data
+        if not data.get('refresh') and REFRESH_COOKIE_NAME in request.COOKIES:
+            data = dict(data)
+            data['refresh'] = request.COOKIES[REFRESH_COOKIE_NAME]
+
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+        if response.data.get('access'):
             set_access_cookie(response, response.data['access'])
         return response
 

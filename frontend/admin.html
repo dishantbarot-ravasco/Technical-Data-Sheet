@@ -647,7 +647,7 @@
     import { requireAuth, populateNavUser, showToast } from './js/auth.js';
     import { listUsers, createUser, updateUser, listTDS } from './js/api.js';
 
-    const session = requireAuth();
+    const session = await requireAuth();
     if (!session) throw new Error('redirect');
     if (session.role !== 'admin') {
       showToast('Access denied. Admin only.', 'error');

@@ -35,7 +35,7 @@ function escapeHtml(value) {
 }
 
 // Redirect to login if not authenticated
-const session = requireAuth();
+const session = await requireAuth();
 if (session) populateNavUser();
 
 // Module-level state

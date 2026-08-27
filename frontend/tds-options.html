@@ -224,7 +224,7 @@
     import { requireAuth, populateNavUser, showToast } from './js/auth.js';
     import { getParameters } from './js/api.js';
 
-    const session = requireAuth();
+    const session = await requireAuth();
     if (session) populateNavUser();
 
     // ── Read URL params ──────────────────────────────────────────

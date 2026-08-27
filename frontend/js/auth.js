@@ -18,6 +18,11 @@
  *     httpOnly-cookie approach; getAuthHeaders() only sends a Bearer header
  *     when an old-style token is present, otherwise the cookie does the work.
  *   - requireAuth() checks for user_id (new) or token (old sessions, backward compat).
+ *     If neither is in sessionStorage (fresh tab/browser restart), it falls back to
+ *     asking the server via /api/auth/me (+ a silent /api/auth/token/refresh retry) —
+ *     the tds_access/tds_refresh httpOnly cookies can keep a trusted device signed in
+ *     for up to 30 days without a password, so a missing sessionStorage entry alone
+ *     no longer forces a re-login.
  *   - logout() is async: calls /api/auth/logout to clear the httpOnly cookie
  *     before clearing sessionStorage and redirecting.
  *
@@ -25,6 +30,7 @@
  *   getSession, setSession, clearSession
  *   getAuthHeaders
  *   requireAuth
+ *   recoverSession       - cookie-only session recovery, used by index.html and requireAuth()
  *   logout
  *   login
  *   verifyDevice          - completes the live device-trust + email-OTP 2FA step
@@ -119,10 +125,55 @@ export function getAuthHeaders() {
  * @param {string} [redirectTo='index.html']
  * @returns {{ user_id: number, role: string } | null}
  */
-export function requireAuth(redirectTo = 'index.html') {
+export async function requireAuth(redirectTo = 'index.html') {
   const s = getSession();
-  if (!s?.user_id && !s?.token) { window.location.href = redirectTo; return null; }
-  return s;
+  // Fast path: sessionStorage already has a session for this tab.
+  if (s?.user_id || s?.token) return s;
+
+  // No sessionStorage session — this happens on every fresh tab/browser
+  // restart, since sessionStorage doesn't survive those. That used to mean
+  // an automatic redirect to login even when the httpOnly tds_access (or
+  // tds_refresh) cookie was still perfectly valid. Before giving up, ask the
+  // server whether this browser is still authenticated (and silently
+  // refresh the access token via the cookie-backed refresh flow if it had
+  // merely expired) — only redirect to login if that also fails.
+  const recovered = await recoverSession();
+  if (recovered) { setSession(recovered); return recovered; }
+
+  window.location.href = redirectTo;
+  return null;
+}
+
+/**
+ * Attempt to recover a session purely from cookies (no sessionStorage),
+ * refreshing the access token once via the httpOnly tds_refresh cookie if
+ * needed. Returns a session-shaped object on success, or null.
+ *
+ * Exported (not just used internally by requireAuth()) because index.html's
+ * "already logged in?" check needs the same cookie-based recovery — without
+ * it, a fresh tab/browser restart would show the login form even with a
+ * fully valid 30-day tds_refresh cookie, since sessionStorage alone can't
+ * tell it otherwise.
+ */
+export async function recoverSession() {
+  try {
+    let res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+    if (res.status === 401) {
+      const r = await fetch(`${API_BASE}/auth/token/refresh`, {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        '{}',
+      });
+      if (!r.ok) return null;
+      res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+    }
+    if (!res.ok) return null;
+    const data = await res.json();
+    return { user_id: data.user_id, role: data.role, full_name: data.full_name, email: data.email };
+  } catch {
+    return null;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════

@@ -35,6 +35,12 @@ log = logging.getLogger(__name__)
 DEVICE_COOKIE_NAME    = 'tds_device'
 DEVICE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year in seconds
 
+# 'Remember me' refresh-token cookie. Scoped to /api/auth/ only (path below) --
+# it's never needed outside the login/refresh/logout endpoints, so there's no
+# reason for the browser to attach it to every other API request.
+REFRESH_COOKIE_NAME = 'tds_refresh'
+REFRESH_COOKIE_PATH = '/api/auth/'
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -103,6 +109,31 @@ def set_access_cookie(response, access_token: str) -> None:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
+def set_refresh_cookie(response, refresh_token: str) -> None:
+    """
+    Set the httpOnly tds_refresh cookie carrying the JWT refresh token.
+
+    This is what lets a trusted device stay signed in past the 12h access
+    token without re-entering a password: when the access token expires,
+    the frontend silently POSTs this cookie to /api/auth/token/refresh to
+    get a new one (see auth.js#requireAuth's recovery path and api.js's
+    apiFetch retry-on-401). httpOnly + Secure + SameSite=Lax, same as
+    set_access_cookie -- never readable by page JS, so an XSS bug still
+    can't exfiltrate it. max_age mirrors SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].
+    """
+    from django.conf import settings
+    max_age = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        key      = REFRESH_COOKIE_NAME,
+        value    = refresh_token,
+        max_age  = max_age,
+        httponly = True,
+        secure   = settings.TDS_COOKIE_SECURE,
+        samesite = settings.TDS_COOKIE_SAMESITE,
+        path     = REFRESH_COOKIE_PATH,
+    )
+
 
 def is_trusted_device(request, user_id: int) -> bool:
     """

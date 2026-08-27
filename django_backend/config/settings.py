@@ -202,7 +202,11 @@ JWT_SIGNING_KEY = os.environ.get('JWT_SIGNING_KEY', SECRET_KEY)
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':      timedelta(hours=12),
-    'REFRESH_TOKEN_LIFETIME':     timedelta(days=1),
+    # 30 days -- backs the persistent 'remember me' tds_refresh cookie
+    # (see device_service.py#set_refresh_cookie). A trusted device can now
+    # stay signed in for up to 30 days without re-entering the password;
+    # logout still clears this cookie immediately (device_views.logout_view).
+    'REFRESH_TOKEN_LIFETIME':     timedelta(days=30),
     'ALGORITHM':                  'HS256',
     'SIGNING_KEY':                JWT_SIGNING_KEY,
     'AUTH_HEADER_TYPES':          ('Bearer',),

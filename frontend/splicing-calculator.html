@@ -290,7 +290,7 @@
   <script type="module">
     import { requireAuth, populateNavUser, getAuthHeaders } from './js/auth.js';
 
-    const session = requireAuth();
+    const session = await requireAuth();
     if (session) populateNavUser();
 
     // ── Splicing config: loaded from DB via /api/splicing-config ──

@@ -27,3 +27,7 @@ backend_archived/
 *.db
 *.db-wal
 *.db-shm
+
+# Local DB dumps (pg_dump output) — contains real customer/user data
+*.pgdump
+*.sql.gz

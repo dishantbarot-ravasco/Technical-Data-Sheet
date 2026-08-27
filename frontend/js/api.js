@@ -46,7 +46,29 @@ const API_BASE = '/api';
  * @returns {Promise<any>} Parsed JSON response, or null for 204 responses.
  * @throws {Error} If the server returns a non-2xx status code.
  */
-async function apiFetch(path, options = {}) {
+let _refreshInFlight = null;
+
+/**
+ * Silently exchange the httpOnly tds_refresh cookie for a fresh tds_access
+ * cookie. Coalesced into a single in-flight request so a burst of parallel
+ * apiFetch() calls that all hit a stale access token don't each fire their
+ * own refresh — they share one outcome.
+ * @returns {Promise<boolean>} true if refresh succeeded
+ */
+function _refreshAccessToken() {
+  if (!_refreshInFlight) {
+    _refreshInFlight = fetch(`${API_BASE}/auth/token/refresh`, {
+      method:      'POST',
+      credentials: 'include',
+      headers:     { 'Content-Type': 'application/json' },
+      body:        '{}',
+    }).then(r => r.ok).catch(() => false)
+      .finally(() => { _refreshInFlight = null; });
+  }
+  return _refreshInFlight;
+}
+
+async function apiFetch(path, options = {}, _retried = false) {
   const url = `${API_BASE}${path}`;
 
   // Build default headers: JSON content type + JWT Bearer token.
@@ -60,7 +82,18 @@ async function apiFetch(path, options = {}) {
   };
 
   // Spread options so callers can pass method, body, signal, etc.
-  const res = await fetch(url, { ...defaults, ...options, headers: { ...defaults.headers, ...(options.headers || {}) } });
+  const res = await fetch(url, { ...defaults, ...options, credentials: 'include', headers: { ...defaults.headers, ...(options.headers || {}) } });
+
+  // A previously-valid session's access token can expire mid-use (12h
+  // lifetime) without the tab ever having been closed. Rather than surface
+  // that as a hard "session expired" error, try the cookie-backed refresh
+  // once and silently replay the request — the user never notices, as long
+  // as the 30-day tds_refresh cookie is still valid. Only retried once, so
+  // a genuinely dead session still fails through to the normal error path.
+  if (res.status === 401 && !_retried) {
+    const refreshed = await _refreshAccessToken();
+    if (refreshed) return apiFetch(path, options, true);
+  }
 
   if (!res.ok) {
     // Try to extract a human-readable message from the Django/DRF error body.

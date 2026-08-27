@@ -103,11 +103,13 @@ def device_verify(request):
     # Register this device — creates TrustedDevice row + sets tds_device cookie
     register_device(response, user_id, request)
 
-    # Set the httpOnly tds_access cookie so the frontend can rely on cookie
-    # auth instead of keeping the JWT in sessionStorage. See device_service.py
-    # #set_access_cookie for why this was missing before.
-    from apps.services.device_service import set_access_cookie
+    # Set the httpOnly tds_access / tds_refresh cookies so the frontend can
+    # rely on cookie auth instead of keeping the JWT in sessionStorage, and so
+    # this device stays signed in past the 12h access token (see
+    # device_service.py #set_access_cookie / #set_refresh_cookie).
+    from apps.services.device_service import set_access_cookie, set_refresh_cookie
     set_access_cookie(response, jwt_data['access_token'])
+    set_refresh_cookie(response, jwt_data['refresh'])
 
     # Send informational 'new device logged in' email (non-blocking)
     send_new_device_notification(user, request)
@@ -127,9 +129,25 @@ def device_verify(request):
 def logout_view(request):
     """
     POST /api/auth/logout
-    Flushes the Django session.
-    Does NOT clear the tds_device cookie — device stays trusted for next login.
-    Frontend clears sessionStorage separately.
+    Flushes the Django session AND clears the tds_access / tds_refresh httpOnly
+    cookies.
+
+    SECURITY (fixed): this used to only flush the Django session, which never
+    held the JWT in the first place — the tds_access / tds_refresh cookies
+    were left completely untouched, so a stateless JWT kept authenticating
+    every request right up to its natural expiry (up to 30 days for the
+    refresh cookie) even after the user clicked "Logout". Both cookies are
+    now explicitly cleared here.
+
+    Does NOT clear the tds_device cookie — device stays trusted for next
+    login (skips the OTP step again), matching the existing "remember this
+    browser" behavior. Frontend clears sessionStorage separately.
     """
+    from django.conf import settings
+    from apps.services.device_service import REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH
+
     request.session.flush()
-    return Response({'detail': 'Logged out successfully.'})
+    response = Response({'detail': 'Logged out successfully.'})
+    response.delete_cookie(key=settings.TDS_COOKIE_NAME, path='/', samesite=settings.TDS_COOKIE_SAMESITE)
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH, samesite=settings.TDS_COOKIE_SAMESITE)
+    return response

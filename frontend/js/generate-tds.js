@@ -84,7 +84,7 @@ function escapeHtml(value) {
 }
 
 /* ── Auth ─────────────────────────────────────────────────── */
-const session = requireAuth();
+const session = await requireAuth();
 if (session) populateNavUser();
 
 /* ── State ────────────────────────────────────────────────── */

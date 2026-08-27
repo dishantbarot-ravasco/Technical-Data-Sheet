@@ -485,7 +485,7 @@
   <div id="toast-container"></div>
 
   <script type="module">
-    import { login, verifyDevice, getSession, setSession, openChangePasswordModal, showToast } from './js/auth.js';
+    import { login, verifyDevice, getSession, setSession, recoverSession, openChangePasswordModal, showToast } from './js/auth.js';
 
     // SECURITY (fixed): this used to also persist an AES-GCM-"encrypted"
     // password in localStorage, with the decryption key stored right next to
@@ -501,8 +501,21 @@
     const params = new URLSearchParams(window.location.search);
 
     // ── Already logged in → go home ───────────────────────────────────────────
+    // Fast path: sessionStorage still has a session for this tab.
     if (getSession()) {
       window.location.href = 'home.html';
+    } else {
+      // No sessionStorage session doesn't mean no session — a fresh tab or
+      // browser restart clears sessionStorage but not the httpOnly
+      // tds_access / tds_refresh cookies. Ask the server (refreshing the
+      // access token via the 30-day tds_refresh cookie if needed) before
+      // showing the login form; only stay here if that also comes back empty.
+      recoverSession().then((session) => {
+        if (session) {
+          setSession(session);
+          window.location.href = 'home.html';
+        }
+      });
     }
 
     // ── Google OAuth trusted-device redirect → collect session, then go home ──

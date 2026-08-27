@@ -309,7 +309,7 @@
     import { requireAuth, populateNavUser, showToast } from './js/auth.js';
     import { getPdfUrl, downloadPdf }                  from './js/api.js';
 
-    const session = requireAuth();
+    const session = await requireAuth();
     if (session) populateNavUser();
 
     // ── URL params ────────────────────────────────────────────────
