@@ -11,12 +11,10 @@
   (django_backend/apps/api/permissions.py's IsAdmin, applied to the
   create/update-user endpoints in users_views.py).
 
-  Three roles exist: 'admin' (full access), 'user' (create/edit/approve/
+  Three roles exist: 'admin' (full access), 'tds_creator' (create/edit/approve/
   decline/delete TDS, no admin panel, no user management), and 'viewer'
   (search + view + download TDS only - cannot create/edit/delete anything,
-  no admin panel, no user management). The 'tds_creator' role that used to
-  sit between 'user' and 'viewer' has been removed from the system entirely
-  (backend and frontend) - it was never selectable from this UI anyway.
+  no admin panel, no user management).
 
   All panel data (users, KPIs, analytics breakdowns, the All-TDS table) is
   derived client-side from two calls made once in loadAll(): listUsers() and
@@ -624,7 +622,7 @@
           <label class="uf-label">Role <span style="color:var(--red)">*</span></label>
           <select id="uf-role" class="uf-input">
             <option value="viewer">Viewer - search &amp; download only</option>
-            <option value="user">User - create &amp; manage TDS</option>
+            <option value="tds_creator">TDS Creator - create &amp; manage TDS</option>
             <option value="admin">Admin - full access</option>
           </select>
         </div>

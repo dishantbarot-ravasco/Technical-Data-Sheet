@@ -399,7 +399,7 @@ class Migration(migrations.Migration):
                 ('email', models.TextField(unique=True)),
                 ('password_hash', models.TextField()),
                 ('full_name', models.TextField(blank=True, null=True)),
-                ('role', models.TextField(default='user')),
+                ('role', models.TextField(default='tds_creator')),
                 ('designation', models.TextField(blank=True, null=True)),
                 ('is_active', models.BooleanField(default=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),

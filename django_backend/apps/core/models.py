@@ -608,7 +608,7 @@ class TDSUser(models.Model):
     Application user. Completely independent of Django's auth.User.
     Named TDSUser to avoid Python import clashes; maps to the 'users' table.
 
-    Roles: 'admin' (full access) | 'user' (create/edit TDS) | 'viewer'
+    Roles: 'admin' (full access) | 'tds_creator' (create/edit TDS) | 'viewer'
     (search + view + download TDS only, no create/edit/delete, no admin panel).
     password_hash: bcrypt (python-jose, rounds=12). Never returned by API.
     Phase 3 note: Phase 3 will wire this to simplejwt via a custom backend.
@@ -617,7 +617,7 @@ class TDSUser(models.Model):
     email         = models.TextField(unique=True)
     password_hash = models.TextField()
     full_name     = models.TextField(null=True, blank=True)
-    role          = models.TextField(default='user')
+    role          = models.TextField(default='tds_creator')
     designation   = models.TextField(null=True, blank=True)
     is_active     = models.BooleanField(default=True)
     created_at    = models.DateTimeField(auto_now_add=True)

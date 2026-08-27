@@ -44,7 +44,7 @@ from apps.services.otp_service import generate_otp, verify_otp, send_otp_email
 
 logger = logging.getLogger(__name__)
 
-_VALID_ROLES = {"admin", "user", "viewer"}
+_VALID_ROLES = {"admin", "tds_creator", "viewer"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ def setup_first_user(request):
 @permission_classes([IsAuthenticated])
 def list_users(request):
     """List all application users. Admin and user roles only."""
-    if request.user.role not in ('admin', 'user'):
+    if request.user.role not in ('admin', 'tds_creator'):
         raise PermissionDenied('Admin or User role required')
     users = TDSUser.objects.order_by('user_id')
     return Response([_user_out(u) for u in users])
@@ -241,7 +241,7 @@ def get_user(request, user_id):
 def create_user(request):
     """Create a new application user. Admin only."""
     data = request.data
-    role = data.get('role') or 'user'
+    role = data.get('role') or 'tds_creator'
     if role not in _VALID_ROLES:
         raise ValidationError({'detail': f"role must be one of {_VALID_ROLES}"})
     email = (data.get('email') or '').strip().lower()

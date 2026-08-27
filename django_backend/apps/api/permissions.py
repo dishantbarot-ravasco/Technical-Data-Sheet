@@ -2,12 +2,12 @@
 apps/api/permissions.py — Custom DRF permission classes.
 
 Mirrors FastAPI auth dependencies:
-  IsEditor  → require_editor  (role in ('admin', 'user'))
+  IsEditor  → require_editor  (role in ('admin', 'tds_creator'))
   IsAdmin   → require_admin   (role == 'admin')
-  IsCreator → require_creator (role in ('admin', 'user'))
+  IsCreator → require_creator (role in ('admin', 'tds_creator'))
 
-Note: the 'tds_creator' role has been removed from the system (it was never
-assignable from the admin UI and added a third overlapping tier). 'viewer'
+Note: the role name is 'tds_creator' (matches the live DB's chk_user_role
+constraint) — not 'user'. 'viewer'
 is intentionally excluded from every class below — a viewer can only
 search/view/download TDS (those endpoints use plain IsAuthenticated), never
 create, edit, approve, decline, delete, or manage users.
@@ -18,7 +18,7 @@ from rest_framework.permissions import BasePermission
 
 class IsEditor(BasePermission):
     """
-    Allows access only to users with role 'admin' or 'user'.
+    Allows access only to users with role 'admin' or 'tds_creator'.
     Used for approve/decline/delete/status operations — viewer excluded.
     """
     message = 'Editor (admin or user) role required.'
@@ -28,13 +28,13 @@ class IsEditor(BasePermission):
         return (
             user is not None
             and bool(getattr(user, 'is_active', False))
-            and getattr(user, 'role', None) in ('admin', 'user')
+            and getattr(user, 'role', None) in ('admin', 'tds_creator')
         )
 
 
 class IsCreator(IsEditor):
     """
-    Allows access to users with role 'admin' or 'user'.
+    Allows access to users with role 'admin' or 'tds_creator'.
     Used for create_tds — viewer can search/view/download but cannot create,
     approve, decline, delete, or manage users.
 
