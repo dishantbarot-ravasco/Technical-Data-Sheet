@@ -1,16 +1,16 @@
 """
 apps/core/models.py — Django ORM models for TDS Automation App.
 
-ALL models use managed = False because the PostgreSQL schema was created and
-is seeded by the FastAPI backend. Django reads/writes every table correctly
-but never alters or drops them.
-
-Run after writing this file:
-    python tds_app/run_django.py makemigrations core
-    python tds_app/run_django.py migrate
-
-No --fake-initial needed: managed=False models generate empty migrations
-(no SQL) that migrate applies instantly.
+These 31 tables were originally created and seeded by the FastAPI backend,
+so they started life as managed = False (Django reads/writes them but never
+alters or drops them). They are now managed = True: every field below was
+verified against the live Postgres schema (information_schema.columns) and
+the adoption migration (apps/core/migrations/0013_*) was applied with
+--fake, since the tables already exist and already match what it describes
+— no DDL ran, no data touched. From here on, Django owns their schema the
+normal way: change a field, run makemigrations + migrate, and it generates
+and actually executes real ALTER TABLE statements against Postgres, same as
+any other Django-managed table.
 
 Table count: 31
   purpose, belt_type, indus_brand
@@ -46,7 +46,7 @@ class Purpose(models.Model):
 
     class Meta:
         db_table = 'purposes'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.purpose_type
@@ -59,7 +59,7 @@ class BeltType(models.Model):
 
     class Meta:
         db_table = 'belt_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.belt_type
@@ -72,7 +72,7 @@ class IndusBrand(models.Model):
 
     class Meta:
         db_table = 'brands'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.brand_name
@@ -80,9 +80,10 @@ class IndusBrand(models.Model):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. M2M JUNCTION TABLES (composite PKs in PostgreSQL)
-#    Django limitation: no native composite PK for managed=True.
-#    Solution: managed=False + one FK declared primary_key=True (harmless for
-#    queries since we always filter, never look up by .pk directly).
+#    Django limitation: pre-5.2 Django has no native composite PK field.
+#    Solution: one FK declared primary_key=True (harmless for queries since
+#    we always filter, never look up by .pk directly) — independent of
+#    managed status; these tables are managed=True like everything else here.
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PurposeBeltType(models.Model):
@@ -102,7 +103,7 @@ class PurposeBeltType(models.Model):
 
     class Meta:
         db_table        = 'purpose_belt_type'
-        managed         = False
+        managed         = True
         unique_together = [('purpose', 'belt_type')]
 
     def __str__(self):
@@ -123,7 +124,7 @@ class BrandBeltType(models.Model):
 
     class Meta:
         db_table        = 'brand_belt_type'
-        managed         = False
+        managed         = True
         unique_together = [('brand', 'belt_type')]
 
     def __str__(self):
@@ -149,7 +150,7 @@ class Standard(models.Model):
 
     class Meta:
         db_table = 'standards'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.standard_name
@@ -176,7 +177,7 @@ class TDSParameter(models.Model):
 
     class Meta:
         db_table        = 'tds_parameters'
-        managed         = False
+        managed         = True
         unique_together = [('parameter_group', 'parameter_name')]
 
     def __str__(self):
@@ -200,7 +201,7 @@ class BrandParameter(models.Model):
 
     class Meta:
         db_table        = 'brand_parameters'
-        managed         = False
+        managed         = True
         unique_together = [('brand', 'parameter')]
 
     def __str__(self):
@@ -223,7 +224,7 @@ class StandardTestMethod(models.Model):
 
     class Meta:
         db_table        = 'standard_test_methods'
-        managed         = False
+        managed         = True
         unique_together = [('standard', 'parameter')]
 
     def __str__(self):
@@ -247,7 +248,7 @@ class CoverGrade(models.Model):
 
     class Meta:
         db_table        = 'cover_grades'
-        managed         = False
+        managed         = True
         unique_together = [('standard', 'grade_code')]
 
     def __str__(self):
@@ -269,7 +270,7 @@ class CoverGradeValue(models.Model):
 
     class Meta:
         db_table        = 'cover_grade_values'
-        managed         = False
+        managed         = True
         unique_together = [('cover_grade', 'parameter')]
 
     def __str__(self):
@@ -291,7 +292,7 @@ class FabricType(models.Model):
 
     class Meta:
         db_table = 'fabric_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.fabric_code
@@ -308,7 +309,7 @@ class FabricTypeParameterValue(models.Model):
 
     class Meta:
         db_table        = 'fabric_type_parameter_values'
-        managed         = False
+        managed         = True
         unique_together = [('fabric_type', 'parameter')]
 
     def __str__(self):
@@ -326,7 +327,7 @@ class FabricStyle(models.Model):
 
     class Meta:
         db_table        = 'fabric_styles'
-        managed         = False
+        managed         = True
         unique_together = [('fabric_type', 'style_name')]
 
     def __str__(self):
@@ -344,7 +345,7 @@ class FabricStyleParameterValue(models.Model):
 
     class Meta:
         db_table        = 'fabric_style_parameter_values'
-        managed         = False
+        managed         = True
         unique_together = [('fabric_style', 'parameter')]
 
     def __str__(self):
@@ -363,7 +364,7 @@ class BeltRating(models.Model):
 
     class Meta:
         db_table        = 'belt_ratings'
-        managed         = False
+        managed         = True
         unique_together = [('fabric_type', 'rating_name')]
 
     def __str__(self):
@@ -385,7 +386,7 @@ class BeltRatingValue(models.Model):
 
     class Meta:
         db_table        = 'belt_rating_values'
-        managed         = False
+        managed         = True
         unique_together = [('belt_rating', 'parameter')]
 
     def __str__(self):
@@ -413,7 +414,7 @@ class ReelType(models.Model):
 
     class Meta:
         db_table = 'reel_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.reel_name
@@ -426,7 +427,7 @@ class PackingType(models.Model):
 
     class Meta:
         db_table = 'packing_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.packing_name
@@ -440,7 +441,7 @@ class ContainerType(models.Model):
 
     class Meta:
         db_table = 'container_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.name
@@ -455,7 +456,7 @@ class RegionContainerWeightLimit(models.Model):
 
     class Meta:
         db_table        = 'region_container_weight_limits'
-        managed         = False
+        managed         = True
         unique_together = [('region', 'container_type')]
 
     def __str__(self):
@@ -481,7 +482,7 @@ class DimensionalParameterSpec(models.Model):
 
     class Meta:
         db_table        = 'dimensional_parameter_specs'
-        managed         = False
+        managed         = True
         unique_together = [('standard', 'parameter', 'min_value', 'max_value')]
 
     def __str__(self):
@@ -499,7 +500,7 @@ class SpliceStepLookup(models.Model):
 
     class Meta:
         db_table = 'splice_step_lookup'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"≤{self.max_fabric_rating_kn_m} kN/m → {self.step_length_mm} mm step"
@@ -518,7 +519,7 @@ class HotSpliceCuringLookup(models.Model):
 
     class Meta:
         db_table = 'hot_splice_curing_lookup'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"Cure @ ≤{self.total_belt_thickness_mm} mm"
@@ -537,7 +538,7 @@ class ConstructionType(models.Model):
 
     class Meta:
         db_table = 'construction_types'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.construction_name
@@ -554,7 +555,7 @@ class SpliceMethodConfig(models.Model):
 
     class Meta:
         db_table = 'splice_method_config'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"{self.vulcanization_method}: {self.buffer_mm} mm"
@@ -571,7 +572,7 @@ class SamplingPlanLookup(models.Model):
 
     class Meta:
         db_table = 'sampling_plan_lookup'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"≤{self.max_belt_length_m} m → {self.sample_count} samples"
@@ -593,7 +594,7 @@ class TDSSequence(models.Model):
 
     class Meta:
         db_table = 'tds_sequence'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"TDSSequence year={self.year} last={self.last_number}"
@@ -632,7 +633,7 @@ class TDSUser(models.Model):
 
     class Meta:
         db_table = 'users'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return f"{self.email} ({self.role})"
@@ -652,7 +653,7 @@ class Customer(models.Model):
 
     class Meta:
         db_table = 'customers'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.customer_name
@@ -732,8 +733,13 @@ class TDSInput(models.Model):
 
     # ── Belt Identity ─────────────────────────────────────────────────────────
     belt_description     = models.TextField(null=True, blank=True)
-    belt_length_m        = models.DecimalField(max_digits=10, decimal_places=3)
-    belt_weight_per_m_kg = models.DecimalField(max_digits=8, decimal_places=4,
+    # decimal_places verified against the live tds_inputs column (information_schema:
+    # numeric_precision=10, numeric_scale=2) — was previously declared as (10, 3),
+    # which doesn't match the DB and could give a false impression of 3-decimal
+    # precision that Postgres silently rounds away on every save.
+    belt_length_m        = models.DecimalField(max_digits=10, decimal_places=2)
+    # verified: numeric_precision=8, numeric_scale=3 (was incorrectly (8, 4))
+    belt_weight_per_m_kg = models.DecimalField(max_digits=8, decimal_places=3,
                                                null=True, blank=True)
     make_of_fabric       = models.TextField(default='MIT')
     belt_width_mm        = models.IntegerField()
@@ -755,7 +761,8 @@ class TDSInput(models.Model):
 
     # ── Packing ───────────────────────────────────────────────────────────────
     num_rolls                = models.IntegerField(null=True, blank=True)
-    length_per_roll_m        = models.DecimalField(max_digits=8, decimal_places=3,
+    # verified: numeric_precision=10, numeric_scale=2 (was incorrectly (8, 3))
+    length_per_roll_m        = models.DecimalField(max_digits=10, decimal_places=2,
                                                    null=True, blank=True)
     roll_dimensions          = models.TextField(null=True, blank=True)
     net_weight_kg            = models.DecimalField(max_digits=10, decimal_places=2,
@@ -774,13 +781,16 @@ class TDSInput(models.Model):
     num_joints           = models.IntegerField(null=True, blank=True)
     step_length_mm       = models.IntegerField(null=True, blank=True)
     splice_length_mm     = models.IntegerField(null=True, blank=True)
-    total_extra_length_m = models.DecimalField(max_digits=8, decimal_places=3,
+    # verified: numeric_precision=8, numeric_scale=2 (was incorrectly (8, 3))
+    total_extra_length_m = models.DecimalField(max_digits=8, decimal_places=2,
                                                null=True, blank=True)
 
     # ── Batch Link (nullable — NULL means created via single-belt form) ────────
-    # db_column='batch_id' matches the column added by migration 0006 RunSQL.
-    # managed=False means Django never touches tds_inputs DDL; the column is
-    # owned by the RunSQL in that migration.
+    # db_column='batch_id' matches the column added by migration 0006's RunSQL
+    # step, back when tds_inputs was still managed=False and Django couldn't
+    # add the column declaratively. Now that tds_inputs is managed=True, a
+    # future column addition here would go through a normal AddField
+    # migration instead — no RunSQL needed.
     batch = models.ForeignKey(
         'TDSBatch',
         on_delete=models.SET_NULL,
@@ -796,7 +806,7 @@ class TDSInput(models.Model):
 
     class Meta:
         db_table = 'tds_inputs'
-        managed  = False
+        managed  = True
 
     def __str__(self):
         return self.tds_number
@@ -821,9 +831,11 @@ class TDSBatch(models.Model):
     Single-belt TDS records have tds_inputs.batch_id = NULL — nothing changes
     for the existing create_tds workflow.
 
-    created_by_id is an IntegerField (not FK) to avoid Django trying to create
-    a FK constraint against the managed=False 'users' table — same pattern
-    as TrustedDevice.
+    created_by is a real ForeignKey to TDSUser (on_delete=CASCADE — deleting
+    a user removes their batch-metadata rows; the individual TDSInput rows
+    in that batch are unaffected since TDSInput.batch is already SET_NULL).
+    db_column stays 'created_by_id' so every existing `.created_by_id` /
+    `created_by_id=` access pattern in batch_views.py keeps working unchanged.
     """
     batch_id             = models.AutoField(primary_key=True)
     make_of_fabric       = models.TextField(default='MIT')
@@ -838,7 +850,8 @@ class TDSBatch(models.Model):
                                null=True, blank=True, related_name='batches',
                            )
     shipping_region      = models.TextField(null=True, blank=True)   # shared for intl orders
-    created_by_id        = models.IntegerField()                     # matches TDSUser.user_id
+    created_by           = models.ForeignKey('TDSUser', on_delete=models.CASCADE,
+                                             related_name='batches')
     created_at           = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -891,8 +904,13 @@ class TrustedDevice(models.Model):
 
     Design decisions
     ----------------
-    - user_id is an IntegerField (not a FK) to avoid Django trying to create a
-      FK constraint against the managed=False 'users' table.
+    - user is a real ForeignKey to TDSUser (on_delete=CASCADE — deleting a
+      user removes their trusted-device records too). Deliberately a plain
+      IntegerField before 'users' became managed=True, since Django couldn't
+      then safely declare a real FK constraint against it; the underlying
+      db_column is still 'user_id' so every existing `.user_id` / `user_id=`
+      access pattern in device_service.py keeps working unchanged (Django
+      auto-exposes `<fk_name>_id` for the raw pk on every ForeignKey field).
     - device_token is a 64-char hex string (secrets.token_hex(32), 256-bit entropy)
       stored as-is; it is set in an httpOnly SameSite=Lax cookie on the browser.
     - last_used_at (auto_now) is bumped on every successful is_trusted_device()
@@ -906,7 +924,8 @@ class TrustedDevice(models.Model):
         python manage.py migrate
     """
 
-    user_id      = models.IntegerField(db_index=True)        # matches TDSUser.user_id
+    user         = models.ForeignKey('TDSUser', on_delete=models.CASCADE,
+                                     related_name='trusted_devices')
     device_token = models.CharField(max_length=64, unique=True)
     device_name  = models.TextField()                         # User-Agent, max 512 chars
     ip_address   = models.GenericIPAddressField(null=True, blank=True)
@@ -989,9 +1008,8 @@ class QAPItem(models.Model):
     is_static=True marks raw-material rows (section 1.0) that are identical
     across all templates — stored per template for independent editability.
 
-    tds_inputs table is managed=False so QAPRecord uses IntegerField for tds_id
-    instead of a FK (same pattern as TrustedDevice.user_id) to avoid Django
-    generating a FK constraint against an unmanaged table.
+    (QAPRecord below uses a plain IntegerField for tds_id instead of a FK —
+    same deliberate simplification as TrustedDevice.user_id.)
     """
     # See QAPTemplate.id above — same reasoning applies to every QAP model.
     id                 = models.AutoField(primary_key=True)
@@ -1026,8 +1044,12 @@ class QAPRecord(models.Model):
     """
     A generated QAP linked to one TDS record.
 
-    tds_id is an IntegerField (not a FK) to avoid Django creating a constraint
-    against the managed=False tds_inputs table — same pattern as TrustedDevice.user_id.
+    tds is a real OneToOneField to TDSInput (on_delete=CASCADE — deleting a
+    TDS deletes its generated QAP record too, matching what delete_tds()
+    already effectively leaves behind as an orphan today). OneToOneField
+    implies the same unique=True the old IntegerField declared explicitly;
+    db_column stays 'tds_id' so the existing `tds_id=` filter kwarg in
+    qap_service.py and the `self.tds_id` accessor keep working unchanged.
 
     PO No / PO Date are intentionally absent — those fields render as blank lines
     in the PDF for manual fill-in before dispatch. Revision defaults to '00'.
@@ -1035,7 +1057,8 @@ class QAPRecord(models.Model):
     """
     # See QAPTemplate.id above — same reasoning applies to every QAP model.
     id           = models.AutoField(primary_key=True)
-    tds_id       = models.IntegerField(unique=True, db_index=True)
+    tds          = models.OneToOneField('TDSInput', on_delete=models.CASCADE,
+                                        related_name='qap_record')
     template     = models.ForeignKey(QAPTemplate, on_delete=models.SET_NULL,
                                      null=True, related_name='records')
     doc_number   = models.CharField(max_length=100, blank=True)   # QAP-0042
