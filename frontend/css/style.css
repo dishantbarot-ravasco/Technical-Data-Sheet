@@ -32,6 +32,15 @@
 
 :root {
   --gold:          #C17F0A;
+  /* AA-safe darkened gold for TEXT specifically (links, badges, section
+     titles, etc.) — --gold itself is only 3.33:1 on white and 2.99:1 on
+     --gold-pale, both failing WCAG AA's 4.5:1 minimum for normal text;
+     --gold-light text fares worse still at 2.61:1. This passes 5.49:1 on
+     white and 4.93:1 on --gold-pale. Never used for backgrounds/borders —
+     those aren't subject to the same text-contrast rule, so --gold/
+     --gold-light stay unchanged there (buttons, borders, accents, toggle
+     tracks, etc.). */
+  --gold-text:     #905F07;
   --gold-light:    #D4940A;
   --gold-bright:   #F0B429;
   --gold-pale:     #FEF3C7;
@@ -87,9 +96,18 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
-a { color: var(--gold-light); text-decoration: none; }
+a { color: var(--gold-text); text-decoration: none; }
 a:hover { color: var(--gold); }
 button, input, select, textarea { font-family: var(--font-body); }
+/* Keyboard-focus fallback for links/buttons/custom widgets — .btn,
+   .nav-link, .action-card, .modal-close, etc. only had :hover states
+   defined, so Tab-ing through the page gave no visible indication of
+   where focus was. Scoped to a/button/[tabindex] (not input/select/
+   textarea) so it never collides with .form-control's own custom
+   focus ring, which already handles every form field. */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--gold-light); outline-offset: 2px; border-radius: var(--radius);
+}
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-section); }
 ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
@@ -122,7 +140,7 @@ button, input, select, textarea { font-family: var(--font-body); }
   border-radius: var(--radius); transition: all .18s; border: 1px solid transparent;
 }
 .nav-link:hover { color: var(--navy); background: var(--bg-section); border-color: var(--border); }
-.nav-link.active { color: var(--gold); background: var(--gold-dim); border-color: var(--gold-border); }
+.nav-link.active { color: var(--gold-text); background: var(--gold-dim); border-color: var(--gold-border); }
 .nav-user { display: flex; align-items: center; gap: 10px; padding-left: 16px; border-left: 1px solid var(--border); }
 .nav-avatar {
   width: 32px; height: 32px;
@@ -133,6 +151,13 @@ button, input, select, textarea { font-family: var(--font-body); }
 }
 .nav-user-name { font-size: 12px; font-weight: 600; color: var(--text); }
 .nav-user-role { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+.nav-toggle {
+  display: none; background: none; border: 1px solid var(--border-mid);
+  border-radius: var(--radius); width: 38px; height: 38px;
+  align-items: center; justify-content: center; cursor: pointer;
+  color: var(--navy); font-size: 18px; line-height: 1; flex-shrink: 0;
+}
+.nav-toggle:hover { background: var(--bg-section); border-color: var(--gold-border); }
 .btn-logout {
   padding: 7px 14px; background: none; border: 1px solid var(--border-mid);
   color: var(--text-muted); font-size: 10px; font-family: var(--font-head); font-weight: 700;
@@ -160,7 +185,7 @@ button, input, select, textarea { font-family: var(--font-body); }
   display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted);
   margin-bottom: 10px; text-transform: uppercase; letter-spacing: .07em;
 }
-.breadcrumb a { color: var(--gold); }
+.breadcrumb a { color: var(--gold-text); }
 .breadcrumb span { color: var(--text-light); }
 .gold-line { height: 2px; background: linear-gradient(90deg, var(--gold-light), transparent); border-radius: 2px; }
 
@@ -200,7 +225,7 @@ button, input, select, textarea { font-family: var(--font-body); }
 .btn-navy   { background: var(--navy); border-color: var(--navy); color: #fff; }
 .btn-navy:hover { background: var(--navy-mid); color: #fff; }
 .btn-outline { background: transparent; border-color: var(--border-mid); color: var(--text-dim); }
-.btn-outline:hover { border-color: var(--gold-light); color: var(--gold); background: var(--gold-dim); }
+.btn-outline:hover { border-color: var(--gold-light); color: var(--gold-text); background: var(--gold-dim); }
 .btn-ghost  { background: transparent; border-color: transparent; color: var(--text-muted); padding: 8px 14px; }
 .btn-ghost:hover { color: var(--text); background: var(--bg-section); border-color: var(--border); }
 .btn-danger { background: transparent; border-color: var(--border-mid); color: var(--text-muted); }
@@ -213,7 +238,7 @@ button, input, select, textarea { font-family: var(--font-body); }
 /* ── FORM ────────────────────────────────────────────────── */
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--navy); }
-.form-label .req { color: var(--gold); margin-left: 2px; }
+.form-label .req { color: var(--gold-text); margin-left: 2px; }
 .form-control {
   width: 100%; padding: 10px 13px;
   background: var(--bg-input); border: 1px solid var(--border-mid);
@@ -224,7 +249,7 @@ button, input, select, textarea { font-family: var(--font-body); }
 .form-control:focus { border-color: var(--gold-light); box-shadow: 0 0 0 3px var(--gold-dim); }
 .form-control:disabled { opacity: .55; background: var(--bg-section); cursor: not-allowed; }
 .form-control.readonly-field {
-  background: var(--gold-pale); color: var(--gold); font-weight: 700;
+  background: var(--gold-pale); color: var(--gold-text); font-weight: 700;
   border-color: var(--gold-border); cursor: default;
 }
 select.form-control {
@@ -255,6 +280,10 @@ select.form-control option { background: #fff; color: var(--text); }
 }
 .toggle input:checked + .toggle-slider { background: var(--gold-dim); border-color: var(--gold-light); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: var(--gold-light); }
+/* The real checkbox is visually hidden (opacity:0) so keyboard focus lands
+   on it invisibly with no styling here to show it — tabbing to a toggle
+   gave no visible indication of where focus was. */
+.toggle input:focus-visible + .toggle-slider { box-shadow: 0 0 0 3px var(--gold-dim); border-color: var(--gold-light); }
 .toggle-label { font-size: 12px; color: var(--text-dim); }
 
 /* ── BADGES ─────────────────────────────────────────────── */
@@ -263,7 +292,7 @@ select.form-control option { background: #fff; color: var(--text); }
   padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700;
   letter-spacing: .06em; text-transform: uppercase; border: 1px solid transparent;
 }
-.badge-gold   { background: var(--gold-pale);   border-color: var(--gold-border);  color: var(--gold); }
+.badge-gold   { background: var(--gold-pale);   border-color: var(--gold-border);  color: var(--gold-text); }
 .badge-green  { background: var(--green-pale);  border-color: var(--green-border); color: var(--green); }
 .badge-red    { background: var(--red-pale);    border-color: var(--red-border);   color: var(--red); }
 .badge-blue   { background: var(--blue-pale);   border-color: var(--blue-border);  color: var(--blue); }
@@ -287,7 +316,7 @@ tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: var(--gold-dim); }
 tbody td { padding: 12px 16px; color: var(--text); vertical-align: middle; }
 tbody td.td-muted { color: var(--text-muted); font-size: 12px; }
-tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: var(--gold); }
+tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: var(--gold-text); }
 .table-actions { display: flex; align-items: center; gap: 5px; }
 
 /* ── ALERTS ─────────────────────────────────────────────── */
@@ -373,7 +402,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 .step-info { margin-left: 9px; white-space: nowrap; }
 .step-num   { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; }
 .step-label { font-size: 11px; font-weight: 600; color: var(--text-dim); transition: color .2s; }
-.step-item.active .step-label { color: var(--gold); }
+.step-item.active .step-label { color: var(--gold-text); }
 .step-item.done   .step-label { color: var(--green); }
 .step-line { flex: 1; height: 2px; background: var(--border); margin: 0 10px; transition: background .25s; }
 .step-line.done { background: var(--green-light); }
@@ -435,7 +464,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 .action-card-cta {
   display: inline-flex; align-items: center; gap: 6px;
   font-family: var(--font-head); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-  color: var(--gold); padding: 8px 16px; border: 1px solid var(--gold-border);
+  color: var(--gold-text); padding: 8px 16px; border: 1px solid var(--gold-border);
   border-radius: var(--radius); background: var(--gold-pale); transition: all .18s;
 }
 .action-card:hover .action-card-cta { background: var(--gold-light); color: #fff; border-color: var(--gold-light); }
@@ -460,7 +489,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 .detail-section { margin-bottom: 18px; }
 .detail-section-title {
   font-family: var(--font-head); font-size: 10px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--gold);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--gold-text);
   margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border);
 }
 .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--bg-section); gap: 12px; }
@@ -470,7 +499,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 
 /* ── UTILS ──────────────────────────────────────────────── */
 .hidden { display: none !important; }
-.text-gold  { color: var(--gold); }   .text-navy  { color: var(--navy); }
+.text-gold  { color: var(--gold-text); }   .text-navy  { color: var(--navy); }
 .text-muted { color: var(--text-muted); } .text-success { color: var(--green); } .text-danger { color: var(--red); }
 .fw-700 { font-weight: 700; }  .fw-900 { font-weight: 900; }
 .font-head { font-family: var(--font-head); }
@@ -505,7 +534,21 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
   .action-cards    { grid-template-columns: 1fr; }
   .stats-row       { grid-template-columns: 1fr 1fr; }
   .topnav          { padding: 0 16px; }
-  .nav-links       { display: none; }
+  .nav-toggle      { display: flex; }
+  /* Below 900px .nav-links becomes a dropdown panel (toggled by the
+     hamburger button auth.js injects into every page) instead of just
+     vanishing — it used to be `display:none` unconditionally here, which
+     removed all primary navigation on tablets/narrow windows with no way
+     to get it back. */
+  .nav-links {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 2px;
+    padding: 10px 16px 14px; margin: 0; background: var(--bg-nav);
+    border-bottom: 1px solid var(--border); box-shadow: var(--shadow-md);
+    z-index: 199;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links .nav-link { padding: 12px 14px; } /* bigger tap targets */
 }
 @media (max-width: 600px) {
   .form-row.cols-2 { grid-template-columns: 1fr; }

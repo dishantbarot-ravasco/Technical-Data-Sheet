@@ -40,6 +40,10 @@
  *   populateNavUser
  *
  * No imports - this module has no dependencies so it can be loaded first.
+ *
+ * Also has a side effect on import: injects the mobile hamburger nav toggle
+ * (see _initMobileNav() at the bottom) into any page with a .topnav — no
+ * per-page wiring needed since every page importing this module gets it.
  */
 
 // Key used to store the session object in sessionStorage.
@@ -318,6 +322,15 @@ export async function verifyDevice(code) {
 export function showToast(message, type = 'info', duration = 3500) {
   let c = document.getElementById('toast-container');
   if (!c) { c = document.createElement('div'); c.id = 'toast-container'; document.body.appendChild(c); }
+  // ACCESSIBILITY: toasts are the app's most-used dynamic-message mechanism
+  // (every create/update/delete/error across the whole app goes through
+  // here) but the container had no aria-live region, so a screen reader
+  // never announced any of them — set once, idempotently, since 8 pages
+  // declare this div statically in HTML and none of them had it either.
+  if (!c.hasAttribute('aria-live')) {
+    c.setAttribute('aria-live', 'polite');
+    c.setAttribute('aria-atomic', 'true');
+  }
 
   const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
   const t = document.createElement('div');
@@ -836,4 +849,56 @@ export async function populateNavUser() {
 
   const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) logoutBtn.addEventListener('click', logout);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SECTION: Mobile Nav Toggle
+   Below 900px, css/style.css turns .nav-links into a closed-by-default
+   dropdown panel (see its ".nav-links"/".nav-links.open" rules) instead of
+   the old behavior of just hiding it with no way to get it back. This
+   function injects the hamburger button that opens/closes it.
+   Runs automatically for every page that imports this module — the
+   .topnav/.nav-links markup is duplicated identically across all pages
+   that have a nav bar, so wiring it once here avoids editing each page's
+   HTML individually. Pages with no topnav (e.g. index.html) just no-op.
+══════════════════════════════════════════════════════════ */
+function _initMobileNav() {
+  const nav   = document.querySelector('.topnav');
+  const links = document.querySelector('.nav-links');
+  if (!nav || !links) return;
+  if (document.getElementById('nav-toggle')) return; // already wired (shouldn't happen, but idempotent)
+
+  links.id = links.id || 'nav-links';
+
+  const btn = document.createElement('button');
+  btn.id   = 'nav-toggle';
+  btn.type = 'button';
+  btn.className = 'nav-toggle';
+  btn.setAttribute('aria-label', 'Toggle navigation menu');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-controls', links.id);
+  btn.innerHTML = '&#9776;'; // ☰
+  nav.insertBefore(btn, links);
+
+  const setOpen = (open) => {
+    links.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', String(open));
+    btn.innerHTML = open ? '&#10005;' : '&#9776;'; // ✕ when open, ☰ when closed
+  };
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOpen(!links.classList.contains('open'));
+  });
+  // Close after choosing a link, or on an outside click.
+  links.addEventListener('click', (e) => { if (e.target.closest('a')) setOpen(false); });
+  document.addEventListener('click', (e) => {
+    if (links.classList.contains('open') && !nav.contains(e.target)) setOpen(false);
+  });
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initMobileNav);
+} else {
+  _initMobileNav();
 }

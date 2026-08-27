@@ -94,7 +94,7 @@
       text-transform: uppercase; color: var(--navy);
       display: block; margin-bottom: 4px;
     }
-    .flbl .req { color: #F5A623; margin-left: 2px; }
+    .flbl .req { color: #905F07; margin-left: 2px; } /* AA-safe (2.03:1 -> 5.49:1 on white); see css/style.css --gold-text */
     .finp {
       width: 100%; padding: 6px 10px;
       background: var(--bg-input); border: 1px solid var(--border-mid);
@@ -409,12 +409,12 @@
 
           <div class="form-row-c frc-4">
             <div>
-              <label class="flbl">TDS Date <span class="req">*</span></label>
+              <label class="flbl" for="tds-date">TDS Date <span class="req">*</span></label>
               <input type="date" id="tds-date" class="finp" />
             </div>
             <!-- Doc number: required in single mode, optional/shared in multi mode -->
             <div id="grp-doc-number">
-              <label class="flbl">TDS Document No.
+              <label class="flbl" for="tds-doc-number">TDS Document No.
                 <span id="doc-number-req-mark" class="req">*</span>
                 <span id="doc-number-opt-note" style="display:none;font-weight:400;font-size:9px;
                              color:var(--text-muted);text-transform:none;letter-spacing:0;margin-left:4px;">
@@ -424,20 +424,20 @@
               <input type="text" id="tds-doc-number" class="finp" placeholder="e.g. RTPH/TDS/2026/001" />
             </div>
             <div>
-              <label class="flbl">Internal TDS No. <span class="badge-auto">AUTO</span></label>
-              <input type="text" class="finp auto-field" readonly placeholder="Assigned on save" />
+              <label class="flbl" for="internal-tds-no-display">Internal TDS No. <span class="badge-auto">AUTO</span></label>
+              <input type="text" id="internal-tds-no-display" class="finp auto-field" readonly placeholder="Assigned on save" />
             </div>
             <div>
-              <label class="flbl">Purpose <span class="req">*</span></label>
+              <label class="flbl" for="purpose-id">Purpose <span class="req">*</span></label>
               <select id="purpose-id" class="finp"><option value="">Loading…</option></select>
             </div>
             <!-- SINGLE ONLY: belt type + end type (move to table in multi mode) -->
             <div id="grp-belt-type">
-              <label class="flbl">Belt Type</label>
+              <label class="flbl" for="belt-type-id">Belt Type</label>
               <select id="belt-type-id" class="finp"><option value="">Loading…</option></select>
             </div>
             <div id="grp-end-type">
-              <label class="flbl">Belt End Type</label>
+              <label class="flbl" for="construction-type">Belt End Type</label>
               <select id="construction-type" class="finp">
                 <option value="Open-End">Flat Belt · Open End</option>
                 <option value="Endless">Flat Belt · Endless</option>
@@ -448,7 +448,7 @@
           <!-- International logistics - shipping region stays shared; container moves to table in multi mode -->
           <div id="intl-logistics-row" class="form-row-c frc-4 frc-mt" style="display:none;">
             <div>
-              <label class="flbl">Shipping Region <span class="req">*</span></label>
+              <label class="flbl" for="shipping-region">Shipping Region <span class="req">*</span></label>
               <select id="shipping-region" class="finp">
                 <option value="">- Select Region -</option>
                 <option value="USA">USA</option>
@@ -461,7 +461,7 @@
                  renamed/added/removed container type in the database shows up
                  automatically without editing this file. -->
             <div id="grp-container-type">
-              <label class="flbl">Container Type <span class="req">*</span></label>
+              <label class="flbl" for="container-type-id">Container Type <span class="req">*</span></label>
               <select id="container-type-id" class="finp">
                 <option value="">- Select Container -</option>
               </select>
@@ -479,7 +479,7 @@
 
           <div class="form-row-c frc-4 frc-mt">
             <div class="sp2">
-              <label class="flbl">Customer Name <span class="req">*</span></label>
+              <label class="flbl" for="customer-search">Customer Name <span class="req">*</span></label>
               <div class="autocomplete-wrap">
                 <input type="text" id="customer-search" class="finp"
                        placeholder="Type to search or add new…" autocomplete="off" />
@@ -487,31 +487,31 @@
                 <div class="autocomplete-list" id="customer-list"></div>
               </div>
               <div class="new-customer-form" id="new-customer-form">
-                <label class="flbl" style="margin-bottom:5px;">New Company Name <span class="req">*</span></label>
+                <label class="flbl" for="nc-name" style="margin-bottom:5px;">New Company Name <span class="req">*</span></label>
                 <input type="text" id="nc-name" class="finp" placeholder="e.g. Steel Authority of India" />
               </div>
             </div>
             <div>
-              <label class="flbl">Contact Person</label>
+              <label class="flbl" for="cust-contact">Contact Person</label>
               <input type="text" id="cust-contact" class="finp" placeholder="Mr. Rajesh Sharma" />
             </div>
             <div>
-              <label class="flbl">Application</label>
+              <label class="flbl" for="cust-application">Application</label>
               <input type="text" id="cust-application" class="finp" placeholder="Coal Conveying" />
             </div>
           </div>
 
           <div class="form-row-c frc-4 frc-mt">
             <div class="sp2">
-              <label class="flbl">Plant / Factory Location</label>
+              <label class="flbl" for="cust-location">Plant / Factory Location</label>
               <input type="text" id="cust-location" class="finp" placeholder="Nagpur, Maharashtra" />
             </div>
             <div>
-              <label class="flbl">Indus Brand <span class="req">*</span></label>
+              <label class="flbl" for="brand-id">Indus Brand <span class="req">*</span></label>
               <select id="brand-id" class="finp"><option value="">Loading…</option></select>
             </div>
             <div>
-              <label class="flbl">Applicable Standard <span class="req">*</span></label>
+              <label class="flbl" for="standard-id">Applicable Standard <span class="req">*</span></label>
               <select id="standard-id" class="finp"><option value="">Loading…</option></select>
             </div>
           </div>
@@ -519,7 +519,7 @@
           <!-- SINGLE ONLY: belt description (auto per-belt in multi mode) -->
           <div id="grp-belt-desc" class="form-row-c frc-4 frc-mt">
             <div class="sp4">
-              <label class="flbl">
+              <label class="flbl" for="belt-description">
                 Belt Description
                 <span class="badge-auto">AUTO</span>
                 <span style="font-size:9px;color:var(--text-muted);font-weight:400;
@@ -665,7 +665,7 @@
 
           <!-- Belt text input -->
           <div style="margin-bottom:14px;">
-            <label class="flbl">Belt Lines <span class="req">*</span>
+            <label class="flbl" for="multi-belt-text">Belt Lines <span class="req">*</span>
               <span style="font-weight:400;font-size:9.5px;color:var(--text-muted);
                            text-transform:none;letter-spacing:0;margin-left:6px;">- one belt per line</span>
             </label>
@@ -676,7 +676,7 @@
           <!-- Shared fabric override -->
           <div class="form-row-c frc-4" style="margin-bottom:0;">
             <div>
-              <label class="flbl">Make of Fabric</label>
+              <label class="flbl" for="ms-make-of-fabric">Make of Fabric</label>
               <select id="ms-make-of-fabric" class="finp">
                 <option value="MIT">MIT</option>
                 <option value="SRF">SRF</option>
@@ -740,13 +740,13 @@
 
           <div class="form-row-c frc-4">
             <div>
-              <label class="flbl">Reel Type</label>
+              <label class="flbl" for="multi-reel-type-id">Reel Type</label>
               <select id="multi-reel-type-id" class="finp">
                 <option value="">Loading…</option>
               </select>
             </div>
             <div>
-              <label class="flbl">Packing Type</label>
+              <label class="flbl" for="multi-packing-type-id">Packing Type</label>
               <select id="multi-packing-type-id" class="finp">
                 <option value="">Loading…</option>
               </select>
@@ -757,7 +757,7 @@
           <div style="margin-top:12px;padding:12px 14px;background:var(--bg-section);
                       border:1px solid var(--border);border-radius:var(--radius);">
             <div style="display:flex;align-items:center;gap:12px;">
-              <label class="flbl" style="margin:0;">Splicing Required</label>
+              <label class="flbl" for="multi-splicing-required" style="margin:0;">Splicing Required</label>
               <label class="toggle" style="margin:0;">
                 <input type="checkbox" id="multi-splicing-required" />
                 <span class="toggle-slider"></span>
@@ -771,14 +771,14 @@
             <div id="multi-splice-details" style="display:none;margin-top:10px;">
               <div class="form-row-c frc-4">
                 <div>
-                  <label class="flbl">Vulcanization Type <span class="req">*</span></label>
+                  <label class="flbl" for="multi-vulcanization-method">Vulcanization Type <span class="req">*</span></label>
                   <select id="multi-vulcanization-method" class="finp">
                     <option value="Hot">Hot Vulcanisation</option>
                     <option value="Cold">Cold Vulcanisation</option>
                   </select>
                 </div>
                 <div>
-                  <label class="flbl">No. of Joints</label>
+                  <label class="flbl" for="multi-num-joints">No. of Joints</label>
                   <input type="number" id="multi-num-joints" class="finp"
                          min="1" max="50" step="1" value="2" placeholder="2" />
                   <div class="form-hint" style="margin-top:3px;">Default 2 · shared across batch</div>
@@ -801,23 +801,23 @@
 
             <div class="form-row-c frc-4">
               <div>
-                <label class="flbl">Belt Width (mm) <span class="req">*</span></label>
+                <label class="flbl" for="belt-width-mm">Belt Width (mm) <span class="req">*</span></label>
                 <input type="number" id="belt-width-mm" class="finp"
                        min="300" max="2200" step="50" placeholder="e.g. 1200" />
               </div>
               <div>
-                <label class="flbl">Cover Grade <span class="req">*</span></label>
+                <label class="flbl" for="cover-grade-id">Cover Grade <span class="req">*</span></label>
                 <select id="cover-grade-id" class="finp">
                   <option value="">Select standard first</option>
                 </select>
                 <div class="form-hint" id="grade-hint" style="margin-top:3px;"></div>
               </div>
               <div>
-                <label class="flbl">Fabric Type <span class="req">*</span></label>
+                <label class="flbl" for="fabric-type-id">Fabric Type <span class="req">*</span></label>
                 <select id="fabric-type-id" class="finp"><option value="">Loading…</option></select>
               </div>
               <div>
-                <label class="flbl">Belt Rating <span class="req">*</span></label>
+                <label class="flbl" for="belt-rating-id">Belt Rating <span class="req">*</span></label>
                 <select id="belt-rating-id" class="finp">
                   <option value="">Select fabric first</option>
                 </select>
@@ -826,44 +826,49 @@
 
             <div class="form-row-c frc-4 frc-mt">
               <div>
-                <label class="flbl">Top Cover (mm) <span class="req">*</span></label>
+                <label class="flbl" for="top-cover-mm">Top Cover (mm) <span class="req">*</span></label>
                 <input type="number" id="top-cover-mm" class="finp"
                        min="1" max="25" step="0.5" placeholder="e.g. 6" />
                 <div class="form-hint" style="margin-top:3px;">Carrying side</div>
               </div>
               <div>
-                <label class="flbl">Bottom Cover (mm) <span class="req">*</span></label>
+                <label class="flbl" for="bottom-cover-mm">Bottom Cover (mm) <span class="req">*</span></label>
                 <input type="number" id="bottom-cover-mm" class="finp"
                        min="1" max="25" step="0.5" placeholder="e.g. 3" />
                 <div class="form-hint" style="margin-top:3px;">Pulley side</div>
               </div>
               <div>
-                <label class="flbl" style="display:flex;align-items:center;justify-content:space-between;">
-                  <span>Carcass (mm)
+                <!-- Was a <label> nesting another <label> (invalid HTML — the
+                     toggle needs its own wrapping label, but that meant this
+                     outer element could never validly label carcass-thickness-mm
+                     too). Now a plain flex wrapper with two real, sibling
+                     labels: one for the number field, one for the toggle. -->
+                <div class="flbl" style="display:flex;align-items:center;justify-content:space-between;">
+                  <label for="carcass-thickness-mm">Carcass (mm)
                     <span style="font-size:9px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">from rating</span>
-                  </span>
+                  </label>
                   <label class="toggle" style="margin:0;" title="Unlock to override">
                     <input type="checkbox" id="carcass-override-toggle" />
                     <span class="toggle-slider"></span>
                   </label>
-                </label>
+                </div>
                 <input type="number" id="carcass-thickness-mm" class="finp auto-field"
                        readonly min="0.5" max="50" step="0.1" />
                 <div class="form-hint" id="carcass-hint" style="margin-top:3px;">Auto-filled · toggle to override</div>
               </div>
               <div>
-                <label class="flbl">Total Thickness (mm) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="total-thickness-mm">Total Thickness (mm) <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="total-thickness-mm" class="finp auto-field" readonly placeholder="-" />
               </div>
             </div>
 
             <div class="form-row-c frc-4 frc-mt">
               <div>
-                <label class="flbl">No. of Plies <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="cv-plies-field">No. of Plies <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="cv-plies-field" class="finp auto-field" readonly placeholder="-" />
               </div>
               <div>
-                <label class="flbl">Fabric Style <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="fabric-style-id">Fabric Style <span class="badge-auto">AUTO</span></label>
                 <!-- Auto-selected from the belt rating (server-computed by
                      auto_select_fabric_style() in apps/services/calculations.py,
                      returned as lookupData.fabric_style by POST /api/tds/lookup -
@@ -877,14 +882,14 @@
                 </select>
               </div>
               <div>
-                <label class="flbl">Make of Fabric</label>
+                <label class="flbl" for="make-of-fabric">Make of Fabric</label>
                 <select id="make-of-fabric" class="finp">
                   <option value="MIT">MIT</option>
                   <option value="SRF">SRF</option>
                 </select>
               </div>
               <div>
-                <label class="flbl">Interply Skim (mm) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="cv-skim-field">Interply Skim (mm) <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="cv-skim-field" class="finp auto-field" readonly placeholder="-" />
               </div>
             </div>
@@ -919,36 +924,39 @@
 
             <div class="form-row-c frc-4">
               <div>
-                <label class="flbl">Total Belt Length (m) <span class="req">*</span></label>
+                <label class="flbl" for="belt-length-m">Total Belt Length (m) <span class="req">*</span></label>
                 <input type="number" id="belt-length-m" class="finp"
                        min="10" max="2000" step="1" placeholder="e.g. 500" />
                 <span id="belt-length-note" class="field-hint"
                       style="display:none;color:#b91c1c;font-size:0.78rem;">Max 100 m for Endless belts</span>
               </div>
               <div>
-                <label class="flbl">Edge Construction <span class="req">*</span></label>
+                <label class="flbl" for="edge-construction">Edge Construction <span class="req">*</span></label>
                 <select id="edge-construction" class="finp">
                   <option value="Cut Edge">Cut Edge</option>
                   <option value="Moulded Edge">Moulded Edge</option>
                 </select>
               </div>
               <div>
-                <label class="flbl">Breaker on Top</label>
-                <div class="radio-il">
+                <label class="flbl" id="brk-top-label">Breaker on Top</label>
+                <!-- A single `for` can't describe a group of radios — this is
+                     a real option group, not a single-control field, so it's
+                     labeled via aria-labelledby + role="group" instead. -->
+                <div class="radio-il" role="group" aria-labelledby="brk-top-label">
                   <label><input type="radio" name="brk-top" value="no" checked onchange="window._brkTop(false)"/> No</label>
                   <label><input type="radio" name="brk-top" value="yes" onchange="window._brkTop(true)"/> Yes</label>
                   <input type="number" id="breaker-top-plies" class="finp" style="width:52px;display:none;"
-                         min="1" max="3" value="1" placeholder="#" />
+                         min="1" max="3" value="1" placeholder="#" aria-label="Number of top breaker plies" />
                 </div>
                 <input type="checkbox" id="breaker-top" style="display:none;" />
               </div>
               <div>
-                <label class="flbl">Breaker on Bottom</label>
-                <div class="radio-il">
+                <label class="flbl" id="brk-bot-label">Breaker on Bottom</label>
+                <div class="radio-il" role="group" aria-labelledby="brk-bot-label">
                   <label><input type="radio" name="brk-bot" value="no" checked onchange="window._brkBot(false)"/> No</label>
                   <label><input type="radio" name="brk-bot" value="yes" onchange="window._brkBot(true)"/> Yes</label>
                   <input type="number" id="breaker-bottom-plies" class="finp" style="width:52px;display:none;"
-                         min="1" max="3" value="1" placeholder="#" />
+                         min="1" max="3" value="1" placeholder="#" aria-label="Number of bottom breaker plies" />
                 </div>
                 <input type="checkbox" id="breaker-bottom" style="display:none;" />
               </div>
@@ -978,31 +986,31 @@
 
             <div class="form-row-c frc-7">
               <div>
-                <label class="flbl">Reel Type</label>
+                <label class="flbl" for="reel-type-id">Reel Type</label>
                 <select id="reel-type-id" class="finp"><option value="">Loading…</option></select>
               </div>
               <div>
-                <label class="flbl">Packing Type</label>
+                <label class="flbl" for="packing-type-id">Packing Type</label>
                 <select id="packing-type-id" class="finp"><option value="">Loading…</option></select>
               </div>
               <div>
-                <label class="flbl">No. of Rolls <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="num-rolls">No. of Rolls <span class="badge-auto">AUTO</span></label>
                 <input type="number" id="num-rolls" class="finp auto-field" readonly placeholder="Auto" />
               </div>
               <div>
-                <label class="flbl">Length / Roll (m) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="length-per-roll">Length / Roll (m) <span class="badge-auto">AUTO</span></label>
                 <input type="number" id="length-per-roll" class="finp auto-field" readonly placeholder="Auto" />
               </div>
               <div>
-                <label class="flbl">Roll Dimensions <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="roll-dimensions">Roll Dimensions <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="roll-dimensions" class="finp auto-field" readonly placeholder="Auto" />
               </div>
               <div>
-                <label class="flbl">Net Weight (kg) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="net-weight-kg">Net Weight (kg) <span class="badge-auto">AUTO</span></label>
                 <input type="number" id="net-weight-kg" class="finp auto-field" readonly placeholder="Auto" />
               </div>
               <div>
-                <label class="flbl">Gross Weight (kg) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="gross-weight-kg">Gross Weight (kg) <span class="badge-auto">AUTO</span></label>
                 <input type="number" id="gross-weight-kg" class="finp auto-field" readonly placeholder="Auto" />
               </div>
             </div>
@@ -1013,19 +1021,19 @@
               <div id="packing-override-fields" style="display:none;margin-top:10px;">
                 <div class="form-row-c frc-4">
                   <div>
-                    <label class="flbl">Override No. of Rolls</label>
+                    <label class="flbl" for="num-rolls-override">Override No. of Rolls</label>
                     <input type="number" id="num-rolls-override" class="finp" min="1" placeholder="Auto" />
                   </div>
                   <div>
-                    <label class="flbl">Override Length / Roll (m)</label>
+                    <label class="flbl" for="length-per-roll-override">Override Length / Roll (m)</label>
                     <input type="number" id="length-per-roll-override" class="finp" min="1" step="0.5" placeholder="Auto" />
                   </div>
                   <div>
-                    <label class="flbl">Override Net Weight (kg)</label>
+                    <label class="flbl" for="net-weight-kg-override">Override Net Weight (kg)</label>
                     <input type="number" id="net-weight-kg-override" class="finp" min="1" placeholder="Auto" />
                   </div>
                   <div>
-                    <label class="flbl">Override Gross Weight (kg)</label>
+                    <label class="flbl" for="gross-weight-kg-override">Override Gross Weight (kg)</label>
                     <input type="number" id="gross-weight-kg-override" class="finp" min="1" placeholder="Auto" />
                   </div>
                 </div>
@@ -1071,23 +1079,23 @@
           <div class="section-card-body" id="splicing-fields" style="display:none;">
             <div class="form-row-c frc-4">
               <div>
-                <label class="flbl">Vulcanization Type <span class="req">*</span></label>
+                <label class="flbl" for="vulcanization-method">Vulcanization Type <span class="req">*</span></label>
                 <select id="vulcanization-method" class="finp">
                   <option value="Hot">Hot Vulcanisation</option>
                   <option value="Cold">Cold Vulcanisation</option>
                 </select>
               </div>
               <div>
-                <label class="flbl">No. of Joints <span class="req">*</span></label>
+                <label class="flbl" for="num-joints">No. of Joints <span class="req">*</span></label>
                 <input type="number" id="num-joints" class="finp" min="1" placeholder="e.g. 2" />
                 <div class="form-hint" style="margin-top:3px;">Typically 1 per roll</div>
               </div>
               <div>
-                <label class="flbl">Step Length (mm) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="sp-step-len-field">Step Length (mm) <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="sp-step-len-field" class="finp auto-field" readonly placeholder="-" />
               </div>
               <div>
-                <label class="flbl">Total Splicing Length (m) <span class="badge-auto">AUTO</span></label>
+                <label class="flbl" for="sp-total-splice-field">Total Splicing Length (m) <span class="badge-auto">AUTO</span></label>
                 <input type="text" id="sp-total-splice-field" class="finp auto-field" readonly placeholder="-" />
               </div>
             </div>
