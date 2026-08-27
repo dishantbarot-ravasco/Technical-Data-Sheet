@@ -83,6 +83,27 @@ function escapeHtml(value) {
   }[c]));
 }
 
+/**
+ * BUG FIX: scrolling the mouse wheel over a focused <input type="number">
+ * silently increments/decrements its value by the field's `step` (1 for
+ * most fields, 0.5 for a few like length-per-roll-override) — the browser's
+ * native behavior, not a slider widget, but it looks and feels like one and
+ * is exactly this: type "1" in belt-width-mm, then scroll the page while the
+ * cursor happens to be over that field, and it silently becomes "2" (or
+ * "1.5") with no visual cue. Blurring the field on wheel — instead of
+ * letting the browser handle the scroll as a value change — makes the wheel
+ * do what a user actually expects (scroll the page) and leaves the typed
+ * value untouched. Delegated on document so it covers every current number
+ * input on this form without wiring 17 individual listeners, and any future
+ * one added to the page needs no extra code.
+ */
+document.addEventListener('wheel', () => {
+  const el = document.activeElement;
+  if (el && el.tagName === 'INPUT' && el.type === 'number') {
+    el.blur();
+  }
+}, { passive: true });
+
 /* ── Auth ─────────────────────────────────────────────────── */
 const session = await requireAuth();
 if (session) populateNavUser();

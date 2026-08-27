@@ -293,6 +293,18 @@
     const session = await requireAuth();
     if (session) populateNavUser();
 
+    // BUG FIX: scrolling the mouse wheel over a focused <input type="number">
+    // silently increments/decrements its value by the field's `step` — the
+    // browser's native behavior, not a slider widget, but it looks and feels
+    // like one. Blurring the field on wheel makes the wheel scroll the page
+    // instead, leaving the typed value untouched. Same fix as generate-tds.js.
+    document.addEventListener('wheel', () => {
+      const el = document.activeElement;
+      if (el && el.tagName === 'INPUT' && el.type === 'number') {
+        el.blur();
+      }
+    }, { passive: true });
+
     // ── Splicing config: loaded from DB via /api/splicing-config ──
     // IS 14206 defaults used only until the API response arrives (or on failure).
     let splicingConfig = {
