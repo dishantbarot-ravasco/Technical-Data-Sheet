@@ -98,6 +98,24 @@ def compute_packing(
     max_D      = float(reel.max_roll_diameter_m)
     base_rolls = reel.num_rolls_base
 
+    # Guard the two values every downstream formula divides by. Without this,
+    # a zero here (bad input data, or a misconfigured ReelType row) surfaces
+    # as a raw ZeroDivisionError deep inside the math below instead of a
+    # clear, attributable error message.
+    if not total_thickness_mm or total_thickness_mm <= 0:
+        raise ValueError(
+            f"total_thickness_mm must be greater than 0 to compute packing (got {total_thickness_mm!r})"
+        )
+    if not base_rolls or base_rolls <= 0:
+        raise ValueError(
+            f"ReelType id={reel_type_id} has an invalid num_rolls_base ({base_rolls!r}); "
+            "it must be a positive integer."
+        )
+    if not belt_length_m or belt_length_m <= 0:
+        raise ValueError(
+            f"belt_length_m must be greater than 0 to compute packing (got {belt_length_m!r})"
+        )
+
     d_m = total_thickness_mm / 1000
 
     # ── Calculate reel outer diameter D ──────────────────────────────────────
@@ -134,7 +152,7 @@ def compute_packing(
 
     else:
         num_rolls  = base_rolls
-        L_per_roll = belt_length_m / base_rolls
+        L_per_roll = belt_length_m / base_rolls   # base_rolls already guarded > 0 above
 
     # ── Roll dimensions (per individual roll) ─────────────────────────────────
     roll_height_m   = _round_up_half(D)

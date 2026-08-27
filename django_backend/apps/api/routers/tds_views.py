@@ -36,6 +36,7 @@ from apps.services.calculations import (
 from apps.services.splicing_service import compute_splicing
 from apps.services.packing_service import compute_packing
 from apps.services.tds_number import next_tds_number
+from apps.core.audit_log import log_tds_action, TDSAuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +70,15 @@ def _tds_brief(t):
         "customer_id":         t.customer_id,
         "belt_width_mm":       t.belt_width_mm,
         "belt_length_m":       float(t.belt_length_m) if t.belt_length_m else None,
+        "created_by":          t.created_by_id,
         "created_by_id":       t.created_by_id,
         "created_at":          t.created_at.isoformat() if t.created_at else None,
         # Nested objects — frontend accesses t.customer?.customer_name, t.standard?.standard_name, etc.
-        "customer":     {"customer_name": t.customer.customer_name}    if t.customer_id else None,
-        "standard":     {"standard_name": t.standard.standard_name}    if t.standard_id else None,
-        "belt_rating":  {"rating_name":   t.belt_rating.rating_name}   if t.belt_rating_id else None,
+        "customer":        {"customer_name": t.customer.customer_name}    if t.customer_id else None,
+        "standard":        {"standard_name": t.standard.standard_name}    if t.standard_id else None,
+        "belt_rating":     {"rating_name":   t.belt_rating.rating_name}   if t.belt_rating_id else None,
+        # Nested user — admin panel uses t.created_by_user?.full_name
+        "created_by_user": _user_brief(t.created_by)                      if t.created_by_id else None,
     }
 
 def _tds_full(t):
@@ -259,29 +263,37 @@ def create_tds(request):
         belt_rating_id=p.get('belt_rating_id'),
         parameter_id=PARAM_INTERPLY_SKIM,
     ).first()
-    interply_skim_mm = (
-        float(interply_skim_row.indus_value)
-        if interply_skim_row and interply_skim_row.indus_value not in (None, "Not Specified", "—")
-        else None
-    )
 
-    # ── Server-computed total thickness ───────────────────────────────────────
-    total_thickness_mm = (
-        float(p.get('top_cover_mm', 0))
-        + float(p.get('bottom_cover_mm', 0))
-        + float(p.get('carcass_thickness_mm', 0))
-    )
-
-    # ── Belt weight per metre ─────────────────────────────────────────────────
-    weight_per_m = p.get('belt_weight_per_m_kg')
-    if weight_per_m is not None:
-        weight_per_m = float(weight_per_m)
-    else:
-        weight_per_m = belt_weight_per_metre(
-            specific_gravity=float(cover_grade.specific_gravity),
-            width_mm=int(p.get('belt_width_mm', 0)),
-            total_thickness_mm=total_thickness_mm,
+    # ROBUSTNESS (fixed): all the numeric fields below used to be cast with a
+    # bare float()/int(), so a malformed value (e.g. belt_width_mm: "abc")
+    # crashed with an unhandled ValueError -> generic 500 instead of a clean,
+    # attributable 400 — same fix pattern as validate_endless_belt_length above.
+    try:
+        interply_skim_mm = (
+            float(interply_skim_row.indus_value)
+            if interply_skim_row and interply_skim_row.indus_value not in (None, "Not Specified", "—")
+            else None
         )
+
+        # ── Server-computed total thickness ───────────────────────────────────
+        total_thickness_mm = (
+            float(p.get('top_cover_mm', 0))
+            + float(p.get('bottom_cover_mm', 0))
+            + float(p.get('carcass_thickness_mm', 0))
+        )
+
+        # ── Belt weight per metre ──────────────────────────────────────────────
+        weight_per_m = p.get('belt_weight_per_m_kg')
+        if weight_per_m is not None:
+            weight_per_m = float(weight_per_m)
+        else:
+            weight_per_m = belt_weight_per_metre(
+                specific_gravity=float(cover_grade.specific_gravity),
+                width_mm=int(p.get('belt_width_mm', 0)),
+                total_thickness_mm=total_thickness_mm,
+            )
+    except (TypeError, ValueError):
+        raise ValidationError({'detail': 'top_cover_mm, bottom_cover_mm, carcass_thickness_mm, belt_width_mm, and belt_weight_per_m_kg must all be numeric.'})
 
     # ── Auto-compute packing if reel/packing type supplied but num_rolls absent
     reel_type_id    = p.get('reel_type_id')
@@ -305,15 +317,21 @@ def create_tds(request):
         if not ptype.is_available:
             raise ValidationError({'detail': f"Packing type '{ptype.packing_name}' is not yet available"})
 
-        pr = compute_packing(
-            reel_type_id=reel_type_id,
-            packing_type_id=packing_type_id,
-            purpose_id=p.get('purpose_id'),
-            total_thickness_mm=total_thickness_mm,
-            belt_length_m=float(p.get('belt_length_m', 0)),
-            belt_width_mm=int(p.get('belt_width_mm', 0)),
-            belt_weight_per_m_kg=float(weight_per_m),
-        )
+        try:
+            pr = compute_packing(
+                reel_type_id=reel_type_id,
+                packing_type_id=packing_type_id,
+                purpose_id=p.get('purpose_id'),
+                total_thickness_mm=total_thickness_mm,
+                belt_length_m=float(p.get('belt_length_m', 0)),
+                belt_width_mm=int(p.get('belt_width_mm', 0)),
+                belt_weight_per_m_kg=float(weight_per_m),
+            )
+        except (TypeError, ValueError) as exc:
+            # compute_packing raises ValueError for bad/missing reel config or
+            # non-numeric input (see packing_service.py) — surface it as a
+            # clean 400 instead of letting it fall through as a generic 500.
+            raise ValidationError({'detail': str(exc)})
         packing_num_rolls             = pr.num_rolls
         packing_len_per_roll          = pr.length_per_roll_m
         packing_roll_dims             = pr.roll_dimensions
@@ -404,6 +422,7 @@ def create_tds(request):
     record.created_by_id = current_user.user_id
     record.save()
 
+    log_tds_action(request, TDSAuditLog.ACTION_CREATE, tds=record)
     return Response(_tds_full(_load_full(record.tds_id)), status=status.HTTP_201_CREATED)
 
 
@@ -424,8 +443,11 @@ def list_tds(request):
     if params.get('customer'):
         qs = qs.filter(customer__customer_name__icontains=params['customer'])
 
-    limit  = max(1, min(200, int(params.get('limit', 50))))
-    offset = max(0, int(params.get('offset', 0)))
+    try:
+        limit  = max(1, min(200, int(params.get('limit', 50))))
+        offset = max(0, int(params.get('offset', 0)))
+    except (TypeError, ValueError):
+        raise ValidationError({'detail': 'limit and offset must be integers.'})
     qs = qs[offset:offset + limit]
 
     return Response([_tds_brief(t) for t in qs])
@@ -457,6 +479,7 @@ def approve_tds(request, tds_id):
     record.status      = 'approved'
     record.approved_at = datetime.now(timezone.utc)
     record.save()
+    log_tds_action(request, TDSAuditLog.ACTION_APPROVE, tds=record)
     return Response(_tds_full(_load_full(tds_id)))
 
 
@@ -474,13 +497,25 @@ def decline_tds(request, tds_id):
         )
     record.status = 'declined'
     record.save()
+    reason = request.data.get('reason', '')
+    log_tds_action(request, TDSAuditLog.ACTION_DECLINE, tds=record, detail=reason)
     return Response(_tds_full(_load_full(tds_id)))
 
 
 @api_view(['PATCH'])
 @permission_classes([IsEditor])
 def update_status(request, tds_id):
-    """Set TDS status to any valid value."""
+    """
+    Set TDS status to any valid value.
+
+    Deliberately permissive (no draft/approved/sent/... transition graph
+    enforced) — this is a general-purpose correction tool for editors,
+    unlike approve_tds/decline_tds which each enforce their own specific
+    precondition. What WAS missing (fixed below): unlike approve/decline,
+    this never wrote an audit log entry, so a status change made through this
+    endpoint left no trace in the same history approve/decline do — every
+    other mutation in this file is audited, this one silently wasn't.
+    """
     new_status = request.query_params.get('new_status') or request.data.get('new_status')
     valid = {"approved", "sent", "archived", "declined", "draft"}
     if new_status not in valid:
@@ -488,8 +523,13 @@ def update_status(request, tds_id):
     record = TDSInput.objects.filter(pk=tds_id).first()
     if not record:
         raise NotFound(f"TDS {tds_id} not found")
+    old_status = record.status
     record.status = new_status
     record.save()
+    log_tds_action(
+        request, TDSAuditLog.ACTION_UPDATE, tds=record,
+        detail=f"status changed: {old_status} -> {new_status}",
+    )
     return Response(_tds_full(_load_full(tds_id)))
 
 
@@ -500,5 +540,6 @@ def delete_tds(request, tds_id):
     record = TDSInput.objects.filter(pk=tds_id).first()
     if not record:
         raise NotFound(f"TDS {tds_id} not found")
+    log_tds_action(request, TDSAuditLog.ACTION_DELETE, tds=record, detail='User requested deletion')
     record.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)

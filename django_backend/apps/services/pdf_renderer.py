@@ -100,3 +100,26 @@ def render_tds_pdf(
     )
     base_url = str(_STATIC_DIR) + "/"
     return HTML(string=html_str, base_url=base_url).write_pdf(optimize_images=True)
+
+
+# ─── QAP rendering ───────────────────────────────────────────────────────────
+
+def render_qap_html(context: dict) -> str:
+    """
+    Render the QAP Jinja2 template to an HTML string.
+    context must be the dict returned by qap_service.build_qap_context().
+    """
+    template = _jinja_env.get_template("qap.html")
+    return template.render(**context)
+
+
+def render_qap_pdf(context: dict) -> bytes:
+    """
+    Render QAP to PDF bytes via WeasyPrint.
+    WeasyPrint is imported lazily to avoid slowing down server startup.
+    """
+    from weasyprint import HTML  # lazy import  # noqa: PLC0415
+
+    html_str = render_qap_html(context)
+    base_url = str(_STATIC_DIR) + "/"
+    return HTML(string=html_str, base_url=base_url).write_pdf(optimize_images=True)

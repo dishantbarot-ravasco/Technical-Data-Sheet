@@ -25,10 +25,15 @@ SECRET_KEY = os.environ['TDS_SECRET_KEY']
 # Set APP_ENV=development in .env to turn on the dev conveniences below.
 DEBUG      = os.environ.get('APP_ENV', 'production') == 'development'
 
+# SECURITY (fixed): '.onrender.com' used to be included as a wildcard,
+# accepting a Host header for ANY Render subdomain (including someone else's
+# app, or a throwaway app an attacker provisions) rather than just this one.
+# RENDER_EXTERNAL_HOSTNAME (set automatically by Render at runtime) already
+# gives the exact host this deployment is actually served on, so the
+# wildcard was both redundant and unnecessarily broad.
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    '.onrender.com',                                          # all Render subdomains
     os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),          # specific Render host
 ]
 ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]             # remove empty strings
@@ -56,8 +61,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',          # must be first
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',     # serves frontend static files
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
+    'config.security_headers.SecurityHeadersMiddleware',    
+    'django.contrib.sessions.middleware.SessionMiddleware', # serves frontend static files
     'django.middleware.common.CommonMiddleware',
     # Full CsrfViewMiddleware is intentionally NOT used app-wide:
     # every /api/ endpoint authenticates via JWT bearer token / httpOnly
@@ -184,11 +190,21 @@ REST_FRAMEWORK = {
 #   USER_ID_CLAIM  — claim simplejwt writes in the token → kept as 'user_id'
 #                    (our serializer also writes 'sub' for FastAPI compatibility;
 #                     TDSJWTAuthentication reads 'sub', not 'user_id')
+# SECURITY (fixed): JWT_SIGNING_KEY defaults to SECRET_KEY for zero-downtime
+# compatibility with existing deployments (changing it invalidates every
+# currently-issued token, forcing a re-login), but it's a distinct env var
+# now, so it CAN be set independently going forward — SECRET_KEY also signs
+# Django's session/CSRF/password-reset tokens, so reusing it for JWTs means a
+# leak or weakness in one context compromises the other. Set JWT_SIGNING_KEY
+# in the environment (e.g. `python -c "import secrets; print(secrets.token_urlsafe(64))"`)
+# to fully separate them.
+JWT_SIGNING_KEY = os.environ.get('JWT_SIGNING_KEY', SECRET_KEY)
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':      timedelta(hours=12),
     'REFRESH_TOKEN_LIFETIME':     timedelta(days=1),
     'ALGORITHM':                  'HS256',
-    'SIGNING_KEY':                SECRET_KEY,
+    'SIGNING_KEY':                JWT_SIGNING_KEY,
     'AUTH_HEADER_TYPES':          ('Bearer',),
     'USER_ID_FIELD':              'user_id',   # ← TDSUser PK field name
     'USER_ID_CLAIM':              'user_id',   # ← claim simplejwt auto-sets
@@ -198,9 +214,12 @@ SIMPLE_JWT = {
 }
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
-# In DEBUG allow all origins so Live Server (port 5500) can hit Django (8001)
+# SECURITY: never wildcard-allow origins while credentials are allowed (that lets
+# django-cors-headers reflect ANY Origin back with credentials attached -- a full
+# CORS/CSRF bypass). Local dev works fine off the explicit allowlist below (it
+# already includes the Live Server ports), so we no longer tie this to DEBUG.
 _render_host = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
-CORS_ALLOW_ALL_ORIGINS  = DEBUG
+CORS_ALLOW_ALL_ORIGINS  = False
 CORS_ALLOWED_ORIGINS    = [
     'http://localhost:5500',
     'http://127.0.0.1:5500',

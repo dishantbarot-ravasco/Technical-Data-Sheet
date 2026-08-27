@@ -47,6 +47,7 @@ urlpatterns = [
     path('', include('apps.api.routers.packing_urls')),
     path('', include('apps.api.routers.users_urls')),
     path('', include('apps.api.routers.pdf_urls')),
+    path('', include('apps.api.routers.qap_urls')),
 
     # ── Free-scheduler-triggered daily report (secret-protected, no login) ────
     path('', include('apps.api.routers.reports_urls')),

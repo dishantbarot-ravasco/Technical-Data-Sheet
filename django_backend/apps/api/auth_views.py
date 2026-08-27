@@ -3,23 +3,27 @@ apps/api/auth_views.py — Authentication endpoints.
 
 Endpoints
 ---------
-POST /api/auth/login          — credentials → TOTP intermediate state
+POST /api/auth/login          — credentials → device-trust / email-OTP intermediate state
 POST /api/auth/token/refresh  — refresh an expiring access token
 POST /api/auth/token/verify   — verify a token is still valid
 POST /api/auth/logout         — clear the httpOnly JWT cookie
 
-Phase 4 login flow:
-  The login view no longer returns a full JWT.  It returns ONE OF:
-    { "status": "totp_required",      "pre_auth_token": "..." }
-    { "status": "totp_setup_required", "enrollment_token": "...", "qr_uri": "..." }
+Live login flow (device-trust + email OTP — see auth_serializers.py and
+apps/api/routers/device_views.py):
+  The login view returns ONE OF:
+    { "status": "ok",             "access_token": "...", ... }   — trusted device, fully logged in
+    { "status": "device_verify" }                                — new device: OTP emailed,
+                                                                      caller must POST the code to
+                                                                      /api/auth/device-verify
 
-  The full JWT is issued only after TOTP verification:
-    POST /api/auth/2fa/verify         (TDSJWTAuthentication — totp_views.py)
-    POST /api/auth/2fa/enroll-confirm (TDSJWTAuthentication — totp_views.py)
+  (An earlier TOTP/authenticator-app based 2FA design was scaffolded under
+  totp_service.py / totp_views.py but was never wired into apps/api/urls.py and
+  has since been removed — the device-trust + email-OTP flow above is the only
+  2FA this app implements.)
 
-Phase 5 logout:
-  The httpOnly cookie (tds_access) is set by the 2FA views after successful
-  verification.  Logout clears it server-side and returns 204 No Content.
+Logout:
+  The httpOnly cookie (tds_access) is set after successful login/verification.
+  Logout clears it server-side and returns 204 No Content.
 """
 
 import logging
@@ -48,7 +52,7 @@ class LoginRateThrottle(AnonRateThrottle):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Login — returns TOTP intermediate state (Phase 4)
+# Login — returns device-trust / email-OTP intermediate state
 # ─────────────────────────────────────────────────────────────────────────────
 
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -59,20 +63,49 @@ class TDSLoginView(TokenObtainPairView):
     Body: { "email": "...", "password": "..." }
 
     Returns:
-      { "status": "totp_required",       "pre_auth_token": "..." }
-      { "status": "totp_setup_required", "enrollment_token": "...", "qr_uri": "..." }
+      { "status": "ok", "access_token": "...", ... }   — trusted device
+      { "status": "device_verify" }                    — new device, OTP emailed
+
+    On a trusted-device ("ok") login, this also sets the httpOnly tds_access
+    cookie (see apps/services/device_service.py#set_access_cookie) so the
+    frontend no longer has to keep the token in sessionStorage to stay
+    authenticated — TDSCookieJWTAuthentication already reads this cookie
+    first on every request, it just never had anything writing it before.
+    access_token is still returned in the body too, for any API client that
+    isn't a browser (Postman, scripts, etc.) and can't rely on cookies.
     """
     permission_classes  = [AllowAny]
     serializer_class    = TDSTokenObtainPairSerializer
     throttle_classes    = [LoginRateThrottle]
 
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200 and response.data.get('status') == 'ok':
+            from apps.services.device_service import set_access_cookie
+            set_access_cookie(response, response.data['access_token'])
+        return response
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Standard simplejwt views — no customisation needed
+# Token refresh / verify
 # ─────────────────────────────────────────────────────────────────────────────
 
-TDSTokenRefreshView = TokenRefreshView
-TDSTokenVerifyView  = TokenVerifyView
+class TDSTokenRefreshView(TokenRefreshView):
+    # POST /api/auth/token/refresh
+    #
+    # Not currently called by the frontend (no session ever outlives the 12h
+    # access token yet), but kept correct for API clients that do use it:
+    # refreshing also re-sets the tds_access cookie to the new token so cookie
+    # auth doesn't go stale independently of a Bearer-header caller's copy.
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200 and response.data.get('access'):
+            from apps.services.device_service import set_access_cookie
+            set_access_cookie(response, response.data['access'])
+        return response
+
+
+TDSTokenVerifyView = TokenVerifyView
 
 
 # ─────────────────────────────────────────────────────────────────────────────

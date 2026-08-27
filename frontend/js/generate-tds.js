@@ -65,18 +65,44 @@ import {
   getCoverGrades,
   getFabricStyles, getBeltRatings,
   createCustomer, updateCustomer,
-  tdsLookup, createTDS, downloadPdf, getParameters,
+  tdsLookup, createTDS, createBatch, downloadPdf, getParameters,
   getDimensionalSpecs, getShippingConstraints,
 } from './api.js';
+
+/**
+ * Escape a value for safe insertion into an innerHTML template string.
+ * SECURITY: customer name/location/contact/application data rendered by the
+ * autocomplete below comes from user-entered form fields stored on the
+ * backend, so it must never be trusted as raw HTML. Always run dynamic text
+ * through this before interpolating it into a template literal assigned to
+ * .innerHTML.
+ */
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
 
 /* ── Auth ─────────────────────────────────────────────────── */
 const session = requireAuth();
 if (session) populateNavUser();
 
 /* ── State ────────────────────────────────────────────────── */
-let allCustomers  = [];   // loaded once from /api/bootstrap
-let allReelTypes  = [];   // loaded once from /api/bootstrap
-let allStandards  = [];   // loaded once from /api/bootstrap; filtered per-brand in populateStandardsForBrand()
+let allCustomers      = [];   // loaded once from /api/bootstrap
+let allReelTypes      = [];   // loaded once from /api/bootstrap
+let allStandards      = [];   // loaded once from /api/bootstrap; filtered per-brand in populateStandardsForBrand()
+// Splice config loaded from /api/bootstrap (splicing_config key).
+// Fallback to IS 14206 defaults so the page still works if bootstrap fails.
+let allSplicingConfig = {
+  step_table: [
+    {max_fabric_rating_kn_m:100,step_length_mm:150},{max_fabric_rating_kn_m:125,step_length_mm:200},
+    {max_fabric_rating_kn_m:160,step_length_mm:200},{max_fabric_rating_kn_m:200,step_length_mm:250},
+    {max_fabric_rating_kn_m:250,step_length_mm:300},{max_fabric_rating_kn_m:300,step_length_mm:350},
+    {max_fabric_rating_kn_m:315,step_length_mm:350},{max_fabric_rating_kn_m:350,step_length_mm:400},
+    {max_fabric_rating_kn_m:400,step_length_mm:400},
+  ],
+  buffers: { hot: 50, cold: 75 },
+};
 let lookupData    = null; // result of last /api/tds/lookup call
 let createdTdsId  = null; // tds_id returned after a successful createTDS call
 let allParameters = {};   // { groupName: [{parameter_id, parameter_name}] } for PDF options
@@ -194,6 +220,7 @@ async function loadAllDropdowns() {
     allCustomers = d.customers;
     allReelTypes = d.reel_types;
     allStandards = d.standards;
+    if (d.splicing_config) allSplicingConfig = d.splicing_config;
 
     populateSelect('purpose-id',     d.purposes,      'purpose_id',  'purpose_type',  '- Select Purpose -');
     populateSelect('belt-type-id',   d.belt_types,    'belt_id',     'belt_type',     '- Select Belt Type -');
@@ -428,18 +455,18 @@ function updateBeltDescription() {
   const cg_clean = (cg === 'Select standard first' || cg === '- Select Cover Grade -' || !cg) ? '' : cg;
   const ec_clean = ec || '';
 
-  // 'Open-End' → 'Open End', 'Endless' → 'Endless'
-  const ctLabel = ct.replace(/-/g, ' ').trim();
+  // For non-Endless belts drop the construction type prefix (show just "Flat Belt").
+  // For Endless belts prepend "Endless" (e.g. "Endless Flat Belt").
   const btLabel = (bt && bt !== '- Select Belt Type -') ? bt : 'Flat Belt';
-  const beltTypeStr = `${ctLabel} ${btLabel}`;
+  const beltTypeStr = ct === 'Endless' ? `Endless ${btLabel}` : btLabel;
 
-  // Format: Width × Fabric × Rating × TopCover × BotCover × Grade × Edge × Construction BeltType [× BOT - N X BOB - M]
+  // Format: 1200mm X EP X EP 400/3 X 6.0 X 3.0mm X H X Cut Edge X Flat Belt
   const parts = [
-    w,
+    `${w}mm`,
     ft_clean,
     br,
     tc,
-    bc,
+    `${bc}mm`,
     cg_clean,
     ec_clean,
     beltTypeStr,
@@ -461,7 +488,7 @@ function updateBeltDescription() {
     parts.push(breakerParts.join(' X '));
   }
 
-  set('belt-description', parts.join(' × '));
+  set('belt-description', parts.join(' X '));
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -831,25 +858,22 @@ function recalcPacking() {
 /* ══════════════════════════════════════════════════════════
    SPLICING CALCULATION
 ══════════════════════════════════════════════════════════ */
-// Step lookup table per IS 14206 Part I : 1995.
-// Each entry is [max_rating_per_ply_kN_m, step_length_mm].
-// To find the step: pick the first row where rating_per_ply ≤ max_rating_per_ply.
-const SPLICE_STEP_TABLE = [
-  [100,150],[125,200],[160,200],[200,250],[250,300],
-  [300,350],[315,350],[350,400],[400,400],
-];
-
 /**
  * Look up the splice step length (mm) for a given rating per ply.
- * Scans SPLICE_STEP_TABLE and returns the step for the first threshold that
- * is >= ratingPerPly. Falls back to 400 mm if ratingPerPly exceeds all thresholds.
+ * Uses allSplicingConfig.step_table, loaded from /api/bootstrap → splicing_config,
+ * which reflects the live SpliceStepLookup DB table used by splicing_service.py.
+ * Falls back to 400 mm if ratingPerPly exceeds all thresholds.
+ *
+ * NOTE: Do NOT hardcode the step table here — update via the DB/admin panel.
+ * Both this function and splicing-calculator.html read the same API source
+ * so they always match the values printed on the PDF.
  *
  * @param {number} ratingPerPly - kN/m per ply (e.g. 200 for EP 800/4)
  * @returns {number} Step length in mm (e.g. 250)
  */
 function getSpliceStep(ratingPerPly) {
-  for (const [thresh, step] of SPLICE_STEP_TABLE) {
-    if (ratingPerPly <= thresh) return step;
+  for (const row of allSplicingConfig.step_table) {
+    if (ratingPerPly <= row.max_fabric_rating_kn_m) return row.step_length_mm;
   }
   return 400;
 }
@@ -888,7 +912,8 @@ function recalcSplicing() {
 
   const ratingPerPly = parseFloat((beltKn / numPlies).toFixed(2));
   const stepLen      = getSpliceStep(ratingPerPly);
-  const buffer       = vulMethod === 'cold' ? 75 : 50;
+  // Buffer from DB via allSplicingConfig (loaded at bootstrap); IS 14206 defaults as fallback.
+  const buffer       = allSplicingConfig.buffers[vulMethod] ?? (vulMethod === 'cold' ? 75 : 50);
   // Plain nearest-integer rounding here, matching the backend EXACTLY
   // (apps.services.calculations.splice_length_mm uses Python's round(), not
   // "round up to the nearest 0.5" — that half-unit helper belongs to weight/
@@ -910,6 +935,65 @@ function recalcSplicing() {
   setText('sp-step-len',   stepLen.toFixed(2));
   setText('sp-splice-len', spliceLen.toFixed(2));
   setText('sp-total-extra', totalExtra !== null ? totalExtra.toFixed(2) : '-');
+}
+
+/* ══════════════════════════════════════════════════════════
+   AUTOCOMPLETE / SEARCHABLE-LIST SHARED HELPERS
+══════════════════════════════════════════════════════════ */
+/**
+ * Position a body-anchored dropdown list directly under an input, matching
+ * its width. wireCustomerAutocomplete() and makeSearchable() each used to
+ * carry their own copy of this exact getBoundingClientRect() math - extracted
+ * here so there's one place to fix if the positioning ever needs to change
+ * (e.g. flipping above the input near the bottom of the viewport).
+ */
+function positionDropdown(inputEl, listEl) {
+  const r = inputEl.getBoundingClientRect();
+  listEl.style.left  = r.left  + 'px';
+  listEl.style.top   = r.bottom + 'px';
+  listEl.style.width = r.width  + 'px';
+}
+
+/**
+ * Rank a list of items against a query: items whose label STARTS WITH the
+ * query sort above items that merely contain it, then alphabetically.
+ * Both autocomplete implementations below had their own copy of this
+ * comparator inlined in a .sort() call; consolidated here.
+ * Does not mutate `items` - returns a new sorted array.
+ * @param {Array} items
+ * @param {string} query
+ * @param {(item: any) => string} labelOf - returns the text to match/sort on
+ */
+function sortByQueryMatch(items, query, labelOf) {
+  const q = (query || '').toLowerCase();
+  return items.slice().sort((a, b) => {
+    const an = labelOf(a).toLowerCase();
+    const bn = labelOf(b).toLowerCase();
+    const aStarts = an.startsWith(q);
+    const bStarts = bn.startsWith(q);
+    if (aStarts !== bStarts) return aStarts ? -1 : 1;
+    return an.localeCompare(bn);
+  });
+}
+
+/**
+ * Wire the two "close this dropdown" triggers shared by both autocomplete
+ * widgets: a mousedown outside every element in `containers`, or any scroll
+ * while the dropdown is open. Both implementations had their own copy of
+ * these two document/window listeners; consolidated here so the outside-
+ * click and close-on-scroll behaviour stays identical between them.
+ * @param {Element[]} containers - elements a click INSIDE should not close
+ * @param {() => boolean} isOpenFn - whether the dropdown is currently open
+ *        (checked before the scroll handler closes it - mirrors each
+ *        widget's original guard exactly)
+ * @param {() => void} onClose - called when an outside interaction fires
+ */
+function wireDropdownAutoClose(containers, isOpenFn, onClose) {
+  document.addEventListener('mousedown', (e) => {
+    if (containers.some(el => el.contains(e.target))) return;
+    onClose();
+  });
+  window.addEventListener('scroll', () => { if (isOpenFn()) onClose(); }, true);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -945,13 +1029,7 @@ function wireCustomerAutocomplete() {
     'font-size:12.5px',
   ].join(';');
 
-  function positionList() {
-    const r = inp.getBoundingClientRect();
-    list.style.left  = r.left  + 'px';
-    list.style.top   = r.bottom + 'px';
-    list.style.width = r.width  + 'px';
-  }
-  function openList()  { positionList(); list.style.display = 'block'; }
+  function openList()  { positionDropdown(inp, list); list.style.display = 'block'; }
   function closeList() { list.style.display = 'none'; }
 
   inp.addEventListener('input', () => {
@@ -959,31 +1037,24 @@ function wireCustomerAutocomplete() {
     hidId.value = '';
     clearCustomerDetailFields();
     if (!q) { closeList(); return; }
-    const matches = allCustomers
-      .filter(c =>
+    const matches = sortByQueryMatch(
+      allCustomers.filter(c =>
         c.customer_name.toLowerCase().includes(q) ||
         (c.plant_location || '').toLowerCase().includes(q)
-      )
-      .sort((a, b) => {
-        const an = a.customer_name.toLowerCase();
-        const bn = b.customer_name.toLowerCase();
-        // Names that START with the query rank higher than ones that merely contain it
-        const aS = an.startsWith(q);
-        const bS = bn.startsWith(q);
-        if (aS !== bS) return aS ? -1 : 1;
-        return an.localeCompare(bn);
-      })
-      .slice(0, 10);
+      ),
+      q,
+      c => c.customer_name
+    ).slice(0, 10);
     list.innerHTML = matches.map(c => `
       <div class="autocomplete-item"
-           data-id="${c.customer_id}" data-name="${c.customer_name}"
-           data-contact="${c.contact_person || ''}" data-application="${c.application || ''}"
-           data-location="${c.plant_location || ''}">
-        ${c.customer_name}
-        <small>${[c.application, c.plant_location].filter(Boolean).join(' · ') || ''}</small>
+           data-id="${c.customer_id}" data-name="${escapeHtml(c.customer_name)}"
+           data-contact="${escapeHtml(c.contact_person || '')}" data-application="${escapeHtml(c.application || '')}"
+           data-location="${escapeHtml(c.plant_location || '')}">
+        ${escapeHtml(c.customer_name)}
+        <small>${escapeHtml([c.application, c.plant_location].filter(Boolean).join(' · ') || '')}</small>
       </div>`).join('') +
       `<div class="autocomplete-item new-customer" data-new="1">
-         ➕ Add new customer: "<strong>${inp.value}</strong>"
+         ➕ Add new customer: "<strong>${escapeHtml(inp.value)}</strong>"
        </div>`;
     openList();
   });
@@ -1008,13 +1079,7 @@ function wireCustomerAutocomplete() {
     }
   });
 
-  document.addEventListener('mousedown', (e) => {
-    if (!inp.contains(e.target) && !list.contains(e.target)) closeList();
-  });
-
-  window.addEventListener('scroll', () => {
-    if (list.style.display !== 'none') closeList();
-  }, true);
+  wireDropdownAutoClose([inp, list], () => list.style.display !== 'none', closeList);
 }
 
 /**
@@ -1062,15 +1127,7 @@ function makeSearchable(selectId) {
 
   let isOpen = false;
 
-  // ── Position the list under the input ────────────────────────────────
-  function positionList() {
-    const r = inp.getBoundingClientRect();
-    lst.style.left  = r.left + 'px';
-    lst.style.top   = r.bottom + 'px';
-    lst.style.width = r.width + 'px';
-  }
-
-  function openList()  { isOpen = true;  positionList(); lst.style.display = 'block'; }
+  function openList()  { isOpen = true;  positionDropdown(inp, lst); lst.style.display = 'block'; }
   function closeList() { isOpen = false; lst.style.display = 'none'; }
 
   // ── Helpers ───────────────────────────────────────────────────────────
@@ -1088,14 +1145,7 @@ function makeSearchable(selectId) {
     let opts = getOpts();
 
     if (q) {
-      opts = opts
-        .filter(o => o.text.toLowerCase().includes(q))
-        .sort((a, b) => {
-          const aS = a.text.toLowerCase().startsWith(q);
-          const bS = b.text.toLowerCase().startsWith(q);
-          if (aS !== bS) return aS ? -1 : 1;
-          return a.text.localeCompare(b.text);
-        });
+      opts = sortByQueryMatch(opts.filter(o => o.text.toLowerCase().includes(q)), q, o => o.text);
     }
 
     lst.innerHTML = opts.length
@@ -1167,15 +1217,8 @@ function makeSearchable(selectId) {
     if (e.key === 'Escape') { e.preventDefault(); closeList(); syncDisplay(); inp.focus(); }
   });
 
-  // ── Close on outside click (mousedown so it fires before blur) ────────
-  document.addEventListener('mousedown', (e) => {
-    if (!wrap.contains(e.target) && !lst.contains(e.target)) {
-      closeList(); syncDisplay();
-    }
-  });
-
-  // ── Close on scroll so fixed position doesn't drift from its input ────
-  window.addEventListener('scroll', () => { if (isOpen) { closeList(); syncDisplay(); } }, true);
+  // ── Close on outside click / scroll ─────────────────────────────────
+  wireDropdownAutoClose([wrap, lst], () => isOpen, () => { closeList(); syncDisplay(); });
 
   // ── Watch for option changes (populateSelect, loadCoverGrades, etc.) ──
   new MutationObserver(syncDisplay).observe(nativeSel, { childList: true });
@@ -1253,6 +1296,7 @@ window._brkBot = (show) => {
  *   - Splicing fields → recalculates splice lengths
  *   - Submit/draft buttons → validateForm + submitTDS
  */
+
 function wireEvents() {
   wireCustomerAutocomplete();
 
@@ -1635,6 +1679,12 @@ function renderBeltQueue() {
  * but with belt tabs. Sidebar, inline row checkboxes, Download/Print all identical.
  * @param {Array} results - Array of TDSOut objects returned from createTDS calls
  */
+// showMultiTDSSuccess — DEPRECATED / NO LONGER CALLED.
+// Previously navigated to tds-multi-preview.html?tds_ids=... after N+1 individual
+// createTDS calls (beltQueue path). tds-multi-preview.html only reads batch_id,
+// so that navigation always failed with "No batch_id in the URL." The beltQueue
+// path now uses createBatch() and navigates with batch_id instead.
+// Kept here for reference; can be removed in a future cleanup.
 function showMultiTDSSuccess(results) {
   const tdsIds  = results.map(r => r.tds_id).join(',');
   const tdsNums = results.map(r => r.tds_number).join(',');
@@ -2010,30 +2060,58 @@ async function submitTDS(mode = 'preview') {
 
     // ── Step 4: POST to API ────────────────────────────────────────────────────
 
-    // Multi-belt: loop through every queued belt + the current form as the last belt
+    // Multi-belt: submit all queued belts + the current form as one atomic batch.
+    // Uses POST /api/tds/batch/ (create_batch endpoint) so a real TDSBatch record
+    // is created and the multi-preview page can load it via ?batch_id=.
+    // Previously this called createTDS N+1 times (individual records with no
+    // batch_id) and then navigated to tds-multi-preview.html?tds_ids=..., which
+    // tds-multi-preview.html does not support — it only reads batch_id, so that
+    // navigation always showed an error "No batch_id in the URL." Fixed by
+    // switching to the batch endpoint and navigating with the returned batch_id.
     if (beltQueue.length > 0) {
-      const sharedFields = {
-        purpose_id:        +val('purpose-id'),
-        belt_type_id:      +val('belt-type-id'),
-        brand_id:          +val('brand-id'),
-        standard_id:       +val('standard-id'),
-        tds_doc_number:    val('tds-doc-number').trim() || null,
-        shipping_region:   isIntl ? (val('shipping-region') || null) : null,
-        container_type_id: isIntl ? (+val('container-type-id') || null) : null,
-        customer_id:       customerId,
-      };
       const allBelts = [...beltQueue, captureBeltSpec()];
-      const results  = [];
-      for (const beltSpec of allBelts) {
-        // Strip internal _splicingOn key before sending to API
-        const { _splicingOn: _s, ...beltFields } = beltSpec;
-        const beltPayload = { ...sharedFields, ...beltFields };
-        const created = await createTDS(beltPayload);
-        results.push(created);
-      }
-      showMultiTDSSuccess(results);
+      const batchPayload = {
+        shared: {
+          purpose_id:           +val('purpose-id'),
+          brand_id:             +val('brand-id'),
+          standard_id:          +val('standard-id'),
+          tds_doc_number:       val('tds-doc-number').trim() || null,
+          make_of_fabric:       val('make-of-fabric') || 'MIT',
+          splicing_required:    splicingOn,
+          vulcanization_method: splicingOn ? (val('vulcanization-method') || 'Hot') : null,
+          reel_type_id:         +val('reel-type-id')    || null,
+          packing_type_id:      +val('packing-type-id') || null,
+          shipping_region:      isIntl ? (val('shipping-region') || null) : null,
+        },
+        customer: { customer_id: customerId },
+        belts: allBelts.map(b => {
+          // Strip internal _splicingOn tracking key — not part of the API schema
+          const { _splicingOn: _s, ...beltFields } = b;
+          return {
+            ...beltFields,
+            // belt_type_id and container_type_id are shared-form fields, not
+            // captured per-belt by captureBeltSpec(), so read them from the form.
+            belt_type_id:      +val('belt-type-id'),
+            container_type_id: isIntl ? (+val('container-type-id') || null) : null,
+          };
+        }),
+      };
+
+      const batchResult = await createBatch(batchPayload);
+      const batchId     = batchResult?.batch?.batch_id;
       beltQueue = [];
       renderBeltQueue();
+
+      if (mode === 'draft') {
+        const savedCount = batchResult.count || batchResult.tds_records?.length || 0;
+        showToast(`${savedCount} TDS saved as draft.`, 'success', 5000);
+      } else {
+        const createdCount = batchResult.count || batchResult.tds_records?.length || 0;
+        showToast(`${createdCount} TDS created! Opening preview…`, 'success', 1500);
+        setTimeout(() => {
+          window.location.href = 'tds-multi-preview.html?batch_id=' + batchId;
+        }, 600);
+      }
       return;
     }
 
@@ -2051,9 +2129,10 @@ async function submitTDS(mode = 'preview') {
       showToast(`TDS-${tds.tds_number} created! Opening preview…`, 'success', 2000);
       setTimeout(() => {
         const qs = new URLSearchParams({
-          tds_id:      tds.tds_id,
-          tds_number:  tds.tds_number,
-          splicing:    splicingOn ? 'true' : 'false',
+          tds_id:         tds.tds_id,
+          tds_number:     tds.tds_number,
+          tds_doc_number: tds.tds_doc_number || '',
+          splicing:       splicingOn ? 'true' : 'false',
         });
         window.location.href = `tds-preview.html?${qs.toString()}`;
       }, 800);

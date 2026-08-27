@@ -16,21 +16,20 @@
       device trusted via the tds_device cookie.
 
   Two other entry paths are handled by the inline <script type="module"> below:
-    - ?oauth_token=<jwt>   - landing point after a *trusted*-device Google OAuth
-      login; the JWT is decoded client-side (base64url) just far enough to
-      populate the local session object, then the user is sent to home.html.
+    - ?oauth_ready=1       - landing point after a *trusted*-device Google OAuth
+      login; the JWT itself is never in the URL (see the fetch to
+      /api/auth/google/session-token/ below) - only this flag is, and it's
+      picked up once to populate the local session object before the user is
+      sent to home.html.
     - ?oauth_error=<code>  - landing point when Google OAuth failed; shown as a toast.
     - ?step=device_verify  - landing point after a *new*-device Google OAuth
       login; jumps straight to Step 2 (the pending_user_id lives server-side
       in the Django session cookie set by the OAuth callback).
 
-  NOTE for future maintainers: the "Remember me" checkbox below currently
-  stores the raw email+password pair in browser localStorage (see the
-  SAVED_CREDS_KEY block in the script) so the fields can be pre-filled next
-  visit. That is plaintext, client-side storage of a password - flagging this
-  explicitly here since it is easy to miss when skimming a login page. If this
-  still needs hardening, treat it as a security follow-up rather than folding
-  it into a comments-only pass.
+  NOTE: "Remember me" stores email + password in localStorage for this
+  internal tool so the form auto-submits on the next visit.  On a trusted
+  device (tds_device httpOnly cookie valid) login completes immediately
+  without the OTP step.
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -404,7 +403,7 @@
                   <button type="button" id="btn-forgot-pw" style="
                     background:none;border:none;font-size:11px;color:var(--gold-light);
                     cursor:pointer;text-decoration:underline;padding:0;">
-                    Forgot password? Reset via email OTP
+                    Forgot password?
                   </button>
                 </div>
 
@@ -488,7 +487,17 @@
   <script type="module">
     import { login, verifyDevice, getSession, setSession, openChangePasswordModal, showToast } from './js/auth.js';
 
+    // SECURITY (fixed): this used to also persist an AES-GCM-"encrypted"
+    // password in localStorage, with the decryption key stored right next to
+    // it in the same localStorage -- readable by anything that can read
+    // localStorage (e.g. an XSS bug elsewhere in the app), so it offered no
+    // real protection. We now only remember the *email* for convenience; the
+    // httpOnly `tds_device` cookie (set after device verification) is what
+    // actually lets a trusted device skip the OTP step, so no password needs
+    // to be cached client-side for that to keep working.
     const SAVED_CREDS_KEY = 'tds_saved_credentials';
+    const LEGACY_ENC_KEY_SLOT = 'tds_cek';   // old AES-GCM key slot — wipe it below
+
     const params = new URLSearchParams(window.location.search);
 
     // ── Already logged in → go home ───────────────────────────────────────────
@@ -496,27 +505,33 @@
       window.location.href = 'home.html';
     }
 
-    // ── Google OAuth trusted-device redirect → parse token and store session ──
-    // After a trusted-device Google OAuth login the server redirects here with
-    // ?oauth_token=<jwt>. We store it and go home.
-    const oauthToken = params.get('oauth_token');
-    if (oauthToken) {
-      // We don't have user_id/role from the redirect URL alone, so call /auth/me
-      // after storing a minimal session so requireAuth passes on home.html.
-      // Easier: decode the JWT payload (base64url) to extract sub/role.
-      try {
-        const payload = JSON.parse(atob(oauthToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-        setSession({
-          token:     oauthToken,
-          user_id:   parseInt(payload.sub, 10),
-          role:      payload.role,
-          full_name: payload.full_name || '',
-          email:     payload.email     || '',
+    // ── Google OAuth trusted-device redirect → collect session, then go home ──
+    // SECURITY (fixed): the server used to put the raw JWT in this redirect
+    // URL (?oauth_token=<jwt>), which lands in browser history and any
+    // server/proxy access logs. It now redirects here with just ?oauth_ready=1
+    // and hands the token off through a one-time server-side pickup instead
+    // (see oauth_session_token in google_oauth_views.py) — nothing sensitive
+    // ever appears in the URL.
+    if (params.get('oauth_ready')) {
+      fetch('/api/auth/google/session-token/', { credentials: 'include' })
+        .then(res => { if (!res.ok) throw new Error('no pending session'); return res.json(); })
+        .then(data => {
+          // SECURITY: the redirect that got us here already set the httpOnly
+          // tds_access cookie server-side (see google_callback in
+          // google_oauth_views.py), so we deliberately do NOT also store
+          // data.access_token in sessionStorage here — this fetch is only to
+          // get display info (name/role/email) for the session object.
+          setSession({
+            user_id:   data.user_id,
+            role:      data.role,
+            full_name: data.full_name || '',
+            email:     data.email     || '',
+          });
+          window.location.href = 'home.html';
+        })
+        .catch(() => {
+          showToast('Google sign-in failed. Please try again.', 'error');
         });
-        window.location.href = 'home.html';
-      } catch (_) {
-        showToast('Google sign-in failed. Please try again.', 'error');
-      }
     }
 
     // ── OAuth errors from the callback ────────────────────────────────────────
@@ -551,17 +566,32 @@
       document.getElementById('dv-code').focus();
     }
 
-    // ── Pre-fill saved credentials ────────────────────────────────────────────
-    // See the file-level NOTE above: this reads a plaintext {email, password}
-    // object back out of localStorage when "Remember me" was previously checked.
-    try {
-      const saved = JSON.parse(localStorage.getItem(SAVED_CREDS_KEY) || 'null');
-      if (saved) {
-        document.getElementById('email').value    = saved.email    || '';
-        document.getElementById('password').value = saved.password || '';
+    // ── Pre-fill saved credentials and auto-submit if both are present ───────
+    // Password is stored AES-256-GCM encrypted — not readable as plain text.
+    // The tds_device httpOnly cookie (set after device verification) handles
+    // skipping the OTP step on trusted devices.
+    function _loadSavedCreds() {
+      // One-time cleanup: remove any password/key material saved by the old
+      // (insecure) version of this feature, for users who already have it
+      // sitting in their browser's localStorage.
+      localStorage.removeItem(LEGACY_ENC_KEY_SLOT);
+      try {
+        const saved = JSON.parse(localStorage.getItem(SAVED_CREDS_KEY) || 'null');
+        if (saved && (saved.password || saved.pw)) {
+          // Old plaintext- or encrypted-password format — wipe it, never trust it.
+          localStorage.removeItem(SAVED_CREDS_KEY);
+          return;
+        }
+        if (!saved || !saved.email) return;
+
+        document.getElementById('email').value         = saved.email;
         document.getElementById('remember-me').checked = true;
+        document.getElementById('password').focus();
+      } catch (_) {
+        localStorage.removeItem(SAVED_CREDS_KEY);
       }
-    } catch (_) {}
+    }
+    _loadSavedCreds();
 
     // ── Forgot password button ────────────────────────────────────────────────
     document.getElementById('btn-forgot-pw').addEventListener('click', () => {
@@ -598,7 +628,9 @@
         if (data.status === 'ok') {
           // Trusted device - session already set inside login()
           if (remember) {
-            localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({ email, password }));
+            // Only the email is remembered now — never the password. See the
+            // note near SAVED_CREDS_KEY above for why.
+            localStorage.setItem(SAVED_CREDS_KEY, JSON.stringify({ email }));
           } else {
             localStorage.removeItem(SAVED_CREDS_KEY);
           }

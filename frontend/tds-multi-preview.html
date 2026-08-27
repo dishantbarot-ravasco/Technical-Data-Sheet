@@ -212,6 +212,42 @@
       <h2>Batch Preview - <span id="pg-batch-id" style="color:var(--gold);">#-</span></h2>
     </div>
 
+    <!-- ── ZIP pre-download: PO / Enquiry popup ────────────────────────
+         The ZIP bundles one QAP PDF per belt alongside the TDS PDFs, so
+         this asks once for the whole batch (a batch is normally one
+         order) instead of once per belt. Same pattern as the single-record
+         QAP popup on tds-preview.html - entered fresh every download,
+         never persisted. -->
+    <div class="modal-backdrop" id="zip-ref-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>QAP Reference Details</h3>
+          <button class="modal-close" id="zip-ref-close">&#10005;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">
+            Applies to every QAP PDF included in this download.
+          </p>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label><input type="radio" name="zip-doc-type" value="PO" checked /> Purchase Order (PO)</label>
+            &nbsp;&nbsp;
+            <label><input type="radio" name="zip-doc-type" value="ENQUIRY" /> Enquiry</label>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label id="zip-ref-no-label" for="zip-ref-no">PO No</label>
+            <input type="text" id="zip-ref-no" class="form-control" placeholder="Enter PO No" />
+          </div>
+          <div class="form-group">
+            <label id="zip-ref-date-label" for="zip-ref-date">PO Date</label>
+            <input type="date" id="zip-ref-date" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline btn-sm" id="zip-ref-cancel">Cancel</button>
+          <button class="btn btn-sm" id="zip-ref-confirm">Continue</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ── Loading / error state (shown while fetching) ──── -->
     <div id="state-loading" class="state-box">
@@ -241,18 +277,43 @@
              Parameters (same defaults as the single-record preview);
              Internal Copy includes everything. -->
         <div class="copy-type-toggle" title="What level of detail to include in generated PDFs"
-             style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-muted);
-                    background:var(--bg-section);border:1px solid var(--border);border-radius:6px;
-                    padding:6px 10px;">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+             style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;
+                    color:var(--text-muted);background:var(--bg-section);
+                    border:1px solid var(--border);border-radius:6px;padding:6px 12px;">
+          <!-- Coarse toggle -->
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">
             <input type="radio" name="copy-type" value="customer" checked /> Customer Copy
           </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">
             <input type="radio" name="copy-type" value="internal" /> Internal Copy
+          </label>
+          <!-- Fine-grained per-section include checkboxes -->
+          <span style="border-left:1px solid var(--border);height:14px;margin:0 2px;"></span>
+          <span style="font-size:10px;opacity:.65;white-space:nowrap;">Include:</span>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Fabric Parameters section in PDF">
+            <input type="checkbox" class="section-include-cb" data-group="Fabric Parameters" />
+            Fabric
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Sampling and Testing section in PDF">
+            <input type="checkbox" class="section-include-cb" data-group="Sampling and Testing" />
+            Testing
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Packing and Logistics section in PDF">
+            <input type="checkbox" class="section-include-cb" data-group="Packing and Logistics" />
+            Packing
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Splicing Parameters section in PDF">
+            <input type="checkbox" class="section-include-cb" data-group="Splicing Parameters" />
+            Splicing
           </label>
         </div>
 
         <button id="btn-print-merged" class="btn btn-outline btn-sm">🖨 Print All (Merged)</button>
+        <button id="btn-download-merged" class="btn btn-outline btn-sm">⬇ Download Merged PDF</button>
         <button id="btn-print-separate" class="btn btn-outline btn-sm">🖨 Print All (Separate Tabs)</button>
         <button id="btn-download-zip" class="btn btn-outline btn-sm"
                 style="background:var(--gold-pale);border-color:var(--gold-border);
@@ -353,6 +414,67 @@
       return `<span class="status-badge ${cls}">${s || 'draft'}</span>`;
     }
 
+    /* ── PO / Enquiry popup — shared by "Download All PDFs (ZIP)" and
+       "Download Merged PDF", the two batch actions that bundle QAP PDFs.
+       Wired once here (the modal markup is static, not batch-dependent);
+       each button calls openRefModal(callback) and gets {docType, refNo,
+       refDate} back through the callback when the user confirms. Using one
+       shared modal + a per-call callback (instead of each button wiring its
+       own permanent listener on #zip-ref-confirm) avoids both buttons'
+       handlers firing together on a single confirm click. ─────────────── */
+    let openRefModal;
+    (function setupRefModal() {
+      const modal = document.getElementById('zip-ref-modal');
+      let pendingCallback = null;
+
+      function updateLabels() {
+        const isEnquiry = document.querySelector('input[name="zip-doc-type"]:checked')?.value === 'ENQUIRY';
+        document.getElementById('zip-ref-no-label').textContent   = isEnquiry ? 'Enquiry No'   : 'PO No';
+        document.getElementById('zip-ref-date-label').textContent = isEnquiry ? 'Enquiry Date' : 'PO Date';
+        document.getElementById('zip-ref-no').placeholder = isEnquiry ? 'Enter Enquiry No' : 'Enter PO No';
+      }
+      document.querySelectorAll('input[name="zip-doc-type"]').forEach(function(r) {
+        r.addEventListener('change', updateLabels);
+      });
+
+      function close() { modal.classList.remove('open'); pendingCallback = null; }
+      document.getElementById('zip-ref-close').addEventListener('click', close);
+      document.getElementById('zip-ref-cancel').addEventListener('click', close);
+
+      document.getElementById('zip-ref-confirm').addEventListener('click', function() {
+        const docType = document.querySelector('input[name="zip-doc-type"]:checked')?.value || 'PO';
+        const refNo   = document.getElementById('zip-ref-no').value.trim();
+        const refDate = document.getElementById('zip-ref-date').value;
+        const cb = pendingCallback;
+        close();
+        if (cb) cb({ docType, refNo, refDate });
+      });
+
+      openRefModal = function(callback) {
+        pendingCallback = callback;
+        updateLabels();
+        modal.classList.add('open');
+      };
+    })();
+
+    /* ── Splicing manual download helper ─────────────────── */
+    /* Triggered when the user downloads any TDS (single or ZIP)
+       that has splicing required, so the manual is always at hand. */
+    function _downloadSplicingManual() {
+      var a = document.createElement('a');
+      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
+      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    /* Tracks whether the loaded batch has splicing_required = true.
+       Set by renderBatch(); read by goToPreview() so the splicing
+       URL param is forwarded to tds-preview.html for each record. */
+    var _batchSplicingRequired = false;
+
     /* ── Read batch_id from URL ───────────────────────────── */
     const params  = new URLSearchParams(location.search);
     const batchId = parseInt(params.get('batch_id') || '0', 10);
@@ -383,6 +505,7 @@
     function renderBatch(data) {
       const batch   = data.batch   || {};
       const records = data.tds_records || [];
+      _batchSplicingRequired = !!batch.splicing_required;
       const count   = data.count   || records.length;
       const id      = batch.batch_id;
 
@@ -433,8 +556,9 @@
 
       /* wire events */
       wirePdfButtons();
-      wireZipButton(id);
+      wireZipButton(id, data.customer_name || '', _batchSplicingRequired);
       wirePrintAllMerged(id);
+      wireDownloadMergedButton(id, data.customer_name || '');
       wirePrintAllSeparate();
     }
 
@@ -456,8 +580,27 @@
        record already has. So a batch record gets the identical experience,
        not a lesser one, just by navigating there instead of opening an inline
        pane. */
+    /* Reads the coarse Customer/Internal radio at the top of the action bar -
+       used by goToPreview() so tds-preview.html opens with the same copy
+       type already selected. (Bug fix: this was called below but never
+       defined anywhere in this file, so every "Preview" click silently threw
+       a ReferenceError and did nothing - ­this is that missing function.) */
+    function getSelectedCopyType() {
+      return document.querySelector('input[name="copy-type"]:checked')?.value || 'customer';
+    }
+
     function goToPreview(tdsId, tdsNumber) {
-      const qs = new URLSearchParams({ tds_id: tdsId, tds_number: tdsNumber || '' });
+      // Pass the selected copy type so tds-preview.html opens with the same
+      // Customer/Internal Copy selection already chosen, and all previously
+      // saved checkbox state is restored via sessionStorage.
+      // Also forward splicing flag so tds-preview.html can auto-download the
+      // splicing manual when the user downloads that individual PDF.
+      const qs = new URLSearchParams({
+        tds_id:     tdsId,
+        tds_number: tdsNumber || '',
+        copy:       getSelectedCopyType(),
+        splicing:   _batchSplicingRequired ? 'true' : 'false',
+      });
       window.location.href = 'tds-preview.html?' + qs.toString();
     }
 
@@ -470,69 +613,111 @@
       });
     }
 
-    /* ── Copy type (Customer / Internal) ───────────────────────
-       Shared by Print All (both modes) and the ZIP download. Mirrors
-       tds-preview.html's DEFAULT_UNCHECKED_GROUPS - keep both lists in sync
-       (and apps/services/sections.py's CUSTOMER_COPY_EXCLUDE_GROUPS on the
-       backend, which is what actually enforces this for print-all/ZIP). This
-       only controls what a generated PDF includes, never the stored record. */
-    const CUSTOMER_COPY_EXCLUDE_GROUPS = [
-      'Fabric Parameters',
-      'Sampling and Testing',
-      'Packing and Logistics',
-      'Splicing Parameters',
-    ];
+    /* ── Copy type / per-section inclusion ─────────────────────
+       getExcludeGroups() reads the four per-section checkboxes and returns the
+       names of every section whose checkbox is UNCHECKED (= excluded from PDF).
+       An unchecked checkbox means "leave this section out", matching the UX of
+       tds-preview.html where DEFAULT_UNCHECKED_GROUPS are the excluded ones.
 
-    function getSelectedCopyType() {
-      return document.querySelector('input[name="copy-type"]:checked')?.value || 'customer';
+       The coarse Customer/Internal radio syncs all four checkboxes at once:
+         Customer → all unchecked  (exclude the four detail sections)
+         Internal → all checked    (include everything)
+       The user can then fine-tune individual checkboxes independently.
+
+       All three bulk PDF actions (ZIP, Print Merged, Print Separate) call
+       getExcludeGroups() and pass the result as ?exclude_groups= params so the
+       backend honours exactly what the user configured here, not a fixed preset.
+       The backend's _resolve_copy_type() now checks getlist('exclude_groups')
+       first before falling back to ?copy=, so these explicit params always win.
+
+       This keeps the single-record preview (tds-preview.html) and the batch
+       bulk-actions in perfect sync: both express exclusions as a list of group
+       names, both default to excluding the four customer-copy groups. */
+
+    function getExcludeGroups() {
+      /* Returns names of sections whose checkbox is unchecked = excluded. */
+      return [...document.querySelectorAll('.section-include-cb')]
+        .filter(function(cb) { return !cb.checked; })
+        .map(function(cb) { return cb.dataset.group; });
     }
 
-    // Build the single-record PDF URL (GET /api/tds/{id}/pdf) with the right
-    // exclude_groups for the current copy-type selection - used by "Print All
-    // (Separate Tabs)", which fetches each record individually rather than
-    // hitting the batch print-all/download-zip endpoints (those apply the
-    // equivalent server-side via ?copy=, resolved from the same group list).
-    function buildRecordPdfUrl(tdsId, copyType) {
-      const qs = new URLSearchParams();
-      if (copyType === 'customer') {
-        CUSTOMER_COPY_EXCLUDE_GROUPS.forEach(g => qs.append('exclude_groups', g));
-      }
-      const query = qs.toString();
-      return '/api/tds/' + tdsId + '/pdf' + (query ? '?' + query : '');
+    /* Sync checkboxes whenever the coarse radio changes. */
+    document.querySelectorAll('input[name="copy-type"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        var isInternal = this.value === 'internal';
+        document.querySelectorAll('.section-include-cb').forEach(function(cb) {
+          cb.checked = isInternal;  /* internal = include all = all checked */
+        });
+      });
+    });
+
+    /* Build query string from current checkbox state.
+       - Some sections excluded → ?exclude_groups=<g1>&exclude_groups=<g2>&…
+         The backend's _resolve_copy_type() sees getlist('exclude_groups') and
+         honours the explicit list, excluding exactly those groups.
+       - Nothing excluded (= Internal Copy, all boxes checked) → ?copy=internal
+         An empty exclude_groups list would be falsy on the backend and would
+         fall through to the 'customer' default, wrongly hiding sections. Sending
+         ?copy=internal is the correct signal for "include everything". */
+    function buildExcludeQS() {
+      var groups = getExcludeGroups();
+      if (!groups.length) return '?copy=internal';   /* all included = internal */
+      var qs = new URLSearchParams();
+      groups.forEach(function(g) { qs.append('exclude_groups', g); });
+      return '?' + qs.toString();
+    }
+
+    // Build the single-record PDF URL (GET /api/tds/{id}/pdf) using current
+    // per-section checkbox state - used by "Print All (Separate Tabs)" which
+    // fetches each record individually. copyType arg kept for signature compat
+    // but ignored - state comes from the checkboxes directly.
+    function buildRecordPdfUrl(tdsId /*, copyType - kept for compat, unused */) {
+      return '/api/tds/' + tdsId + '/pdf' + buildExcludeQS();
     }
 
     /* ── ZIP download (authenticated fetch → blob) ────────── */
-    function wireZipButton(batchId) {
-      document.getElementById('btn-download-zip').addEventListener('click', async function() {
-        const btn  = this;
-        const orig = btn.textContent;
-        btn.disabled    = true;
-        btn.textContent = 'Generating…';
-        try {
-          const resp = await fetch(
-            '/api/tds/batch/' + batchId + '/download-zip/?copy=' + getSelectedCopyType(),
-            { credentials: 'same-origin', headers: getAuthHeaders() }
-          );
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            alert('Download failed: ' + (err.detail || resp.statusText));
-            return;
+    /* splicingRequired: if true, also auto-downloads the splicing
+       manual alongside the ZIP (not during print). */
+    function wireZipButton(batchId, customerName, splicingRequired) {
+      document.getElementById('btn-download-zip').addEventListener('click', function() {
+        openRefModal(async function({ docType, refNo, refDate }) {
+          const btn  = document.getElementById('btn-download-zip');
+          const orig = btn.textContent;
+          btn.disabled    = true;
+          btn.textContent = 'Generating…';
+          try {
+            const qs = new URLSearchParams(buildExcludeQS().slice(1));
+            qs.set('doc_type', docType);
+            qs.set('ref_no',   refNo);
+            qs.set('ref_date', refDate);
+            const resp = await fetch(
+              '/api/tds/batch/' + batchId + '/download-zip/?' + qs.toString(),
+              { credentials: 'same-origin', headers: getAuthHeaders() }
+            );
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              alert('Download failed: ' + (err.detail || resp.statusText));
+              return;
+            }
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            const safeCustomer = (customerName || '').replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/^_+|_+$/g, '') || ('Batch_' + batchId);
+            a.download = safeCustomer + '_TDS.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            /* Auto-download the splicing manual alongside the ZIP */
+            if (splicingRequired) _downloadSplicingManual();
+          } catch (e) {
+            alert('Download error: ' + e.message);
+          } finally {
+            btn.disabled    = false;
+            btn.textContent = orig;
           }
-          const blob = await resp.blob();
-          const url  = URL.createObjectURL(blob);
-          const a    = document.createElement('a');
-          a.href     = url;
-          a.download = 'TDS_Batch_' + batchId + '.zip';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          alert('Download error: ' + e.message);
-        } finally {
-          btn.disabled    = false;
-          btn.textContent = orig;
-        }
+        });
       });
     }
 
@@ -552,7 +737,7 @@
         btn.textContent = 'Preparing…';
         try {
           const resp = await fetch(
-            '/api/tds/batch/' + batchId + '/print-all/?copy=' + getSelectedCopyType(),
+            '/api/tds/batch/' + batchId + '/print-all/' + buildExcludeQS(),
             { credentials: 'same-origin', headers: getAuthHeaders() }
           );
           if (!resp.ok) {
@@ -574,6 +759,55 @@
       });
     }
 
+    /* ── Download Merged PDF (one PDF, saved to disk) ────────
+       Same /print-all/ endpoint as "Print All (Merged)" above (already
+       merges every belt into one PDF with pypdf) - the only difference is
+       what happens with the resulting blob: instead of opening it in a new
+       tab for printing, this triggers a normal file download, matching the
+       download affordance the ZIP button already has for the multi-file
+       case. Requested alongside "why is there a merged option for Print
+       but not for Download". */
+    function wireDownloadMergedButton(batchId, customerName) {
+      document.getElementById('btn-download-merged').addEventListener('click', function() {
+        openRefModal(async function({ docType, refNo, refDate }) {
+          const btn  = document.getElementById('btn-download-merged');
+          const orig = btn.textContent;
+          btn.disabled    = true;
+          btn.textContent = 'Generating…';
+          try {
+            const qs = new URLSearchParams(buildExcludeQS().slice(1));
+            qs.set('doc_type', docType);
+            qs.set('ref_no',   refNo);
+            qs.set('ref_date', refDate);
+            const resp = await fetch(
+              '/api/tds/batch/' + batchId + '/download-merged-zip/?' + qs.toString(),
+              { credentials: 'same-origin', headers: getAuthHeaders() }
+            );
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              alert('Download failed: ' + (err.detail || resp.statusText));
+              return;
+            }
+            const blob = await resp.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            const safeCustomer = (customerName || '').replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/^_+|_+$/g, '') || ('Batch_' + batchId);
+            a.download = safeCustomer + '_TDS_Merged.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            alert('Download error: ' + e.message);
+          } finally {
+            btn.disabled    = false;
+            btn.textContent = orig;
+          }
+        });
+      });
+    }
+
     /* ── Print All - Separate Tabs (one PDF per belt) ────────
        Opens ALL tabs synchronously, before any await, in the same click
        handler - browsers allow multiple window.open() calls made
@@ -589,14 +823,15 @@
           return;
         }
 
-        const copyType = getSelectedCopyType();
         const authHdrs = getAuthHeaders();
 
         rows.forEach(function(row) {
           const tdsId = parseInt(row.dataset.tdsId, 10);
           const win   = window.open('', '_blank');
           if (!win) return;   // this tab was blocked - the rest may still succeed
-          fetch(buildRecordPdfUrl(tdsId, copyType), { credentials: 'same-origin', headers: authHdrs })
+          // buildRecordPdfUrl reads the current checkbox state each call, so
+          // all tabs in this batch get the same exclusion list as configured.
+          fetch(buildRecordPdfUrl(tdsId), { credentials: 'same-origin', headers: authHdrs })
             .then(function(r) {
               if (!r.ok) throw new Error('HTTP ' + r.status);
               return r.blob();

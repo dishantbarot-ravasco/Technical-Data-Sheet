@@ -18,6 +18,22 @@
 import { requireAuth, populateNavUser, showToast } from './auth.js';
 import { listTDS, getTDS, deleteTDS, downloadPdf, getStandards } from './api.js';
 
+/**
+ * Escape a value for safe insertion into an innerHTML template string.
+ * SECURITY: every piece of TDS/customer/standard data rendered on this page
+ * ultimately comes from user-entered form fields (customer name, plant
+ * location, etc.) stored on the backend, so it must never be trusted as raw
+ * HTML — a customer named e.g. `<img src=x onerror=...>` would otherwise
+ * execute in every user's session who views this page. Always run dynamic
+ * text through this before interpolating it into a template literal that
+ * gets assigned to .innerHTML.
+ */
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
 // Redirect to login if not authenticated
 const session = requireAuth();
 if (session) populateNavUser();
@@ -78,7 +94,7 @@ async function loadRecords() {
       <div class="empty-state">
         <div class="empty-icon">⚠️</div>
         <h3>Cannot reach backend</h3>
-        <p>Make sure the backend is running<br><small>${err.message}</small></p>
+        <p>Make sure the backend is running<br><small>${escapeHtml(err.message)}</small></p>
       </div>`;
     showToast('Backend error: ' + err.message, 'error');
   }
@@ -176,17 +192,17 @@ function renderTable() {
       <tbody>
         ${filteredRecs.map(t => `
           <tr>
-            <td class="td-mono">${t.tds_number}</td>
+            <td class="td-mono">${escapeHtml(t.tds_number)}</td>
             <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
-            <td>${t.customer?.customer_name || '<span class="td-muted">-</span>'}</td>
-            <td><span class="badge badge-muted" style="font-size:9px;">${stdShort(t.standard?.standard_name)}</span></td>
-            <td class="td-muted" style="font-size:11px;">${t.belt_rating?.rating_name || '-'}</td>
+            <td>${t.customer?.customer_name ? escapeHtml(t.customer.customer_name) : '<span class="td-muted">-</span>'}</td>
+            <td><span class="badge badge-muted" style="font-size:9px;">${escapeHtml(stdShort(t.standard?.standard_name))}</span></td>
+            <td class="td-muted" style="font-size:11px;">${escapeHtml(t.belt_rating?.rating_name) || '-'}</td>
             <td class="td-muted" style="font-size:12px;">${t.belt_width_mm} mm × ${parseFloat(t.belt_length_m).toFixed(0)} m</td>
             <td>
               <div class="table-actions">
                 <button class="btn btn-ghost btn-sm" data-action="view" data-id="${t.tds_id}">View</button>
                 <button class="btn btn-outline btn-sm" data-action="pdf"
-                        data-id="${t.tds_id}" data-num="${t.tds_number}">⬇ PDF</button>
+                        data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}">⬇ PDF</button>
               </div>
             </td>
           </tr>`).join('')}

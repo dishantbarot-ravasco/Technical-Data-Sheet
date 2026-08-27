@@ -44,6 +44,7 @@ from apps.services.sections import CUSTOMER_COPY_EXCLUDE_GROUPS
 from apps.services.splicing_service import compute_splicing
 from apps.services.packing_service import compute_packing
 from apps.services.tds_number import next_tds_number
+from apps.core.audit_log import log_tds_action, TDSAuditLog
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,17 @@ def _require_shared(model, pk_val, label, errors):
     if not obj:
         errors.setdefault(label, []).append(f"{label} with id={pk_val} not found.")
     return obj
+
+
+def _is_number(v) -> bool:
+    """True if v can be parsed as a float (int() below is always a subset of this)."""
+    if v is None:
+        return False
+    try:
+        float(v)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 def _parse_rating(rating_name: str):
@@ -124,8 +136,8 @@ def _fetch_carcass_eav(belt_rating_id: int):
 def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge, belt_type_name):
     """Canonical belt description shown on the TDS PDF header."""
     return (
-        f"{width}mm × {fabric_code} {rating_name} · "
-        f"{top}+{bottom}mm · {grade_code} · {edge} · {belt_type_name}"
+        f"{width}mm X {fabric_code} X {rating_name} X "
+        f"{top} X {bottom}mm X {grade_code} X {edge} X {belt_type_name}"
     )
 
 
@@ -204,6 +216,13 @@ def create_batch(request):
 
     if not belts:
         raise ValidationError({'belts': 'At least one belt row is required.'})
+    # ROBUSTNESS (fixed): there used to be no upper bound here, so a very
+    # large belt list would be processed entirely synchronously below
+    # (including, later, per-belt PDF generation on export) with no server-side
+    # limit -- a plausible request-timeout/DoS vector. 200 matches the same
+    # cap already used for GET /tds list pagination (see tds_views.py).
+    if len(belts) > 200:
+        raise ValidationError({'belts': f'A single batch is limited to 200 belt rows (got {len(belts)}).'})
 
     # ── Step 1: Validate shared reference data ────────────────────────────────
     shared_errors = {}
@@ -285,6 +304,19 @@ def create_batch(request):
                       'cover_grade_id', 'belt_rating_id', 'fabric_type_id', 'belt_type_id'):
             if b.get(field) is None:
                 belt_errors.setdefault(row, []).append(f'{field} is required')
+
+        # ROBUSTNESS (fixed): these fields used to only be checked for presence
+        # here, then cast with a bare int()/float() later inside the atomic
+        # creation block below -- a non-numeric value (e.g. "abc") passed this
+        # check and then crashed with an unhandled ValueError -> generic 500.
+        # Validating the type here means Step 4 can never hit that anymore, and
+        # the error is now attributable to the exact row.
+        for field in ('belt_width_mm', 'top_cover_mm', 'belt_length_m'):
+            if b.get(field) is not None and not _is_number(b.get(field)):
+                belt_errors.setdefault(row, []).append(f'{field} must be a number')
+        for field in ('bottom_cover_mm', 'carcass_thickness_mm'):
+            if b.get(field) is not None and not _is_number(b.get(field)):
+                belt_errors.setdefault(row, []).append(f'{field} must be a number')
 
         if splicing_required and not b.get('num_joints'):
             belt_errors.setdefault(row, []).append(
@@ -434,10 +466,12 @@ def create_batch(request):
                     )
 
             # Splicing: shared method, per-belt joint count
+            # num_joints = 2 per roll (auto-computed from packing result);
+            # falls back to whatever the request sent if packing wasn't run.
             step_len   = None
             spl_len    = None
             extra_len  = None
-            num_joints = b.get('num_joints')
+            num_joints = (packing_num_rolls * 2) if packing_num_rolls else b.get('num_joints')
 
             if splicing_required and num_joints and vulcanization_method:
                 try:
@@ -520,6 +554,10 @@ def create_batch(request):
         "TDSBatch #%s created by user_id=%s with %d belts",
         batch.batch_id, current_user.user_id, len(created_records),
     )
+    log_tds_action(
+        request, TDSAuditLog.ACTION_BATCH,
+        detail=f'batch_id={batch.batch_id} belts={len(created_records)}',
+    )
 
     return Response(
         {
@@ -553,14 +591,17 @@ def get_batch(request, batch_id):
         TDSInput.objects
         .select_related(
             'belt_type', 'cover_grade', 'fabric_type', 'belt_rating',
-            'reel_type', 'packing_type',
+            'reel_type', 'packing_type', 'customer',
         )
         .filter(batch_id=batch_id)
         .order_by('tds_id')
     )
 
+    batch_customer_name = None
     tds_list = []
     for t in records:
+        if batch_customer_name is None and t.customer_id:
+            batch_customer_name = t.customer.customer_name
         tds_list.append({
             "tds_id":               t.tds_id,
             "tds_number":           t.tds_number,
@@ -589,9 +630,10 @@ def get_batch(request, batch_id):
         })
 
     return Response({
-        "batch":       _batch_brief(batch),
-        "tds_records": tds_list,
-        "count":       len(tds_list),
+        "batch":         _batch_brief(batch),
+        "customer_name": batch_customer_name,
+        "tds_records":   tds_list,
+        "count":         len(tds_list),
     })
 
 
@@ -612,6 +654,15 @@ def _resolve_copy_type(request):
     (frontend/tds-preview.html's DEFAULT_UNCHECKED_GROUPS) and by
     getPdfUrl()/downloadPdf() (frontend/js/api.js) — keep them in sync.
     """
+    # If the frontend sends explicit exclude_groups params, honour them directly.
+    # This allows the multi-preview page's per-section checkboxes to be respected
+    # in batch ZIP / print-all, independently of the coarse customer|internal toggle.
+    # Filter empty strings: a bare ?exclude_groups= param produces [''] which would
+    # try to exclude a section named '' — harmless but noisy; strip them out first.
+    explicit = [g for g in request.GET.getlist('exclude_groups') if g]
+    if explicit:
+        return explicit
+
     copy_type = (request.GET.get('copy') or 'customer').strip().lower()
     if copy_type == 'internal':
         return None
@@ -626,19 +677,34 @@ def download_batch_zip(request, batch_id):
     """
     GET /api/tds/batch/{batch_id}/download-zip/?copy=customer|internal
 
-    Generate individual PDFs for every TDS record in this batch, bundle them
-    into a ZIP archive, and stream it back as application/zip. See
-    _resolve_copy_type() above for what ?copy= controls.
+    Generate TDS + QAP PDFs for every record in this batch, bundle them
+    into a single ZIP archive, and stream it back as application/zip.
+    Also includes one merged PDF combining every belt's TDS (each belt
+    starting on its own page - the same merge print-all-batch/print-all
+    produce) so the ZIP has both the per-belt files and a single
+    print-ready document, without a separate request.
+
+    ZIP filename    : {CustomerName}.zip   (same customer-name rule as single TDS)
+    TDS filenames   : {tds_number}_{doc_number}_TDS.pdf
+    QAP filenames   : {tds_number}_QAP.pdf   (skipped silently if no template mapped)
+    Merged filename : {CustomerName}_Merged.pdf   (skipped silently if pypdf isn't
+                       installed or every individual TDS PDF failed to render -
+                       the ZIP still succeeds with just the per-belt files)
     """
     import io
     import zipfile
     from django.http import HttpResponse as DjangoHttpResponse
 
+    try:
+        from pypdf import PdfWriter
+    except ImportError:
+        PdfWriter = None
+
     batch = TDSBatch.objects.filter(pk=batch_id).first()
     if not batch:
         raise NotFound(f"Batch {batch_id} not found")
 
-    # Lazy import so module-level circular imports are avoided.
+    # Lazy imports — avoids module-level circular imports.
     try:
         from apps.api.routers.pdf_views import render_tds_pdf_bytes
     except ImportError:
@@ -654,8 +720,25 @@ def download_batch_zip(request, batch_id):
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
+    from apps.services.qap_service import resolve_qap_template, build_qap_context
+    from apps.services.pdf_renderer import render_qap_pdf
+
     exclude_groups = _resolve_copy_type(request)
-    records = TDSInput.objects.filter(batch_id=batch_id).order_by('tds_id')
+
+    # PO / Enquiry for the QAP PDFs bundled below - same query params the
+    # single-record QAP popup sends (see qap_views.generate_qap_pdf), read
+    # fresh here too and never persisted. One PO/Enquiry pair applies to
+    # every belt's QAP in this batch, since a batch is normally one order.
+    qap_doc_type = request.GET.get('doc_type', 'PO')
+    qap_ref_no   = request.GET.get('ref_no', '')
+    qap_ref_date = request.GET.get('ref_date', '')
+
+    records = (
+        TDSInput.objects
+        .filter(batch_id=batch_id)
+        .select_related('customer', 'standard', 'cover_grade')
+        .order_by('tds_id')
+    )
 
     buf = io.BytesIO()
     failed  = []
@@ -664,19 +747,56 @@ def download_batch_zip(request, batch_id):
     # Strip characters invalid in most filesystems (Windows-safe subset)
     _SAFE = re.compile(r'[<>:"/\\|?*]')
 
+    # Accumulates the same already-rendered TDS PDF bytes used for the
+    # per-belt files above, purely so the merged PDF doesn't cost a second
+    # WeasyPrint render per belt - only the (cheap) pypdf concatenation
+    # happens again, once, after the loop below.
+    merger = PdfWriter() if PdfWriter is not None else None
+
+    batch_customer_name = None
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for r in records:
+            if batch_customer_name is None and r.customer_id:
+                batch_customer_name = r.customer.customer_name
+
+            # ── TDS PDF ───────────────────────────────────────────────────────
             try:
-                pdf_bytes = render_tds_pdf_bytes(r.tds_id, exclude_groups=exclude_groups)
+                tds_bytes = render_tds_pdf_bytes(r.tds_id, exclude_groups=exclude_groups)
                 safe_doc  = _SAFE.sub('-', r.tds_doc_number or '')
-                filename  = f"{r.tds_number}{'_' + safe_doc if safe_doc else ''}.pdf"
-                zf.writestr(filename, pdf_bytes)
+                tds_name  = f"{r.tds_number}{'_' + safe_doc if safe_doc else ''}_TDS.pdf"
+                zf.writestr(tds_name, tds_bytes)
                 written += 1
+                if merger is not None:
+                    try:
+                        merger.append(io.BytesIO(tds_bytes))
+                    except Exception:
+                        logger.exception(
+                            "Merged-PDF append failed for tds_id=%s (batch=%s) - "
+                            "this belt is still in the ZIP as its own file, just "
+                            "not in the merged copy.", r.tds_id, batch_id
+                        )
             except Exception:
                 logger.exception(
-                    "PDF generation failed for tds_id=%s (batch=%s)", r.tds_id, batch_id
+                    "TDS PDF generation failed for tds_id=%s (batch=%s)", r.tds_id, batch_id
                 )
                 failed.append(r.tds_number)
+
+            # ── QAP PDF (silently skipped if no template mapped) ──────────────
+            try:
+                qap_template = resolve_qap_template(r)
+                if qap_template is not None:
+                    qap_context = build_qap_context(
+                        r, qap_template,
+                        doc_type=qap_doc_type, ref_no=qap_ref_no, ref_date=qap_ref_date,
+                    )
+                    qap_bytes   = render_qap_pdf(qap_context)
+                    qap_name    = f"{r.tds_number}_QAP.pdf"
+                    zf.writestr(qap_name, qap_bytes)
+            except Exception:
+                logger.exception(
+                    "QAP PDF generation failed for tds_id=%s (batch=%s)", r.tds_id, batch_id
+                )
+                # QAP failure does not count against written — TDS is still in the ZIP
 
     if written == 0:
         return Response(
@@ -684,13 +804,159 @@ def download_batch_zip(request, batch_id):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
+    safe_customer = _SAFE.sub('_', batch_customer_name or '').strip('_') or f'Batch_{batch_id}'
+
+    # ── Merged PDF - added as one more entry in the same ZIP ────────────────
+    # Silently skipped (ZIP still succeeds) if pypdf isn't installed or no
+    # belt's PDF rendered successfully - merger.pages stays empty in that case.
+    if merger is not None and len(merger.pages) > 0:
+        try:
+            merged_buf = io.BytesIO()
+            merger.write(merged_buf)
+            with zipfile.ZipFile(buf, 'a', zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(f"{safe_customer}_Merged.pdf", merged_buf.getvalue())
+        except Exception:
+            logger.exception("Merged-PDF assembly failed for batch=%s", batch_id)
+        finally:
+            merger.close()
+
     buf.seek(0)
     resp = DjangoHttpResponse(buf.read(), content_type='application/zip')
-    resp['Content-Disposition'] = f'attachment; filename="TDS_Batch_{batch_id}.zip"'
+    resp['Content-Disposition'] = f'attachment; filename="{safe_customer}.zip"'
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_batch_merged_zip(request, batch_id):
+    """
+    GET /api/tds/batch/{batch_id}/download-merged-zip/?copy=customer|internal
+
+    Companion to download_batch_zip() (per-belt files) and print_all_batch()
+    (merged PDF, opened for printing rather than saved) - this is "Download
+    Merged PDF" on the batch preview page: a ZIP containing ONE merged TDS
+    PDF (every belt, each starting its own page - same merge as print-all)
+    plus each belt's individual QAP PDF, since a single PDF can't sensibly
+    hold both a merged multi-belt TDS and per-belt QAP documents together.
+
+    Same PO/Enquiry query params as download_batch_zip (doc_type/ref_no/
+    ref_date) - read fresh here too, never persisted, applied to every QAP
+    in the batch.
+
+    ZIP filename    : {CustomerName}_Merged.zip
+    Merged filename : {CustomerName}_Merged.pdf
+    QAP filenames   : {tds_number}_QAP.pdf   (skipped silently if no template mapped)
+    """
+    import io
+    import zipfile
+    from django.http import HttpResponse as DjangoHttpResponse
+
+    try:
+        from pypdf import PdfWriter
+    except ImportError:
+        return Response(
+            {
+                'detail': (
+                    "Download Merged PDF requires the 'pypdf' package, which "
+                    "isn't installed yet. Run: pip install pypdf  (see requirements.txt)"
+                )
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    batch = TDSBatch.objects.filter(pk=batch_id).first()
+    if not batch:
+        raise NotFound(f"Batch {batch_id} not found")
+
+    try:
+        from apps.api.routers.pdf_views import render_tds_pdf_bytes
+    except ImportError:
+        return Response(
+            {'detail': 'Batch PDF generation is not yet wired up (render_tds_pdf_bytes missing).'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    from apps.services.qap_service import resolve_qap_template, build_qap_context
+    from apps.services.pdf_renderer import render_qap_pdf
+
+    exclude_groups = _resolve_copy_type(request)
+
+    # PO / Enquiry for the QAP PDFs bundled below - same params as
+    # download_batch_zip, read fresh and never persisted.
+    qap_doc_type = request.GET.get('doc_type', 'PO')
+    qap_ref_no   = request.GET.get('ref_no', '')
+    qap_ref_date = request.GET.get('ref_date', '')
+
+    records = (
+        TDSInput.objects
+        .filter(batch_id=batch_id)
+        .select_related('customer', 'standard', 'cover_grade')
+        .order_by('tds_id')
+    )
+
+    _SAFE = re.compile(r'[<>:"/\\|?*]')
+
+    merger  = PdfWriter()
+    merged  = 0
+    failed  = []
+    batch_customer_name = None
+    qap_bundle = []   # [(filename, bytes), ...] added to the ZIP alongside the merged PDF
+
+    for r in records:
+        if batch_customer_name is None and r.customer_id:
+            batch_customer_name = r.customer.customer_name
+
+        # ── TDS PDF → merged into one document ──────────────────────────────
+        try:
+            tds_bytes = render_tds_pdf_bytes(r.tds_id, exclude_groups=exclude_groups)
+            merger.append(io.BytesIO(tds_bytes))
+            merged += 1
+        except Exception:
+            logger.exception(
+                "TDS PDF generation failed for tds_id=%s (batch=%s merged-zip)", r.tds_id, batch_id
+            )
+            failed.append(r.tds_number)
+
+        # ── QAP PDF (silently skipped if no template mapped) ────────────────
+        try:
+            qap_template = resolve_qap_template(r)
+            if qap_template is not None:
+                qap_context = build_qap_context(
+                    r, qap_template,
+                    doc_type=qap_doc_type, ref_no=qap_ref_no, ref_date=qap_ref_date,
+                )
+                qap_bytes = render_qap_pdf(qap_context)
+                qap_bundle.append((f"{r.tds_number}_QAP.pdf", qap_bytes))
+        except Exception:
+            logger.exception(
+                "QAP PDF generation failed for tds_id=%s (batch=%s merged-zip)", r.tds_id, batch_id
+            )
+
+    if merged == 0:
+        merger.close()
+        return Response(
+            {'detail': 'No PDFs could be generated. Check server logs for WeasyPrint errors.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    safe_customer = _SAFE.sub('_', batch_customer_name or '').strip('_') or f'Batch_{batch_id}'
+
+    merged_buf = io.BytesIO()
+    merger.write(merged_buf)
+    merger.close()
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"{safe_customer}_Merged.pdf", merged_buf.getvalue())
+        for qap_name, qap_bytes in qap_bundle:
+            zf.writestr(qap_name, qap_bytes)
+    buf.seek(0)
+
+    resp = DjangoHttpResponse(buf.read(), content_type='application/zip')
+    resp['Content-Disposition'] = f'attachment; filename="{safe_customer}_Merged.zip"'
 
     if failed:
         logger.warning(
-            "Batch %s ZIP: %d PDFs skipped (generation errors): %s",
+            "Batch %s merged-zip: %d TDS PDFs skipped (generation errors): %s",
             batch_id, len(failed), failed,
         )
 
@@ -986,6 +1252,10 @@ def text_import_batch(request):
 
     if not belt_lines:
         raise ValidationError({'belt_lines': 'At least one belt line is required.'})
+    # ROBUSTNESS (fixed): same cap as create_batch above — prevents an
+    # unbounded text-pasted batch from being processed entirely synchronously.
+    if len(belt_lines) > 200:
+        raise ValidationError({'belt_lines': f'A single batch is limited to 200 belt lines (got {len(belt_lines)}).'})
 
     # ── Step 1: Validate shared reference data ───────────────────────────────
     shared_errors = {}
@@ -1006,6 +1276,7 @@ def text_import_batch(request):
     reel_type_id         = shared.get('reel_type_id')
     packing_type_id      = shared.get('packing_type_id')
     shipping_region      = shared.get('shipping_region')
+    container_type_id    = shared.get('container_type_id')
 
     if reel_type_id:
         _require_shared(ReelType, reel_type_id, 'reel_type_id', shared_errors)
@@ -1163,11 +1434,12 @@ def text_import_batch(request):
                         b['belt_rating_id'], b['belt_width_mm'],
                     )
 
-            # Splicing — shared num_joints for all belts in this batch
+            # Splicing — num_joints = 2 per roll (auto-computed from packing);
+            # falls back to shared value if packing wasn't computed.
             step_len   = None
             spl_len    = None
             extra_len  = None
-            num_joints = int(num_joints_shared) if num_joints_shared else None
+            num_joints = (packing_num_rolls * 2) if packing_num_rolls else (int(num_joints_shared) if num_joints_shared else None)
 
             if splicing_required and num_joints and vulcanization_method:
                 try:
@@ -1229,7 +1501,7 @@ def text_import_batch(request):
                 gross_weight_kg      = packing_gross_weight,
                 gross_weight_per_roll_kg = packing_gw_per_roll,
                 shipping_region      = shipping_region,
-                container_type_id    = None,   # not collected in text-import mode
+                container_type_id    = container_type_id,
                 splicing_required    = splicing_required,
                 vulcanization_method = vulcanization_method if splicing_required else None,
                 num_joints           = num_joints,

@@ -11,6 +11,8 @@ Public API
 ----------
 is_trusted_device(request, user_id)   → bool
 register_device(response, user_id, request) → str  (device_token)
+set_access_cookie(response, access_token)   → None (the httpOnly JWT cookie)
+get_client_ip(request)                → str  (also used by apps/core/audit_log.py)
 send_device_otp(user)                 → str  (plaintext OTP, already emailed)
 send_new_device_notification(user, request) → None (informational only)
 notify_admins_new_device_login(user, request) → None (informational only)
@@ -36,17 +38,68 @@ DEVICE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60  # 1 year in seconds
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _get_client_ip(request) -> str:
-    """Extract real client IP; respects X-Forwarded-For for reverse-proxy setups."""
+def get_client_ip(request) -> str:
+    """
+    Extract the client IP, honouring X-Forwarded-For for the app's reverse
+    proxy (Render).
+
+    SECURITY (fixed): this used to trust the FIRST (leftmost) entry of
+    X-Forwarded-For, which is exactly the part of the header a client
+    controls directly -- anyone can send `X-Forwarded-For: 1.2.3.4` and have
+    it recorded verbatim in audit logs / "new device" security emails, with
+    no proxy involved at all. Reverse proxies APPEND to this header rather
+    than replacing it, so with exactly one trusted proxy in front of the app
+    (Render's edge), the entry it appends -- and therefore the real peer it
+    saw -- is the LAST one. This is still a heuristic (it assumes exactly one
+    trusted hop); if the deployment ever sits behind an additional proxy/CDN,
+    this needs to count hops accordingly rather than always taking the last.
+    """
     xff = request.META.get('HTTP_X_FORWARDED_FOR')
     if xff:
-        return xff.split(',')[0].strip()
+        parts = [p.strip() for p in xff.split(',') if p.strip()]
+        if parts:
+            return parts[-1]
     return request.META.get('REMOTE_ADDR', '') or ''
+
+
+# Backward-compatible private alias — kept so nothing else in this module
+# (or importing it) needs to change.
+_get_client_ip = get_client_ip
 
 
 def _get_device_name(request) -> str:
     """Return the User-Agent string, truncated to 512 chars for storage."""
     return request.META.get('HTTP_USER_AGENT', 'Unknown device')[:512]
+
+
+def set_access_cookie(response, access_token: str) -> None:
+    """
+    Set the httpOnly tds_access cookie carrying the JWT access token.
+
+    This is the piece that was documented ("Phase 5 — httpOnly cookie auth")
+    but never actually implemented anywhere reachable: TDSCookieJWTAuthentication
+    (apps/api/auth_backend.py) has always been ready to *read* this cookie on
+    every request, but nothing ever *wrote* it, so the app has been relying on
+    the Bearer token living in the frontend's sessionStorage instead — readable
+    by any script on the page (e.g. via an XSS bug). Call this from every place
+    that currently returns an access_token in a login/verify response, so the
+    browser gets a cookie it can't read or leak via JS, and the frontend no
+    longer needs to keep a copy of the token in sessionStorage at all.
+
+    max_age mirrors SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'] so the cookie expires
+    at the same time the token inside it would stop being valid anyway.
+    """
+    from django.conf import settings
+    max_age = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+    response.set_cookie(
+        key      = settings.TDS_COOKIE_NAME,
+        value    = access_token,
+        max_age  = max_age,
+        httponly = True,
+        secure   = settings.TDS_COOKIE_SECURE,
+        samesite = settings.TDS_COOKIE_SAMESITE,
+        path     = '/',
+    )
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -62,8 +115,13 @@ def is_trusted_device(request, user_id: int) -> bool:
     if not device_token:
         return False
     try:
-        device = TrustedDevice.objects.get(device_token=device_token, user_id=user_id)
-        device.save()   # auto_now updates last_used_at; created_at stays (auto_now_add)
+        device = TrustedDevice.objects.only('pk').get(device_token=device_token, user_id=user_id)
+        # PERF (fixed): this used to call device.save() -- a full SELECT +
+        # UPDATE-every-field write -- on every single authenticated request
+        # from a trusted device, purely to bump last_used_at. A targeted
+        # .update() is a single lightweight UPDATE and can't clobber any other
+        # field a concurrent request might be writing at the same time.
+        TrustedDevice.objects.filter(pk=device.pk).update(last_used_at=timezone.now())
         return True
     except TrustedDevice.DoesNotExist:
         return False

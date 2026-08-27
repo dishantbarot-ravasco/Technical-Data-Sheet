@@ -38,7 +38,7 @@ from apps.core.models import (
     BeltRating, BeltRatingValue, BrandParameter, CoverGrade, CoverGradeValue,
     Customer, FabricStyle, FabricType, IndusBrand,
     PackingType, Purpose, BeltType, ReelType, Standard, TDSParameter,
-    ContainerType,
+    ContainerType, SpliceStepLookup, SpliceMethodConfig,
 )
 from apps.api.permissions import IsEditor
 from apps.services.calculations import get_container_constraints
@@ -167,6 +167,38 @@ def _container_type(c):
     }
 
 
+def _build_splicing_config():
+    """
+    Return the live splice step table + method buffers from the DB.
+    Falls back to IS 14206 hardcoded defaults only if the tables are empty,
+    so the frontend and PDF always agree.
+    """
+    steps = list(
+        SpliceStepLookup.objects
+        .order_by('max_fabric_rating_kn_m')
+        .values('max_fabric_rating_kn_m', 'step_length_mm')
+    )
+    # Default IS 14206 table — used only when DB table is empty
+    if not steps:
+        steps = [
+            {"max_fabric_rating_kn_m": 100, "step_length_mm": 150},
+            {"max_fabric_rating_kn_m": 125, "step_length_mm": 200},
+            {"max_fabric_rating_kn_m": 160, "step_length_mm": 200},
+            {"max_fabric_rating_kn_m": 200, "step_length_mm": 250},
+            {"max_fabric_rating_kn_m": 250, "step_length_mm": 300},
+            {"max_fabric_rating_kn_m": 300, "step_length_mm": 350},
+            {"max_fabric_rating_kn_m": 315, "step_length_mm": 350},
+            {"max_fabric_rating_kn_m": 350, "step_length_mm": 400},
+            {"max_fabric_rating_kn_m": 400, "step_length_mm": 400},
+        ]
+
+    buffers = {"hot": 50, "cold": 75}  # IS 14206 defaults
+    for cfg in SpliceMethodConfig.objects.all():
+        buffers[cfg.vulcanization_method.lower()] = cfg.buffer_mm
+
+    return {"step_table": steps, "buffers": buffers}
+
+
 # ── Views ─────────────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
@@ -193,6 +225,7 @@ def bootstrap(request):
         "packing_types":   [_packing_type(p)   for p in packing_types],
         "container_types": [_container_type(c) for c in container_types],
         "customers":       [_customer_brief(c) for c in customers],
+        "splicing_config": _build_splicing_config(),
     })
 
 
@@ -286,11 +319,19 @@ def get_belt_rating(request, rating_id):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
+# SECURITY (fixed): this was AllowAny, so GET exposed customer PII
+# (contact_person, plant_location) and POST let anyone create customer
+# records with no login and no rate limit. Every real caller (getCustomers/
+# createCustomer in api.js) is already only reached from logged-in pages, so
+# this brings the enforcement in line with what the frontend already assumes.
 def customers(request):
     if request.method == 'GET':
         search = request.query_params.get('search')
-        limit  = int(request.query_params.get('limit', 50))
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except (TypeError, ValueError):
+            raise ValidationError({'detail': 'limit must be an integer.'})
         limit  = max(1, min(200, limit))
         qs = Customer.objects.all()
         if search:
@@ -384,13 +425,36 @@ def shipping_constraints(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_splicing_config(request):
+    """
+    GET /api/splicing-config
+
+    Returns the splice step lookup table and method buffers from the DB so
+    the frontend calculators never have to hardcode them.  The same data is
+    also embedded in /api/bootstrap (splicing_config key) so generate-tds.js
+    gets it for free with zero extra requests.
+
+    Response shape:
+        {
+          "step_table": [{"max_fabric_rating_kn_m": 100, "step_length_mm": 150}, ...],
+          "buffers":    {"hot": 50, "cold": 75}
+        }
+    """
+    return Response(_build_splicing_config())
+
+
+@api_view(['GET'])
 @permission_classes([AllowAny])
 def list_parameters(request):
     """
     Return all TDS parameters for a brand, grouped by parameter_group.
     brand_id defaults to 1 (INDUS SUPER BRUTE).
     """
-    brand_id = int(request.query_params.get('brand_id', 1))
+    try:
+        brand_id = int(request.query_params.get('brand_id', 1))
+    except (TypeError, ValueError):
+        raise ValidationError({'detail': 'brand_id must be an integer.'})
     rows = (
         TDSParameter.objects
         .filter(brand_parameters__brand_id=brand_id)

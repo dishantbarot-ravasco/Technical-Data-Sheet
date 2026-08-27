@@ -105,6 +105,17 @@
     .btn-print-save:hover { background: var(--navy); color: #fff; }
     .btn-print-save:disabled { opacity: .5; cursor: not-allowed; }
 
+    .btn-download-qap {
+      background: #F5A623; color: #1a1a1a; border: none;
+      border-radius: var(--radius); padding: 9px 14px;
+      font-family: var(--font-head); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .btn-download-qap:hover { background: #d4891a; }
+    .btn-download-qap:disabled { opacity: .5; cursor: not-allowed; }
+
     .sidebar-hint {
       font-size: 10px; color: var(--text-muted); line-height: 1.5;
       padding: 0 1px;
@@ -204,10 +215,48 @@
       <span>✓</span><span id="feedback-msg"></span>
     </div>
 
+    <!-- ── QAP pre-download: PO / Enquiry popup ───────────────────────
+         Entered fresh every download — nothing here is saved to the DB. -->
+    <div class="modal-backdrop" id="qap-ref-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>QAP Reference Details</h3>
+          <button class="modal-close" id="qap-ref-close">&#10005;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label><input type="radio" name="qap-doc-type" value="PO" checked /> Purchase Order (PO)</label>
+            &nbsp;&nbsp;
+            <label><input type="radio" name="qap-doc-type" value="ENQUIRY" /> Enquiry</label>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label id="qap-ref-no-label" for="qap-ref-no">PO No</label>
+            <input type="text" id="qap-ref-no" class="form-control" placeholder="Enter PO No" />
+          </div>
+          <div class="form-group">
+            <label id="qap-ref-date-label" for="qap-ref-date">PO Date</label>
+            <input type="date" id="qap-ref-date" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline btn-sm" id="qap-ref-cancel">Cancel</button>
+          <button class="btn btn-sm" id="qap-ref-confirm">Generate QAP</button>
+        </div>
+      </div>
+    </div>
+
     <div class="preview-layout">
 
       <!-- ── LEFT: Column-toggle sidebar ─────────────────────── -->
       <aside class="options-sidebar">
+
+        <div class="sidebar-card">
+          <div class="sidebar-card-header"><h3>Copy Type</h3></div>
+          <div class="sidebar-card-body col-toggle">
+            <label><input type="radio" name="copy-type" value="customer" checked /> Customer Copy</label>
+            <label><input type="radio" name="copy-type" value="internal" /> Internal Copy</label>
+          </div>
+        </div>
 
         <div class="sidebar-card">
           <div class="sidebar-card-header"><h3>Column Visibility</h3></div>
@@ -217,14 +266,15 @@
           </div>
         </div>
 
-        <p class="sidebar-hint">Check/uncheck rows directly in the preview. Column changes need a refresh.</p>
+        <p class="sidebar-hint">Check/uncheck rows directly in the preview. Column changes need a refresh. Switching Copy Type reloads the preview.</p>
 
         <button class="btn-refresh"      id="btn-refresh-preview">↻ Refresh Columns</button>
         <button class="btn-download-save" id="btn-download-save">⬇ Download PDF</button>
+        <button class="btn-download-qap"  id="btn-download-qap">📋 Download QAP</button>
         <button class="btn-print-save"    id="btn-print-save">🖨 Print PDF</button>
 
-        <a href="generate-tds.html" class="btn btn-outline btn-sm"
-           style="text-align:center;margin-top:4px;">← Back to Form</a>
+        <a href="javascript:history.back()" class="btn btn-outline btn-sm"
+           style="text-align:center;margin-top:4px;">← Back</a>
 
       </aside>
 
@@ -265,10 +315,30 @@
     // ── URL params ────────────────────────────────────────────────
     const urlParams  = new URLSearchParams(location.search);
     const tdsId      = urlParams.get('tds_id');
-    const tdsNumber  = urlParams.get('tds_number') || '0000';
+    const tdsNumber    = urlParams.get('tds_number') || '0000';
+    const tdsDocNumber = urlParams.get('tds_doc_number') || tdsNumber;  // used for PDF filename
+    const initCopy     = urlParams.get('copy') || 'customer';   // passed by tds-multi-preview.html
+    /* true when generate-tds.js / tds-multi-preview.html passed splicing=true.
+       Used to auto-download the splicing manual alongside the PDF download. */
+    const tdsHasSplicing = urlParams.get('splicing') === 'true';
+
+    /* ── Splicing manual auto-download ──────────────────────────────────── */
+    function _downloadSplicingManual() {
+      const a = document.createElement('a');
+      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
+      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
 
     if (!tdsId) { window.location.href = 'generate-tds.html'; }
     document.getElementById('tds-number-display').textContent = tdsNumber;
+
+    // Set copy-type radio to match URL param (or 'customer' default)
+    const copyRadio = document.querySelector(`input[name="copy-type"][value="${initCopy}"]`);
+    if (copyRadio) copyRadio.checked = true;
 
     // ── Auth helper ───────────────────────────────────────────────
     function authHeaders() {
@@ -278,11 +348,13 @@
       } catch { return {}; }
     }
 
+    // ── Copy type helper ──────────────────────────────────────────
+    function getSelectedCopyType() {
+      return document.querySelector('input[name="copy-type"]:checked')?.value || 'customer';
+    }
+
     // ── Build HTML preview URL (format=html, column opts only) ────
     function buildHtmlUrl(colOpts) {
-      // Always use a relative path - api.js does the same.
-      // The frontend is served by Django (port 8001 locally), so /api resolves
-      // correctly.  Never hardcode a port here.
       const base = '/api';
       const qs = new URLSearchParams();
       if (!colOpts.showTestMethod) qs.set('show_test_method', 'false');
@@ -348,6 +420,43 @@
       });
     }
 
+    // ── sessionStorage state persistence (keyed by tds_id) ────────
+    // Saves/restores all user checkbox choices so navigating back from the
+    // batch list to this page preserves the exact state the user left it in.
+    const SESSION_KEY = 'tds_prev_state_' + tdsId;
+
+    function saveStateToSession() {
+      const snap = snapshotExclusions();
+      const state = {
+        groups:        [...snap.groups],
+        params:        [...snap.params],
+        giFields:      [...snap.giFields],
+        copyType:      getSelectedCopyType(),
+        showTestMethod: document.getElementById('opt-show-testmethod').checked,
+        showReference:  document.getElementById('opt-show-reference').checked,
+      };
+      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(state)); } catch(e) {}
+    }
+
+    function loadStateFromSession() {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch(e) { return null; }
+    }
+
+    function clearSessionState() {
+      try { sessionStorage.removeItem(SESSION_KEY); } catch(e) {}
+    }
+
+    function sessionSnapToExclusionSnap(state) {
+      return {
+        groups:   new Set(state.groups   || []),
+        params:   new Set(state.params   || []),
+        giFields: new Set(state.giFields || []),
+      };
+    }
+
     // ── Helpers ───────────────────────────────────────────────────
     function dimRow(tr, checked) {
       if (!tr) return;
@@ -357,7 +466,6 @@
 
     function triggerGroupChange(groupCb, doc) {
       const name = groupCb.dataset.group;
-      // Works for both .param-table and .gi-table (both carry data-group)
       const table = doc.querySelector(`[data-group="${CSS.escape(name)}"]`);
       if (!table) return;
       table.querySelectorAll('.cb-param, .cb-gi-field').forEach(cb => {
@@ -367,18 +475,10 @@
       });
     }
 
-    // ── Groups unchecked by default ─────────────────────────────────
-    // This is a customer-facing preview/PDF, so these internal-only sections
-    // start excluded (unchecked) - the user can still tick them back on for a
-    // given TDS if a customer specifically needs to see them. This ONLY
-    // affects what's ticked in this preview/what goes into the printed PDF -
-    // it does not touch the TDSInput record itself, which is saved with every
-    // field regardless of what's ever excluded here (see create_tds /
-    // create_batch in the Django backend: fabric style, sampling/testing
-    // counts, packing, and splicing are all computed and stored server-side
-    // on every record, independent of PDF presentation). Names must match
-    // apps/services/sections.py's PARAMETER_GROUP_ORDER exactly, since that's
-    // what the backend renders into each table's data-group attribute.
+    // ── Groups unchecked by default (Customer Copy) ───────────────
+    // For Internal Copy, ALL groups are shown. For Customer Copy, these
+    // internal-only sections start excluded. Names must match
+    // apps/services/sections.py PARAMETER_GROUP_ORDER exactly.
     const DEFAULT_UNCHECKED_GROUPS = [
       'Fabric Parameters',
       'Sampling and Testing',
@@ -387,7 +487,9 @@
     ];
 
     // ── Inject checkboxes into the loaded iframe ──────────────────
-    function injectCheckboxes(doc) {
+    function injectCheckboxes(doc, copyType) {
+      const isInternal = (copyType === 'internal');
+
       // Inject a tiny stylesheet for the checkbox column
       const style = doc.createElement('style');
       style.textContent = `
@@ -412,13 +514,13 @@
       `;
       doc.head.appendChild(style);
 
-      // Handle both .param-table (parameter groups) and .gi-table (General Information)
       doc.querySelectorAll('.param-table, .gi-table').forEach(table => {
         const groupName = table.getAttribute('data-group') || '';
         const isGiTable = table.classList.contains('gi-table');
-        const defaultChecked = !DEFAULT_UNCHECKED_GROUPS.includes(groupName);
+        // Internal copy: all groups visible; Customer copy: exclude internal groups
+        const defaultChecked = isInternal ? true : !DEFAULT_UNCHECKED_GROUPS.includes(groupName);
 
-        // ── Group checkbox - always APPEND to the end of the header row ──────
+        // ── Group checkbox ──────────────────────────────────────
         const firstTh = table.querySelector('thead tr th:first-child');
         if (firstTh) {
           const cbTh = doc.createElement('th');
@@ -428,15 +530,14 @@
           groupCb.className = 'cb-group'; groupCb.dataset.group = groupName;
           groupCb.title = 'Include/exclude entire group';
           cbTh.appendChild(groupCb);
-          firstTh.parentElement.appendChild(cbTh);  // always append at end
+          firstTh.parentElement.appendChild(cbTh);
 
-          // Wire group checkbox
           table.querySelector('.cb-group')?.addEventListener('change', function() {
             triggerGroupChange(this, doc);
+            saveStateToSession();
           });
         }
 
-        // ── Add 22px col to colgroup so the appended checkbox column is sized ─
         const cg = table.querySelector('colgroup');
         if (cg) {
           const cbCol = doc.createElement('col');
@@ -444,8 +545,6 @@
           cg.appendChild(cbCol);
         }
 
-        // ── Individual row checkboxes - always APPEND at end of each row ──────
-        // gi-table rows use data-field; param-table rows use data-param-id
         const rowAttr = isGiTable ? 'data-field' : 'data-param-id';
         table.querySelectorAll(`tbody tr[${rowAttr}]`).forEach(tr => {
           const rowId = tr.getAttribute(rowAttr);
@@ -453,21 +552,18 @@
           cbTd.className = 'cb-col-td';
           const cb = doc.createElement('input');
           cb.type = 'checkbox'; cb.checked = defaultChecked;
-          cb.disabled = !defaultChecked;   // matches triggerGroupChange()'s own rule for an unchecked group
+          cb.disabled = !defaultChecked;
           cb.className = isGiTable ? 'cb-gi-field' : 'cb-param';
-          if (isGiTable) {
-            cb.dataset.field = rowId;
-          } else {
-            cb.dataset.paramId = rowId;
-          }
+          if (isGiTable) { cb.dataset.field = rowId; } else { cb.dataset.paramId = rowId; }
           cb.dataset.group = groupName;
           cb.title = 'Include/exclude this row';
           cbTd.appendChild(cb);
-          tr.appendChild(cbTd);  // always append at end
+          tr.appendChild(cbTd);
           dimRow(tr, defaultChecked);
 
           cb.addEventListener('change', function() {
             dimRow(this.closest('tr'), this.checked);
+            saveStateToSession();
           });
         });
       });
@@ -483,8 +579,7 @@
       loading.innerHTML = '<div class="spinner"></div>Loading TDS preview…';
 
       const url = buildHtmlUrl(getColOpts());
-      console.log('Preview URL:', url);   // ADD THIS
-      
+      const copyType = getSelectedCopyType();
 
       try {
         const res = await fetch(url, { headers: authHeaders() });
@@ -503,7 +598,7 @@
         const html = await res.text();
 
         iframe.onload = () => {
-          injectCheckboxes(iframe.contentDocument);
+          injectCheckboxes(iframe.contentDocument, copyType);
           if (snap) restoreExclusions(iframe.contentDocument, snap);
           loading.style.display = 'none';
           iframe.style.display  = 'block';
@@ -514,6 +609,14 @@
         loading.innerHTML = `<div style="color:#b00020;"><strong>⚠ Network error</strong><br><small>${err.message}</small></div>`;
       }
     }
+
+    // ── Copy type toggle: reload with new defaults ────────────────
+    document.querySelectorAll('input[name="copy-type"]').forEach(r => {
+      r.addEventListener('change', () => {
+        clearSessionState();
+        loadPreview(null);
+      });
+    });
 
     // ── Column toggle: refresh preserving current exclusions ──────
     document.getElementById('btn-refresh-preview').addEventListener('click', () => {
@@ -537,28 +640,81 @@
       const btn = document.getElementById('btn-download-save');
       btn.disabled = true; btn.innerHTML = 'Downloading…';
       try {
-        await downloadPdf(tdsId, tdsNumber, getOptsFromIframe());
-        finishAndGoHome('TDS-' + tdsNumber + ' downloaded.', 5000);
+        await downloadPdf(tdsId, tdsDocNumber, getOptsFromIframe());
+        /* Auto-download the splicing manual alongside the TDS PDF when
+           this TDS has splicing required. Not triggered for Print. */
+        if (tdsHasSplicing) _downloadSplicingManual();
+        finishAndGoHome('TDS-' + tdsDocNumber + ' downloaded.', 5000);
       } catch (err) {
         showToast('Download failed: ' + err.message, 'error');
         btn.disabled = false; btn.innerHTML = '⬇ Download PDF';
       }
     });
 
+    // ── Download QAP — asks for PO / Enquiry details first ─────────
+    // Nothing entered in this popup is persisted anywhere; it's read fresh
+    // on every download and sent straight through as query params.
+    const qapRefModal = document.getElementById('qap-ref-modal');
+
+    function updateQapRefLabels() {
+      const isEnquiry = document.querySelector('input[name="qap-doc-type"]:checked')?.value === 'ENQUIRY';
+      document.getElementById('qap-ref-no-label').textContent   = isEnquiry ? 'Enquiry No'   : 'PO No';
+      document.getElementById('qap-ref-date-label').textContent = isEnquiry ? 'Enquiry Date' : 'PO Date';
+      document.getElementById('qap-ref-no').placeholder = isEnquiry ? 'Enter Enquiry No' : 'Enter PO No';
+    }
+    document.querySelectorAll('input[name="qap-doc-type"]').forEach(r => {
+      r.addEventListener('change', updateQapRefLabels);
+    });
+
+    function openQapRefModal() {
+      updateQapRefLabels();
+      qapRefModal.classList.add('open');
+    }
+    function closeQapRefModal() {
+      qapRefModal.classList.remove('open');
+    }
+    document.getElementById('qap-ref-close').addEventListener('click', closeQapRefModal);
+    document.getElementById('qap-ref-cancel').addEventListener('click', closeQapRefModal);
+
+    document.getElementById('btn-download-qap').addEventListener('click', () => {
+      openQapRefModal();
+    });
+
+    document.getElementById('qap-ref-confirm').addEventListener('click', async () => {
+      const docType = document.querySelector('input[name="qap-doc-type"]:checked')?.value || 'PO';
+      const refNo   = document.getElementById('qap-ref-no').value.trim();
+      const refDate = document.getElementById('qap-ref-date').value;
+
+      closeQapRefModal();
+
+      const btn = document.getElementById('btn-download-qap');
+      btn.disabled = true; btn.innerHTML = 'Generating QAP…';
+      try {
+        const params = new URLSearchParams({ doc_type: docType, ref_no: refNo, ref_date: refDate });
+        const qapUrl = `/api/tds/${tdsId}/qap/pdf?${params.toString()}`;
+        const res = await fetch(qapUrl, { headers: authHeaders() });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `QAP-${tdsDocNumber}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('QAP downloaded.', 'success');
+      } catch (err) {
+        showToast('QAP download failed: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false; btn.innerHTML = '📋 Download QAP';
+      }
+    });
+
     // ── Print - opens PDF (with live opts) in new tab ─────────────
-    // Open the tab synchronously, inside the click handler, so popup blockers
-    // don't treat it as an unsolicited popup - we point it at the real PDF
-    // once it's fetched. This used to be a bare `window.open(pdfUrl)`, i.e. a
-    // plain top-level navigation straight to the API URL. A navigation can
-    // only ever carry the httpOnly cookie - it can't attach an Authorization
-    // header - so any session relying on the Bearer-token path (the same
-    // getAuthHeaders()/authHeaders() every fetch() call on this page already
-    // uses) got a 401 "Authentication credentials were not provided" here
-    // even though the HTML preview load and the Download PDF button (both
-    // real fetch() calls with headers) worked fine on the exact same page.
-    // Fetching with authHeaders() first and only then navigating the
-    // already-open tab to the resulting blob fixes that for every session,
-    // regardless of which auth path it's actually using.
     document.getElementById('btn-print-save').addEventListener('click', async () => {
       const btn = document.getElementById('btn-print-save');
       const win = window.open('', '_blank');
@@ -580,8 +736,27 @@
       }
     });
 
-    // ── Boot ──────────────────────────────────────────────────────
-    loadPreview(null);
+    // ── Boot: restore saved state if returning from batch preview ──
+    // If the user was here before (navigated back from the batch list),
+    // sessionStorage has their previous choices — restore them instead of
+    // defaulting to the copy-type initial state.
+    (function boot() {
+      const saved = loadStateFromSession();
+      if (saved) {
+        // Restore copy type radio
+        const r = document.querySelector(`input[name="copy-type"][value="${saved.copyType || 'customer'}"]`);
+        if (r) r.checked = true;
+        // Restore column toggles
+        if (typeof saved.showTestMethod === 'boolean')
+          document.getElementById('opt-show-testmethod').checked = saved.showTestMethod;
+        if (typeof saved.showReference === 'boolean')
+          document.getElementById('opt-show-reference').checked = saved.showReference;
+        // Load preview then restore exclusions
+        loadPreview(sessionSnapToExclusionSnap(saved));
+      } else {
+        loadPreview(null);
+      }
+    })();
   </script>
 
 </body>

@@ -103,6 +103,12 @@ def device_verify(request):
     # Register this device — creates TrustedDevice row + sets tds_device cookie
     register_device(response, user_id, request)
 
+    # Set the httpOnly tds_access cookie so the frontend can rely on cookie
+    # auth instead of keeping the JWT in sessionStorage. See device_service.py
+    # #set_access_cookie for why this was missing before.
+    from apps.services.device_service import set_access_cookie
+    set_access_cookie(response, jwt_data['access_token'])
+
     # Send informational 'new device logged in' email (non-blocking)
     send_new_device_notification(user, request)
 

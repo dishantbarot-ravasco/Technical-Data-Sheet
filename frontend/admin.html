@@ -742,7 +742,7 @@
       const lastTDSDate = {};
       const customerSet = {};
       allTDS.forEach(t => {
-        const uid = t.created_by;
+        const uid = t.created_by_id;
         tdsPerUser[uid] = (tdsPerUser[uid]||0) + 1;
         if (!lastTDSDate[uid] || t.tds_date > lastTDSDate[uid]) lastTDSDate[uid] = t.tds_date;
         if (t.customer?.customer_name) {
@@ -828,7 +828,7 @@
               <div class="drawer-row drawer-row-head">
                 <span>Number</span><span>Customer</span><span>Width × L</span><span>Date</span>
               </div>
-              ${allTDS.filter(t=>t.created_by===u.user_id).map(t=>`
+              ${allTDS.filter(t=>t.created_by_id===u.user_id).map(t=>`
               <div class="drawer-row">
                 <span class="dr-num">${t.tds_number}</span>
                 <span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">

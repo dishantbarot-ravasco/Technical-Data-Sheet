@@ -10,7 +10,23 @@ References:
 """
 
 import math
+from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass
+
+
+def round_half_up(value: float, decimals: int = 0):
+    """
+    Round using standard round-half-up (0.5 -> 1), not Python's built-in
+    round(), which uses banker's rounding (round-half-to-even: 0.5 -> 0,
+    1.5 -> 2, 2.5 -> 2, ...). Splice-length-style engineering values that land
+    exactly on a .5 boundary should round consistently upward, matching how
+    IS 14206 and most people read "round" -- not silently alternate direction
+    depending on whether the preceding digit is odd or even.
+    Returns an int when decimals=0 (matching round()'s own behavior), else a float.
+    """
+    q = Decimal('1') if decimals == 0 else Decimal('1').scaleb(-decimals)
+    result = Decimal(str(value)).quantize(q, rounding=ROUND_HALF_UP)
+    return int(result) if decimals == 0 else float(result)
 
 
 # ── Endless belt length cap ─────────────────────────────────────────────────
@@ -93,8 +109,16 @@ def belt_weight_per_metre(
     NET weight of belt per linear metre (kg/m).
 
     Formula: W_net = SG × total_thickness_mm × (width_mm / 1000)
+
+    ROBUSTNESS (fixed): this used to round to 3 decimal places, one fewer than
+    the belt_weight_per_m_kg column's own DecimalField(decimal_places=4) — i.e.
+    the DB schema was built to hold more precision than this function was
+    keeping. Rounding this intermediate value early (before total_belt_weight()
+    multiplies it by belt length) also compounds into a visible discrepancy on
+    very long belts. Matching the DB's 4 decimal places keeps this value at
+    the precision the schema already expects.
     """
-    return round(specific_gravity * total_thickness_mm * (width_mm / 1000), 3)
+    return round(specific_gravity * total_thickness_mm * (width_mm / 1000), 4)
 
 
 def belt_gross_weight_per_metre(
@@ -106,8 +130,10 @@ def belt_gross_weight_per_metre(
     GROSS weight of belt per linear metre (kg/m).
 
     Formula: W_gross = SG × (total_thickness_mm + 0.5) × (width_mm / 1000)
+
+    See belt_weight_per_metre() above for why this rounds to 4 decimal places.
     """
-    return round(specific_gravity * (total_thickness_mm + 0.5) * (width_mm / 1000), 3)
+    return round(specific_gravity * (total_thickness_mm + 0.5) * (width_mm / 1000), 4)
 
 
 def total_belt_weight(weight_per_m: float, length_m: float) -> float:
@@ -323,7 +349,7 @@ def splice_length_mm(
     step = step_length_mm(belt_rating_kn_m, num_plies)
     N = num_plies
     W = belt_width_mm
-    length = round(0.3 * W + step * (N - 1) + buffer)
+    length = round_half_up(0.3 * W + step * (N - 1) + buffer)
     return length, step
 
 

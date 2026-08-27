@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<title>TDS &mdash; {{ doc.tds_number }}</title>
+<title>TDS - {{ doc.tds_number }}</title>
 <style>
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -239,7 +239,7 @@ body {
     <div class="hdr-cell hdr-mid">
       <div class="co-name">Ravasco Transmission &amp; Packing Pvt Ltd.</div>
       <div class="co-addr">
-        1, Janki Centre, Off Veera Desai Road, Andheri (W), Mumbai &mdash; 400053<br/>
+        1, Janki Centre, Off Veera Desai Road, Andheri (W), Mumbai - 400053<br/>
         Maharashtra State, India &nbsp;|&nbsp; Pin Code : 400053
       </div>
       <div class="co-web">www.indusbelts.com &nbsp;/&nbsp; technical@ravasco.com</div>
@@ -380,7 +380,7 @@ body {
       <thead>
         <tr>
           <th style="text-align:left;">Prepared By</th>
-          <th style="text-align:left;">Customer Acceptance &mdash; Stamp &amp; Signature</th>
+          <th style="text-align:left;">Customer Acceptance: Stamp &amp; Signature</th>
         </tr>
       </thead>
       <tbody>
@@ -392,8 +392,8 @@ body {
           </td>
           <td>
             <div class="sig-line"></div>
-            <div class="sig-name" style="color:#aaa;">{{ doc.customer_name }}</div>
-            <div class="sig-desig" style="color:#ccc;">{{ doc.contact_person or "Authorised Signatory" }}</div>
+            <div class="sig-name">{{ doc.customer_name }}</div>
+            <div class="sig-desig" style="color:#aaa;">{{ doc.contact_person or "Authorised Signatory" }}</div>
           </td>
         </tr>
       </tbody>

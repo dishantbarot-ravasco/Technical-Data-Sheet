@@ -45,7 +45,7 @@ class Purpose(models.Model):
     purpose_type = models.TextField()
 
     class Meta:
-        db_table = 'purpose'
+        db_table = 'purposes'
         managed  = False
 
     def __str__(self):
@@ -58,7 +58,7 @@ class BeltType(models.Model):
     belt_type = models.TextField()
 
     class Meta:
-        db_table = 'belt_type'
+        db_table = 'belt_types'
         managed  = False
 
     def __str__(self):
@@ -71,7 +71,7 @@ class IndusBrand(models.Model):
     brand_name = models.TextField()
 
     class Meta:
-        db_table = 'indus_brand'
+        db_table = 'brands'
         managed  = False
 
     def __str__(self):
@@ -86,8 +86,14 @@ class IndusBrand(models.Model):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class PurposeBeltType(models.Model):
-    """M2M: which belt types are valid for each purpose."""
-    # Composite PK: (purpose_id, belt_id)
+    """
+    Which belt type is valid for a given purpose.
+    NOTE: the underlying (unmanaged) table's real primary key is purpose_id
+    alone (see migrations/0001_initial.py), so this is a true 1:1 at the
+    database level -- each Purpose maps to exactly one BeltType, not a M2M.
+    OneToOneField is therefore correct here; do not change to ForeignKey
+    without first altering the real DB schema to add a surrogate PK.
+    """
     purpose   = models.OneToOneField('Purpose',  on_delete=models.CASCADE,
                                      related_name='belt_type_links', primary_key=True)
     # Actual column is 'belt_id', not the Django default 'belt_type_id'
@@ -104,8 +110,12 @@ class PurposeBeltType(models.Model):
 
 
 class BrandBeltType(models.Model):
-    """M2M: which belt types a brand manufactures."""
-    # Composite PK: (brand_id, belt_id)
+    """
+    Which belt type a brand manufactures.
+    NOTE: same as PurposeBeltType above -- the underlying (unmanaged) table's
+    real primary key is brand_id alone, so this is a true 1:1 at the database
+    level. OneToOneField is correct; do not change without a real schema change.
+    """
     brand     = models.OneToOneField('IndusBrand', on_delete=models.CASCADE,
                                      related_name='belt_type_links', primary_key=True)
     belt_type = models.ForeignKey('BeltType',   on_delete=models.CASCADE,
@@ -909,3 +919,121 @@ class TrustedDevice(models.Model):
 
     def __str__(self):
         return f"TrustedDevice(user_id={self.user_id}, name={self.device_name[:40]})"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QAP MODELS  (Quality Assurance Plan — managed = True)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class QAPTemplate(models.Model):
+    """
+    One template per belt category (General Purpose, Heat Resistant, Fire Resistant ISO).
+    The template that applies to a given TDS is determined by resolving the TDS's
+    standard_id against STANDARD_TO_QAP_CATEGORY in qap_service.py.
+    """
+    CATEGORY_CHOICES = [
+        ('GP',     'General Purpose'),
+        ('HR',     'Heat Resistant'),
+        ('FR_ISO', 'Fire Resistant (ISO)'),
+        ('OR',     'Oil Resistant'),
+        ('FR_CAN', 'Fire Resistant (CAN/NTPC)'),
+    ]
+    category     = models.CharField(max_length=20, choices=CATEGORY_CHOICES, unique=True)
+    display_name = models.CharField(max_length=100)
+    is_active    = models.BooleanField(default=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'qap_templates'
+        managed  = True
+
+    def __str__(self):
+        return f"QAPTemplate({self.category}: {self.display_name})"
+
+
+class QAPSection(models.Model):
+    """
+    A section heading row within a QAP template.
+    Examples: '1.0 Raw Material', '2.0 In-Process Inspection', '3.0 Finished Product'
+    """
+    template     = models.ForeignKey(QAPTemplate, on_delete=models.CASCADE,
+                                     related_name='sections')
+    section_code = models.CharField(max_length=10)    # '1.0', '2.0', '3.0'
+    section_name = models.CharField(max_length=200)
+    sort_order   = models.PositiveIntegerField()
+
+    class Meta:
+        db_table        = 'qap_sections'
+        managed         = True
+        ordering        = ['sort_order']
+        unique_together = [('template', 'section_code')]
+
+    def __str__(self):
+        return f"{self.section_code} {self.section_name} [{self.template.category}]"
+
+
+class QAPItem(models.Model):
+    """
+    One data row inside a QAP section.
+    Each row maps to a single line in the QAP table
+    (SN, Component, Characteristic, Type of Check, etc.)
+
+    is_static=True marks raw-material rows (section 1.0) that are identical
+    across all templates — stored per template for independent editability.
+
+    tds_inputs table is managed=False so QAPRecord uses IntegerField for tds_id
+    instead of a FK (same pattern as TrustedDevice.user_id) to avoid Django
+    generating a FK constraint against an unmanaged table.
+    """
+    section            = models.ForeignKey(QAPSection, on_delete=models.CASCADE,
+                                           related_name='items')
+    sn                 = models.CharField(max_length=20)        # '1.1', '2.1a', etc.
+    component          = models.CharField()
+    characteristic     = models.CharField(blank=True)
+    check_class        = models.CharField(max_length=50,  blank=True)   # Critical/Major/Minor
+    type_of_check      = models.CharField(blank=True)
+    quantum_m          = models.CharField(max_length=200, blank=True)   # Manufacturer col
+    quantum_sc         = models.CharField(max_length=200, blank=True)   # S/C col
+    reference_docs     = models.TextField(blank=True)
+    acceptance_norms   = models.TextField(blank=True)
+    format_of_records  = models.CharField(max_length=200, blank=True)
+    agency             = models.CharField(max_length=100, blank=True)   # M / S / C
+    record_mark        = models.CharField(max_length=10, blank=True)    # 'D' column — record required (e.g. a tick mark)
+    remarks            = models.TextField(blank=True)
+    is_static          = models.BooleanField(default=False)  # True = raw material row
+    sort_order         = models.PositiveIntegerField()
+
+    class Meta:
+        db_table = 'qap_items'
+        managed  = True
+        ordering = ['sort_order']
+
+    def __str__(self):
+        return f"{self.sn} {self.component[:50]}"
+
+
+class QAPRecord(models.Model):
+    """
+    A generated QAP linked to one TDS record.
+
+    tds_id is an IntegerField (not a FK) to avoid Django creating a constraint
+    against the managed=False tds_inputs table — same pattern as TrustedDevice.user_id.
+
+    PO No / PO Date are intentionally absent — those fields render as blank lines
+    in the PDF for manual fill-in before dispatch. Revision defaults to '00'.
+    doc_number is auto-set to 'QAP-{tds_number}' at generation time.
+    """
+    tds_id       = models.IntegerField(unique=True, db_index=True)
+    template     = models.ForeignKey(QAPTemplate, on_delete=models.SET_NULL,
+                                     null=True, related_name='records')
+    doc_number   = models.CharField(max_length=100, blank=True)   # QAP-0042
+    revision     = models.CharField(max_length=10,  default='00')
+    generated_at = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'qap_records'
+        managed  = True
+
+    def __str__(self):
+        return f"QAPRecord(tds_id={self.tds_id}, doc={self.doc_number})"

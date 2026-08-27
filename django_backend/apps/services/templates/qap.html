@@ -1,0 +1,415 @@
+{# qap.html — Jinja2 template for QAP PDF (WeasyPrint, landscape A4)
+   Context keys: company_name, qap_title, customer_name, doc_number, cover_grade,
+                 tds_number, tds_date, belt_description, standard_name,
+                 doc_type, ref_label_no, ref_label_date, ref_no, ref_date,
+                 logo_data_uri, notes,
+                 sections — list of QAPSectionData with .code .name .item_groups
+   Each item_group: .sn .comp .cls .qm .qsc .ref .acc .fmt .d .m .s .c .remarks
+                    .rowspan .first_char .first_typ .sub_rows (list of {char, typ})
+                    .is_merged (narrative-only rows like "Identification & Marking")
+#}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+/* ── Page setup — A4 landscape ─────────────────────────────────────────────── */
+@page {
+  size: A4 landscape;
+  margin: 9mm 8mm 9mm 8mm;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, sans-serif;
+  font-size: 6.5pt;
+  color: #1a1a1a;
+  line-height: 1.15;
+}
+
+/* ── Outer wrapper — thead repeats header + col-headers, tfoot repeats
+   legend + signature, on every page ─────────────────────────────────────────
+   NOTE: only thead/tfoot > td gets border:none (wrapper cells). tbody td
+         rules are NOT reset here to avoid overriding explicit borders. */
+.outer-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.outer-table > thead > tr > td,
+.outer-table > tfoot > tr > td {
+  padding: 0;
+  border: none;
+}
+
+/* ── Page header ─────────────────────────────────────────────────────────────── */
+.qap-header {
+  width: 100%;
+  border-collapse: collapse;
+}
+.qap-header td {
+  border: 1px solid #1a1a1a;
+  padding: 2mm 3mm;
+  vertical-align: middle;
+}
+.logo-cell {
+  width: 28mm;
+  text-align: center;
+}
+.logo-cell img {
+  max-height: 22mm;
+  max-width: 26mm;
+  object-fit: contain;
+}
+.title-cell {
+  text-align: center;
+  background: #F5A623;
+}
+.company-name {
+  font-size: 9.5pt;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: 0.3px;
+}
+.qap-title {
+  font-size: 7.5pt;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+.meta-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.meta-table tr { border: none; }
+.meta-table td {
+  border-right: 0.5px solid #ddd;
+  border-bottom: 0.5px solid #ccc;
+  padding: 1.2mm 2mm;
+  font-size: 7pt;
+  vertical-align: middle;
+}
+.meta-table td:last-child { border-right: none; }
+.meta-table tr:last-child td { border-bottom: none; }
+.meta-label {
+  font-weight: 700;
+  white-space: nowrap;
+  color: #333;
+  background: #fdf6ec;
+  width: 22mm;
+}
+.meta-value { min-width: 22mm; }
+
+/* ── Column headers ──────────────────────────────────────────────────────────── */
+.col-header-row th {
+  background: #F5A623;
+  color: #1a1a1a;
+  font-size: 6pt;
+  font-weight: 700;
+  padding: 0.8mm 1mm;
+  text-align: center;
+  border: 0.5px solid #d4891a;
+  vertical-align: middle;
+}
+
+/* ── Column widths ───────────────────────────────────────────────────────────── */
+.col-sn     { width: 5%;  text-align: center; }
+.col-comp   { width: 8%; }
+.col-char   { width: 14%; }
+.col-class  { width: 4%;  text-align: center; }
+.col-type   { width: 7%;  text-align: center; }
+.col-qm     { width: 8%;  text-align: center; }
+.col-qsc    { width: 8%;  text-align: center; }
+.col-ref    { width: 9%;  text-align: center; }
+.col-acc    { width: 9%;  text-align: center; }
+.col-fmt    { width: 7%;  text-align: center; }
+.col-d      { width: 3%;  text-align: center; }
+.col-agency { width: 3%;  text-align: center; }
+.col-remarks{ width: 7%; }
+
+/* ── Data cells (use !important to beat any cascade conflicts) ───────────────── */
+td.data-cell {
+  border: 0.5px solid #bbb !important;
+  padding: 0.6mm 1.2mm !important;
+  vertical-align: top;
+  font-size: 6pt;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+td.data-cell.vcenter { vertical-align: middle; }
+
+/* Alternating rows — must use !important to override data-cell background */
+tr.data-even td.data-cell { background: #fafafa !important; }
+tr.data-odd  td.data-cell { background: #ffffff !important; }
+
+/* Merged narrative row (e.g. "Identification & Marking") — headers only,
+   all other columns collapsed into one wide cell. */
+td.data-cell.merged-cell {
+  font-weight: 700;
+}
+
+/* ── Section heading rows ────────────────────────────────────────────────────── */
+.section-row td {
+  background: #F5A623 !important;
+  font-weight: 700;
+  font-size: 7pt;
+  padding: 0.8mm 2mm !important;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: 0.5px solid #d4891a !important;
+}
+
+/* ── PAGE BREAKS ─────────────────────────────────────────────────────────────── */
+
+/* Mid-section forced break — applied to the <tr> that begins item 1.8 or 4.
+   This splits Section 1 across pages 1-2 and Section 3 across pages 4-5.      */
+tr.mid-section-break {
+  break-before: page;
+  page-break-before: always;
+}
+
+/* Keep each component's row-group (SN row + its characteristic sub-rows)
+   intact — never split a rowspan block across a page boundary. */
+tbody.item-group {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Keep a section heading glued to the row-group that follows it. */
+tr.section-row {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* ── Legend + signature footer — repeats on every page via <tfoot> ───────────── */
+.footer-inner {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1px solid #1a1a1a;
+}
+.footer-inner td {
+  border: none;
+  border-right: 1px solid #1a1a1a;
+  vertical-align: middle;
+  padding: 0;
+}
+.footer-inner td:last-child { border-right: none; }
+.footer-legend-cell {
+  width: 60%;
+  font-size: 5.6pt !important;
+  padding: 1mm 2.5mm !important;
+  background: #fff8ee;
+  white-space: pre-line;
+  line-height: 1.45;
+}
+.footer-sig-cell { width: 20%; }
+.sig-space {
+  height: 8mm;
+  border-bottom: 1px solid #888;
+  margin: 0.8mm 4mm 0 4mm;
+}
+.sig-label {
+  font-size: 6pt;
+  font-weight: 700;
+  padding: 0.6mm 3mm 1mm 3mm;
+  display: block;
+}
+.sig-left  .sig-label { text-align: left; }
+.sig-right .sig-label { text-align: right; }
+
+/* ── Notes block ─────────────────────────────────────────────────────────────── */
+.notes-row td {
+  font-size: 6.5pt !important;
+  line-height: 1.6;
+  padding: 2.5mm 3mm !important;
+  border: 0.5px solid #bbb !important;
+  background: #fff !important;
+}
+</style>
+</head>
+<body>
+
+{#
+  PAGE LAYOUT (5 pages):
+    Page 1 : Section 1 items 1.1–1.7   (mid-section-break before 1.8)
+    Page 2 : Section 1 items 1.8–1.12                      (legend+sig repeats)
+    Page 3 : Section 2 items 2.1–2.6                       (legend+sig repeats)
+    Page 4 : Section 3 items 3.1–3.5   (mid-section-break before SN '4')
+    Page 5 : Items 4, 5 + [Notes]                           (legend+sig repeats)
+#}
+
+<table class="outer-table">
+  <colgroup>
+    <col class="col-sn">
+    <col class="col-comp">
+    <col class="col-char">
+    <col class="col-class">
+    <col class="col-type">
+    <col class="col-qm">
+    <col class="col-qsc">
+    <col class="col-ref">
+    <col class="col-acc">
+    <col class="col-fmt">
+    <col class="col-d">
+    <col class="col-agency">
+    <col class="col-agency">
+    <col class="col-agency">
+    <col class="col-remarks">
+  </colgroup>
+
+  {# ── THEAD: repeats on every page (WeasyPrint) ─────────────────────────────── #}
+  <thead>
+    <tr>
+      <td colspan="15" style="padding: 0 0 1.5mm 0; border: none;">
+        <table class="qap-header">
+          <tr>
+            <td class="logo-cell" rowspan="2">
+              {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="Logo">
+              {% else %}<strong style="font-size:9pt;">INDUS</strong>{% endif %}
+            </td>
+            <td class="title-cell">
+              <div class="company-name">{{ company_name }}</div>
+              <div class="qap-title">{{ qap_title }}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0;">
+              <table class="meta-table">
+                <tr>
+                  <td class="meta-label">Doc No :</td>
+                  <td class="meta-value">{{ doc_number }}</td>
+                  <td class="meta-label">Cover Grade :</td>
+                  <td class="meta-value">{{ cover_grade if cover_grade else '&nbsp;' }}</td>
+                  <td class="meta-label">Date :</td>
+                  <td class="meta-value">{{ tds_date }}</td>
+                </tr>
+                <tr>
+                  <td class="meta-label">Customer :</td>
+                  <td class="meta-value" colspan="5">{{ customer_name if customer_name else '&nbsp;' }}</td>
+                </tr>
+                <tr>
+                  <td class="meta-label">Belt Description :</td>
+                  <td class="meta-value" colspan="5">{{ belt_description if belt_description else '&nbsp;' }}</td>
+                </tr>
+                <tr>
+                  <td class="meta-label">Standard :</td>
+                  <td class="meta-value">{{ standard_name }}</td>
+                  <td class="meta-label">{{ ref_label_no }}</td>
+                  <td class="meta-value">{{ ref_no if ref_no else '&nbsp;' }}</td>
+                  <td class="meta-label">{{ ref_label_date }}</td>
+                  <td class="meta-value">{{ ref_date if ref_date else '&nbsp;' }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr class="col-header-row">
+      <th class="col-sn">SN</th>
+      <th class="col-comp">Component &amp; Operations</th>
+      <th class="col-char">Characteristic Check</th>
+      <th class="col-class">Class</th>
+      <th class="col-type">Type of Check</th>
+      <th class="col-qm">Quantum of Check (M)</th>
+      <th class="col-qsc">Quantum of Check (S/C)</th>
+      <th class="col-ref">Reference Documents</th>
+      <th class="col-acc">Acceptance Norms</th>
+      <th class="col-fmt">Format of Records</th>
+      <th class="col-d">D</th>
+      <th class="col-agency">M</th>
+      <th class="col-agency">S</th>
+      <th class="col-agency">C</th>
+      <th class="col-remarks">Remarks</th>
+    </tr>
+  </thead>
+
+  {# ── TFOOT: legend + signature — repeats on every page (WeasyPrint) ─────────── #}
+  <tfoot>
+    <tr>
+      <td colspan="15" style="padding: 1mm 0 0 0; border: none;">
+        <table class="footer-inner">
+          <tr>
+            <td class="footer-sig-cell sig-left">
+              <div class="sig-space"></div>
+              <div class="sig-label">CUSTOMER Signature &amp; Stamp</div>
+            </td>
+            <td class="footer-legend-cell">LEGEND : D COLUMN RECORDS MARKED "&#10003;" SHALL BE ESSENTIALLY INCLUDED IN QA DOCUMENTATION.
+M : MANUFACTURER / SUB-SUPPLIER,  S : MAIN SUPPLIER,  C : CUSTOMER
+P : PERFORM,  W : WITNESS,  V : VERIFICATION AS APPROPRIATE</td>
+            <td class="footer-sig-cell sig-right">
+              <div class="sig-space"></div>
+              <div class="sig-label">Ravasco Transmission &amp; Packing Pvt Ltd.</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </tfoot>
+
+  {# ── TBODY: one <tbody> per component group so break-inside:avoid can protect
+       each group's rowspan block independently, plus one per section-heading
+       row. rowspans never cross a tbody boundary — each group's rowspan only
+       ever spans its own sub_rows, all inside its own tbody. ─────────────── #}
+  {% for section in sections %}
+
+    <tbody>
+    <tr class="section-row{% if section.code in section_break_codes %} mid-section-break{% endif %}">
+      <td colspan="15">{{ section.code }}  {{ section.name }}</td>
+    </tr>
+    </tbody>
+
+    {% for grp in section.item_groups %}
+      {# Mid-section forced page breaks — driven by mid_break_sns set in qap_service.py.
+         GP:     {'1.8', '4'} → page 1: 1.1-1.7, page 2: 1.8-1.12,
+                                page 4: 3.1-3.5,  page 5: items 4+5+notes
+         HR/FR_ISO/OR/FR_CAN: fill in MID_BREAK_SNS in qap_service.py once seeded. #}
+    <tbody class="item-group">
+      {% if grp.is_merged %}
+      <tr{% if grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
+        <td class="data-cell vcenter col-sn">{{ grp.sn }}</td>
+        <td class="data-cell merged-cell" colspan="14">{{ grp.comp }}{% if grp.first_char %} — {{ grp.first_char }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr{% if grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
+        <td class="data-cell vcenter col-sn"    rowspan="{{ grp.rowspan }}">{{ grp.sn }}</td>
+        <td class="data-cell col-comp"          rowspan="{{ grp.rowspan }}">{{ grp.comp }}</td>
+        <td class="data-cell col-char">{{ grp.first_char }}</td>
+        <td class="data-cell vcenter col-class" rowspan="{{ grp.rowspan }}">{{ grp.cls }}</td>
+        <td class="data-cell vcenter col-type">{{ grp.first_typ }}</td>
+        <td class="data-cell vcenter col-qm"    rowspan="{{ grp.rowspan }}">{{ grp.qm }}</td>
+        <td class="data-cell vcenter col-qsc"   rowspan="{{ grp.rowspan }}">{{ grp.qsc }}</td>
+        <td class="data-cell vcenter col-ref"   rowspan="{{ grp.rowspan }}">{{ grp.ref }}</td>
+        <td class="data-cell vcenter col-acc"   rowspan="{{ grp.rowspan }}">{{ grp.acc }}</td>
+        <td class="data-cell vcenter col-fmt"   rowspan="{{ grp.rowspan }}">{{ grp.fmt }}</td>
+        <td class="data-cell vcenter col-d"     rowspan="{{ grp.rowspan }}">{{ grp.d }}</td>
+        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.m }}</td>
+        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.s }}</td>
+        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.c }}</td>
+        <td class="data-cell col-remarks"       rowspan="{{ grp.rowspan }}">{{ grp.remarks }}</td>
+      </tr>
+      {% for sub in grp.sub_rows %}
+      <tr>
+        <td class="data-cell col-char">{{ sub.char }}</td>
+        <td class="data-cell vcenter col-type">{{ sub.typ }}</td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+    </tbody>
+    {% endfor %}
+
+  {% endfor %}
+
+  {# Notes (GP only) — appear after all section data #}
+  {% if notes %}
+  <tbody>
+  <tr class="notes-row">
+    <td colspan="15">{{ notes | replace('\n', '<br>') | safe }}</td>
+  </tr>
+  </tbody>
+  {% endif %}
+</table>
+
+</body>
+</html>

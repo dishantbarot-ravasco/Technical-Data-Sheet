@@ -31,7 +31,10 @@ Usage:
     python run_django.py wipe_test_tds_data --confirm                # actually delete
     python run_django.py wipe_test_tds_data --confirm --reset-sequence
 """
-from django.core.management.base import BaseCommand
+import os
+
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.core.models import TDSInput, TDSBatch, TDSSequence
@@ -50,6 +53,19 @@ class Command(BaseCommand):
         confirm = options['confirm']
         reset_sequence = options['reset_sequence']
 
+        # SECURITY: this command has no way to tell "test" rows apart from real
+        # customer TDS history -- it deletes EVERY row in both tables. Refuse to
+        # even consider running it against what looks like a production
+        # deployment (DEBUG=False) unless an operator has explicitly opted in
+        # via env var, on top of --confirm.
+        if confirm and not settings.DEBUG and not os.environ.get('TDS_ALLOW_DESTRUCTIVE_COMMANDS'):
+            raise CommandError(
+                "Refusing to run: DEBUG=False (this looks like production) and "
+                "TDS_ALLOW_DESTRUCTIVE_COMMANDS is not set. If you really intend to "
+                "wipe TDS data on this environment, set "
+                "TDS_ALLOW_DESTRUCTIVE_COMMANDS=1 in the environment and re-run."
+            )
+
         tds_count = TDSInput.objects.count()
         batch_count = TDSBatch.objects.count()
         seq = TDSSequence.objects.filter(year=0).first()
@@ -66,6 +82,20 @@ class Command(BaseCommand):
                 "these rows. Add --reset-sequence to also restart TDS numbering at 0001."
             ))
             return
+
+        if tds_count > 0 or batch_count > 0:
+            # SECURITY: typed confirmation, not just a boolean flag -- forces the
+            # operator to see and acknowledge the exact number of rows about to
+            # be permanently deleted before it happens.
+            expected = f"DELETE {tds_count + batch_count}"
+            self.stdout.write(self.style.WARNING(
+                f"\nThis will PERMANENTLY delete {tds_count} tds_inputs row(s) and "
+                f"{batch_count} tds_batches row(s). This cannot be undone."
+            ))
+            typed = input(f'Type "{expected}" to proceed: ').strip()
+            if typed != expected:
+                self.stdout.write(self.style.ERROR("Confirmation text did not match. Aborting — nothing deleted."))
+                return
 
         if tds_count == 0 and batch_count == 0:
             self.stdout.write(self.style.SUCCESS("\nNothing to delete — both tables are already empty."))

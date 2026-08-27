@@ -204,9 +204,17 @@ def send_otp_email(to_email: str, otp: str, full_name: str = "") -> None:
     text_body = f"{greeting}\n\nYour TDS System OTP: {otp}\n\nExpires in 10 minutes.\n"
 
     if not getattr(settings, 'EMAIL_HOST', ''):
-        log.warning("SMTP not configured. OTP for %s: %s", to_email, otp)
-        print(f"\n{'='*50}\nOTP for {to_email}: {otp}\n{'='*50}\n")
-        return
+        if settings.DEBUG:
+            # Dev convenience only: no SMTP configured locally, so surface the
+            # OTP in the console instead of failing every login attempt.
+            log.warning("SMTP not configured (DEBUG). OTP for %s: %s", to_email, otp)
+            print(f"\n{'='*50}\nOTP for {to_email}: {otp}\n{'='*50}\n")
+            return
+        # SECURITY: never silently degrade OTP delivery to "readable in logs"
+        # in production -- an unconfigured mailer must fail the login attempt,
+        # not hand out the code to anyone with log access.
+        log.error("SMTP not configured and DEBUG=False; refusing to send OTP for %s", to_email)
+        raise RuntimeError("Email delivery is not configured on this server.")
 
     try:
         send_mail(
@@ -220,5 +228,6 @@ def send_otp_email(to_email: str, otp: str, full_name: str = "") -> None:
         log.info("OTP email sent to %s", to_email)
     except Exception as exc:
         log.error("Failed to send OTP email to %s: %s", to_email, exc)
-        print(f"\nOTP (email failed) for {to_email}: {otp}\n")
+        if settings.DEBUG:
+            print(f"\nOTP (email failed, DEBUG) for {to_email}: {otp}\n")
         raise RuntimeError(f"Email delivery failed: {exc}") from exc

@@ -2,14 +2,12 @@
  * auth.js - Session management, authentication helpers, and UI utilities
  * for the INDUS TDS Automation App.
  *
- * IMPORTANT - the "Phase 5" plan below describes a TOTP (Google Authenticator)
- * 2FA design (see django_backend/apps/api/routers/totp_views.py) that was
- * scaffolded on the backend but never wired into apps/api/urls.py, so it is
- * NOT live. This file's actual live 2FA flow is device-trust + email OTP,
+ * 2FA flow: device-trust + email OTP (Instagram-style "new device" check),
  * implemented by login() + verifyDevice() below (backed by
- * django_backend/apps/api/routers/device_views.py). Read verifyTotp()
- * references in older comments as historical - verifyDevice() is the real
- * function to look at and edit.
+ * django_backend/apps/api/routers/device_views.py). A separate TOTP
+ * (Google Authenticator) design was scaffolded earlier but never wired up
+ * and has since been removed from the backend entirely — this file's
+ * device-trust + email-OTP flow is the only 2FA this app implements.
  *
  * What's actually true today:
  *   - login() returns an intermediate status object; on a trusted device it
@@ -32,6 +30,7 @@
  *   verifyDevice          - completes the live device-trust + email-OTP 2FA step
  *   showToast
  *   openChangePasswordModal
+ *   openAuthChangePasswordModal
  *   populateNavUser
  *
  * No imports - this module has no dependencies so it can be loaded first.
@@ -42,6 +41,17 @@ const SESSION_KEY = 'tds_session';
 
 // Backend base URL - relative so it works regardless of hostname/port.
 const API_BASE    = '/api';
+
+/**
+ * Escape a value for safe insertion into an innerHTML template string.
+ * Used by showToast() below, since toast messages are often server-supplied
+ * text (error details) rather than a fixed literal string.
+ */
+function _escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
 
 /* ══════════════════════════════════════════════════════════
    SECTION: Session Read / Write / Clear
@@ -178,8 +188,15 @@ export async function login(email, password) {
 
   // Trusted device - set session immediately so the caller can redirect
   if (data.status === 'ok') {
+    // SECURITY: TDSLoginView (auth_views.py) now sets the httpOnly tds_access
+    // cookie on this exact response, and TDSCookieJWTAuthentication already
+    // reads that cookie first on every request — so the JWT no longer needs
+    // to be duplicated into sessionStorage, which is readable by any script
+    // on the page (including via an XSS bug). We deliberately do NOT store
+    // data.access_token here anymore. getAuthHeaders() still supports a
+    // `token` field for any pre-existing session created before this change
+    // that may still be sitting in a returning user's sessionStorage.
     const session = {
-      token:     data.access_token,
       user_id:   data.user_id,
       role:      data.role,
       full_name: data.full_name || '',
@@ -224,8 +241,10 @@ export async function verifyDevice(code) {
   }
 
   const data = await res.json();
+  // SECURITY: same reasoning as login() above — device_verify (device_views.py)
+  // now sets the httpOnly tds_access cookie on this response too, so the JWT
+  // is deliberately not duplicated into sessionStorage here either.
   const session = {
-    token:     data.access_token,
     user_id:   data.user_id,
     role:      data.role,
     full_name: data.full_name || '',
@@ -252,7 +271,11 @@ export function showToast(message, type = 'info', duration = 3500) {
   const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
-  t.innerHTML = `<span>${icons[type]||'•'}</span><span>${message}</span>`;
+  // SECURITY (fixed): `message` is frequently a server error string (e.g.
+  // err.message / err.detail from a validation failure) that can echo back
+  // caller-supplied text -- escape it before inserting into innerHTML so a
+  // crafted value can't inject markup into every page that calls showToast().
+  t.innerHTML = `<span>${icons[type]||'•'}</span><span>${_escapeHtml(message)}</span>`;
   c.appendChild(t);
 
   setTimeout(() => {
@@ -483,6 +506,148 @@ export function openChangePasswordModal(prefillEmail='') {
 }
 
 /* ══════════════════════════════════════════════════════════
+   SECTION: Authenticated Change Password Modal (logged-in users)
+   Uses POST /api/auth/change-password — requires current password.
+   Does NOT trigger logout on success (session remains valid).
+══════════════════════════════════════════════════════════ */
+
+function _injectAuthChangePasswordModal() {
+  if (document.getElementById('auth-cpw-modal')) return;
+
+  const div = document.createElement('div');
+  div.innerHTML = `
+  <div id="auth-cpw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);
+       z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;width:100%;max-width:400px;
+                margin:16px;box-shadow:0 24px 64px rgba(0,0,0,.18);overflow:hidden;">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#1A2535,#2D3A50);padding:20px 24px;
+                  display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <h3 style="margin:0;font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;
+                     letter-spacing:.06em;color:#fff;">Change Password</h3>
+          <p style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.55);">
+            Enter your current password then choose a new one</p>
+        </div>
+        <button id="auth-cpw-close" style="background:none;border:none;color:rgba(255,255,255,.6);
+                font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px;">✕</button>
+      </div>
+      <!-- Form -->
+      <div style="padding:28px 24px;">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
+                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Current Password</label>
+          <div style="position:relative;">
+            <input id="auth-cpw-current" type="password" placeholder="Your current password" style="
+              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
+              font-size:13px;outline:none;box-sizing:border-box;"
+              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
+            <button type="button" id="auth-cpw-toggle-current" aria-label="Toggle visibility"
+              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
+                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">New Password</label>
+          <div style="position:relative;">
+            <input id="auth-cpw-new" type="password" placeholder="Min. 8 characters" style="
+              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
+              font-size:13px;outline:none;box-sizing:border-box;"
+              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
+            <button type="button" id="auth-cpw-toggle-new" aria-label="Toggle visibility"
+              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+          </div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
+                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Confirm New Password</label>
+          <div style="position:relative;">
+            <input id="auth-cpw-confirm" type="password" placeholder="Repeat new password" style="
+              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
+              font-size:13px;outline:none;box-sizing:border-box;"
+              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
+            <button type="button" id="auth-cpw-toggle-confirm" aria-label="Toggle visibility"
+              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
+                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+          </div>
+        </div>
+        <div id="auth-cpw-err" style="display:none;padding:10px 12px;background:#FFF5F5;
+             border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
+        <button id="auth-cpw-btn-submit" style="width:100%;padding:12px;background:#C17F0A;border:none;
+          border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
+          letter-spacing:.1em;text-transform:uppercase;color:#fff;cursor:pointer;">Update Password</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(div);
+
+  const modal  = document.getElementById('auth-cpw-modal');
+  const setErr = (msg) => { const e=document.getElementById('auth-cpw-err'); e.textContent=msg; e.style.display='block'; };
+  const clrErr = ()    => { document.getElementById('auth-cpw-err').style.display='none'; };
+
+  document.getElementById('auth-cpw-close').addEventListener('click', () => { modal.style.display='none'; });
+  modal.addEventListener('click', (e) => { if (e.target===modal) modal.style.display='none'; });
+
+  // Toggle visibility buttons
+  ['current','new','confirm'].forEach(key => {
+    const input  = document.getElementById(`auth-cpw-${key}`);
+    const toggle = document.getElementById(`auth-cpw-toggle-${key}`);
+    toggle.addEventListener('click', () => { input.type = input.type==='password' ? 'text' : 'password'; });
+  });
+
+  async function doSubmit() {
+    clrErr();
+    const currentPw = document.getElementById('auth-cpw-current').value;
+    const newPw     = document.getElementById('auth-cpw-new').value;
+    const confirmPw = document.getElementById('auth-cpw-confirm').value;
+
+    if (!currentPw)              { setErr('Please enter your current password.'); return; }
+    if (!newPw || newPw.length<8){ setErr('New password must be at least 8 characters.'); return; }
+    if (newPw !== confirmPw)     { setErr('New passwords do not match.'); return; }
+    if (newPw === currentPw)     { setErr('New password must be different from the current one.'); return; }
+
+    const btn = document.getElementById('auth-cpw-btn-submit');
+    btn.disabled=true; btn.textContent='Updating…';
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.detail || 'Failed to change password.');
+
+      modal.style.display='none';
+      showToast('Password changed successfully.', 'success', 4000);
+    } catch(err) { setErr(err.message); }
+    finally { btn.disabled=false; btn.textContent='Update Password'; }
+  }
+
+  document.getElementById('auth-cpw-btn-submit').addEventListener('click', doSubmit);
+  document.getElementById('auth-cpw-confirm').addEventListener('keydown', (e) => { if(e.key==='Enter') doSubmit(); });
+}
+
+/**
+ * Open the authenticated change-password modal (for already-logged-in users).
+ * Requires current password — calls POST /api/auth/change-password.
+ * Session stays active after success (no logout).
+ */
+export function openAuthChangePasswordModal() {
+  _injectAuthChangePasswordModal();
+  const modal = document.getElementById('auth-cpw-modal');
+  // Reset fields
+  ['auth-cpw-current','auth-cpw-new','auth-cpw-confirm'].forEach(id => {
+    document.getElementById(id).value = '';
+    document.getElementById(id).type  = 'password';
+  });
+  document.getElementById('auth-cpw-err').style.display = 'none';
+  modal.style.display = 'flex';
+  document.getElementById('auth-cpw-current').focus();
+}
+
+/* ══════════════════════════════════════════════════════════
    SECTION: Nav User Dropdown
 ══════════════════════════════════════════════════════════ */
 
@@ -547,6 +712,13 @@ function _buildDropdown(user) {
             <span style="width:20px;text-align:center;font-size:14px;">⚙️</span>
             <span>Admin Panel</span>
           </a>` : ''}
+        <button id="nav-menu-change-pw" style="width:100%;display:flex;align-items:center;
+            gap:10px;padding:9px 16px;font-size:12px;color:#2D3748;background:none;
+            border:none;cursor:pointer;text-align:left;"
+            onmouseenter="this.style.background='#F7F8FA'" onmouseleave="this.style.background='transparent'">
+          <span style="width:20px;text-align:center;font-size:14px;">🔑</span>
+          <span>Change Password</span>
+        </button>
         <button id="nav-menu-logout" style="width:100%;display:flex;align-items:center;
             gap:10px;padding:9px 16px;font-size:12px;color:#C53030;background:none;
             border:none;cursor:pointer;text-align:left;"
@@ -568,6 +740,10 @@ function _buildDropdown(user) {
 
   document.addEventListener('click', () => { menu.style.display='none'; });
 
+  wrap.querySelector('#nav-menu-change-pw').addEventListener('click', () => {
+    menu.style.display = 'none';
+    openAuthChangePasswordModal();
+  });
   wrap.querySelector('#nav-menu-logout').addEventListener('click', logout);
 
   return wrap;

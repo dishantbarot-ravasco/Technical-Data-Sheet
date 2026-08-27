@@ -110,7 +110,9 @@ def google_callback(request):
       4. Fetch user email from Google's userinfo endpoint
       5. Look up TDSUser — reject if not registered
       6. Check device trust:
-           Trusted  → build JWT, redirect to index.html?oauth_token=...
+           Trusted  → build JWT, stash it in the session, redirect to
+                      index.html?oauth_ready=1 (frontend picks it up via
+                      GET /api/auth/google/session-token/)
            New      → send OTP, store pending_user_id, redirect to ?step=device_verify
     """
     # User denied access on Google's consent screen
@@ -173,13 +175,40 @@ def google_callback(request):
 
     # ── Device trust gate ─────────────────────────────────────────────────────
     if is_trusted_device(request, user.user_id):
-        # Trusted device — issue JWT and redirect straight to home
+        # Trusted device — issue JWT
         from apps.api.auth_serializers import TDSTokenObtainPairSerializer
         refresh = TDSTokenObtainPairSerializer.get_token(user)
         access  = str(refresh.access_token)
         log.info("Google OAuth: trusted device for user_id=%s — issuing JWT", user.user_id)
-        # index.html reads oauth_token, stores it in sessionStorage, then goes to home.html
-        return HttpResponseRedirect(f'{_FRONTEND_LOGIN}?oauth_token={quote(access, safe="")}')
+        # SECURITY (fixed): the JWT used to be appended to this redirect URL as
+        # ?oauth_token=..., which lands in browser history, server/proxy access
+        # logs, and the Referer header of whatever request the frontend makes
+        # next — any of which could hand a live session token to someone who
+        # shouldn't have it. Instead we hand the token off through the
+        # server-side Django session (same mechanism already used a few lines
+        # up for PKCE/state, and below for pending_user_id): stash it here,
+        # redirect with no secret in the URL, and the frontend collects it via
+        # a one-time GET to /api/auth/google/session-token (see oauth_session_token
+        # below), which pops it from the session so it can't be replayed.
+        request.session['oauth_delivery'] = {
+            'access_token': access,
+            'user_id':      user.user_id,
+            'role':         user.role,
+            'full_name':    user.full_name or '',
+            'email':        user.email,
+        }
+        request.session.modified = True
+        request.session.save()
+
+        redirect_response = HttpResponseRedirect(f'{_FRONTEND_LOGIN}?oauth_ready=1')
+        # Also set the httpOnly tds_access cookie directly on this redirect, so
+        # cookie-based auth is already active the instant the browser lands back
+        # on index.html — the session-token pickup above is still what hands the
+        # frontend its display info (name/role/email) and a body copy of the
+        # token for non-cookie API clients.
+        from apps.services.device_service import set_access_cookie
+        set_access_cookie(redirect_response, access)
+        return redirect_response
     else:
         # New device — send OTP and redirect to device-verify step
         from apps.services.device_service import send_device_otp
@@ -194,3 +223,29 @@ def google_callback(request):
 
         log.info("Google OAuth: new device for user_id=%s — OTP sent", user.user_id)
         return HttpResponseRedirect(f'{_FRONTEND_LOGIN}?step=device_verify')
+
+
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def oauth_session_token(request):
+    """
+    GET /api/auth/google/session-token
+
+    One-time pickup for the JWT issued by a trusted-device Google OAuth login
+    (see google_callback above). The token is stashed server-side in the
+    Django session rather than being put in the redirect URL, so this endpoint
+    is how the frontend actually collects it — relies on the sessionid cookie
+    Django already set during the OAuth flow, and pops the value so it can't
+    be fetched twice.
+    """
+    data = request.session.pop('oauth_delivery', None)
+    request.session.modified = True
+    if not data:
+        return Response({'detail': 'No pending OAuth session found. Please sign in again.'}, status=400)
+    return Response(data)

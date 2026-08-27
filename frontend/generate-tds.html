@@ -606,7 +606,7 @@
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">6</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Cover Grade</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">H</td>
-                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Grade code from the selected standard (e.g. H, N17, HR, FR)</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Grade code from the selected standard (e.g. H, D, L)</td>
                   </tr>
                   <tr style="background:#fff;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">7</td>
@@ -624,7 +624,7 @@
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">9</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Type</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Flat</td>
-                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Belt type as in master data (e.g. Flat, Troughed, Chevron)</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Belt type as in master data (e.g. Flat, Chevron)</td>
                   </tr>
                   <tr style="background:#f8f9fc;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">10</td>
@@ -635,14 +635,14 @@
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">11</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOT Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">1</td>
-                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-top plies. Omit or leave blank to use default (1)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-top plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">12</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOB Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">1</td>
-                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-bottom plies. Omit or leave blank to use default (1)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-bottom plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">13</td>
@@ -657,7 +657,7 @@
                 <code style="font-family:monospace;font-size:11px;color:#7a5000;background:#FFF8E6;
                              border:1px solid #E8C060;border-radius:3px;padding:3px 8px;margin-left:6px;">
                   1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300</code>
-                <span style="color:#888;margin-left:8px;">- fields 11–14 omitted (all use defaults)</span>
+                <span style="color:#888;margin-left:8px;">- fields 11–13 omitted (all use defaults)</span>
               </div>
             </div>
           </div>
@@ -1245,6 +1245,7 @@
         + Add Belt
       </button>
       <button class="btn btn-outline btn-sm" id="btn-save-draft">Save Draft</button>
+      <button class="btn btn-outline btn-sm" id="btn-batch-save-draft" style="display:none;">Save as Draft</button>
       <button class="btn btn-primary btn-sm" id="btn-preview-pdf">
         <span id="submit-text">Generate &amp; Preview PDF</span>
       </button>
@@ -1353,10 +1354,12 @@
       document.getElementById('tds-form-wrap').style.display        = '';
       document.getElementById('form-footer-bar').style.display      = '';
 
-      ['grp-belt-type','grp-end-type','grp-belt-desc','grp-container-type'].forEach(function(id){
+      ['grp-belt-type','grp-end-type','grp-belt-desc'].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.style.display = '';
       });
+      var addBeltBtn = document.getElementById('btn-add-belt');
+      if (addBeltBtn) addBeltBtn.style.display = '';
       // TDS Doc No always visible; restore required marker for single mode
       var docEl = document.getElementById('grp-doc-number');
       if (docEl) docEl.style.display = '';
@@ -1368,6 +1371,7 @@
 
       document.getElementById('submit-text').textContent = 'Generate & Preview PDF';
       document.getElementById('btn-save-draft').style.display = '';
+      document.getElementById('btn-batch-save-draft').style.display = 'none';
       document.getElementById('footer-mode-chip').textContent = 'Draft';
       document.getElementById('sec1-sub').textContent = 'Single Belt';
       document.getElementById('belt-queue-badge').style.display = 'none';
@@ -1386,10 +1390,12 @@
       document.getElementById('tds-form-wrap').style.display        = '';
       document.getElementById('form-footer-bar').style.display      = '';
 
-      ['grp-belt-type','grp-end-type','grp-belt-desc','grp-container-type'].forEach(function(id){
+      ['grp-belt-type','grp-end-type','grp-belt-desc'].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
+      var addBeltBtn = document.getElementById('btn-add-belt');
+      if (addBeltBtn) addBeltBtn.style.display = 'none';
       // TDS Doc No stays visible in multi mode - show as optional/shared
       var docEl = document.getElementById('grp-doc-number');
       if (docEl) docEl.style.display = '';
@@ -1401,6 +1407,7 @@
 
       document.getElementById('submit-text').textContent = 'Generate Batch TDS';
       document.getElementById('btn-save-draft').style.display = 'none';
+      document.getElementById('btn-batch-save-draft').style.display = '';
       document.getElementById('footer-mode-chip').textContent = 'Batch';
       document.getElementById('sec1-sub').textContent = 'Shared Info';
 
@@ -1494,8 +1501,8 @@
         var endType  = parts[7];
         var beltType = parts[8];
         var length   = parts[9];
-        var botPlies = (parts[10] || '').trim() || '1';
-        var bobPlies = (parts[11] || '').trim() || '1';
+        var botPlies = (parts[10] || '').trim() || '0';
+        var bobPlies = (parts[11] || '').trim() || '0';
         // Optional per-belt carcass override (field 13)
         var carcassMm = (parts[12] || '').trim() || null;
 
@@ -1505,7 +1512,7 @@
         if (!rating)                               rowErrs.push('Belt Rating is required (e.g. EP 400/3)');
         if (!top    || isNaN(parseFloat(top)))     rowErrs.push('Top Cover (mm) must be a number');
         if (!bottom || isNaN(parseFloat(bottom)))  rowErrs.push('Bottom Cover (mm) must be a number');
-        if (!grade)                                rowErrs.push('Cover Grade is required (e.g. H, N17)');
+        if (!grade)                                rowErrs.push('Cover Grade is required - must be a valid grade for the selected standard (e.g. H, D, L)');
         if (!length || isNaN(parseFloat(length)))  rowErrs.push('Belt Length (m) must be a number');
         // Endless belts are a closed loop and must fit within a fixed max length
         // (same 100 m cap the single-belt form enforces and the backend now
@@ -1628,9 +1635,10 @@
           ? (document.getElementById('multi-vulcanization-method').value || null) : null,
         num_joints: splicingOn
           ? (parseInt(document.getElementById('multi-num-joints').value) || 2) : null,
-        reel_type_id:    parseInt(document.getElementById('multi-reel-type-id').value)    || null,
-        packing_type_id: parseInt(document.getElementById('multi-packing-type-id').value) || null,
-        shipping_region: (document.getElementById('shipping-region').value || null),
+        reel_type_id:     parseInt(document.getElementById('multi-reel-type-id').value)    || null,
+        packing_type_id:  parseInt(document.getElementById('multi-packing-type-id').value) || null,
+        shipping_region:  (document.getElementById('shipping-region').value || null),
+        container_type_id: parseInt(document.getElementById('container-type-id').value)   || null,
       };
 
       var customer = custId
@@ -1662,10 +1670,11 @@
     }
 
     /* ── Submit batch (text-import endpoint) ───────────────────── */
-    async function submitBatch() {
-      var navErr = document.getElementById('nav-error');
-      var errBox = document.getElementById('multi-parse-errors');
-      var btn    = document.getElementById('btn-preview-pdf');
+    async function submitBatch(draftOnly) {
+      var navErr   = document.getElementById('nav-error');
+      var errBox   = document.getElementById('multi-parse-errors');
+      var btn      = document.getElementById('btn-preview-pdf');
+      var draftBtn = document.getElementById('btn-batch-save-draft');
 
       navErr.textContent   = '';
       errBox.style.display = 'none';
@@ -1687,8 +1696,9 @@
       }
 
       btn.disabled = true;
+      if (draftOnly && draftBtn) draftBtn.disabled = true;
       var origText = document.getElementById('submit-text').textContent;
-      document.getElementById('submit-text').textContent = 'Creating…';
+      document.getElementById('submit-text').textContent = draftOnly ? 'Saving…' : 'Creating…';
 
       try {
         var result = await apiFetch('/tds/batch/text-import/', {
@@ -1699,21 +1709,69 @@
             belt_lines: payload.belt_lines,
           }),
         });
-        _showBatchSuccess(result);
+        if (draftOnly) {
+          var savedCount = (result.tds_records || []).length;
+          navErr.style.color = 'var(--green, #16a34a)';
+          navErr.textContent = '✓ ' + savedCount + ' TDS saved as draft.';
+          setTimeout(function() {
+            if (navErr.textContent.startsWith('✓')) {
+              navErr.textContent = '';
+              navErr.style.color = '';
+            }
+          }, 5000);
+        } else {
+          _showBatchSuccess(result);
+        }
       } catch(e) {
         console.error('Batch submit error:', e);
         var msg = 'Submission failed';
+        var detail = '';
         if (e && typeof e === 'object') {
-          var first = e.detail
-            || (e.belt_lines && e.belt_lines[0])
-            || (e.shared && Object.values(e.shared)[0])
-            || Object.values(e)[0];
-          if (Array.isArray(first)) first = first[0];
-          if (typeof first === 'string') msg = first;
+          // Try to extract a descriptive message from common error shapes
+          if (typeof e.detail === 'string') {
+            msg = e.detail;
+          } else if (e.belt_lines) {
+            // Belt-line-specific errors: show line number + field
+            var lineErrs = [];
+            Object.entries(e.belt_lines).forEach(function(entry) {
+              var lineIdx = entry[0], errs = entry[1];
+              var lineNum = parseInt(lineIdx) + 1;
+              if (Array.isArray(errs)) {
+                errs.forEach(function(err) {
+                  lineErrs.push('Belt ' + lineNum + ': ' + (typeof err === 'object' ? JSON.stringify(err) : err));
+                });
+              } else if (typeof errs === 'object') {
+                Object.entries(errs).forEach(function(fe) {
+                  var fieldName = fe[0].replace(/_/g,' ');
+                  var fieldErr  = Array.isArray(fe[1]) ? fe[1].join(', ') : fe[1];
+                  lineErrs.push('Belt ' + lineNum + ' — ' + fieldName + ': ' + fieldErr);
+                });
+              }
+            });
+            if (lineErrs.length) {
+              errBox.innerHTML = '<div style="font-weight:700;margin-bottom:6px;font-size:12px;">⚠ Server rejected one or more belt lines:</div>'
+                + lineErrs.map(function(le) {
+                    return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + le + '</div>';
+                  }).join('');
+              errBox.style.display = '';
+              msg = lineErrs.length + ' belt line error(s) — see details above';
+            }
+          } else if (e.shared) {
+            var sharedErrs = Object.entries(e.shared).map(function(se) {
+              return se[0].replace(/_/g,' ') + ': ' + (Array.isArray(se[1]) ? se[1].join(', ') : se[1]);
+            });
+            msg = sharedErrs.join('; ') || 'Shared field error';
+          } else {
+            var first = Object.values(e)[0];
+            if (Array.isArray(first)) first = first[0];
+            if (typeof first === 'string') msg = first;
+          }
         }
+        navErr.style.color = '';
         navErr.textContent = 'Error: ' + msg;
       } finally {
         btn.disabled = false;
+        if (draftBtn) draftBtn.disabled = false;
         document.getElementById('submit-text').textContent = origText;
       }
     }
@@ -1757,9 +1815,14 @@
       btn.disabled = true;
       btn.textContent = 'Generating…';
       try {
-        var token = localStorage.getItem('access') || sessionStorage.getItem('access') || '';
+        // Fixed: this used to read a 'access' key from localStorage/sessionStorage
+        // that is never set anywhere in the app (sessions live under the
+        // 'tds_session' key — see _getAuthHeaders() above), so the Authorization
+        // header here was always empty and the request also never sent the
+        // httpOnly auth cookie, quietly failing this download with a 401.
         var resp  = await fetch('/api/tds/batch/' + batchId + '/download-zip/', {
-          headers: token ? { Authorization: 'Bearer ' + token } : {},
+          credentials: 'same-origin',   // send the httpOnly auth cookie
+          headers: _getAuthHeaders(),   // Bearer header only for old token sessions
         });
         if (!resp.ok) {
           var err = await resp.json().catch(function(){ return {}; });
@@ -1797,7 +1860,9 @@
       document.addEventListener('click', function(e) {
         if (!isMulti()) return;
         var btn = e.target.closest('#btn-preview-pdf');
-        if (btn) { e.preventDefault(); e.stopPropagation(); submitBatch(); }
+        if (btn) { e.preventDefault(); e.stopPropagation(); submitBatch(false); return; }
+        var draftBtn = e.target.closest('#btn-batch-save-draft');
+        if (draftBtn) { e.preventDefault(); e.stopPropagation(); submitBatch(true); }
       }, true);
 
       /* Multi splicing toggle */

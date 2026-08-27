@@ -23,6 +23,8 @@ from rest_framework import status
 
 from apps.services.pdf_service import build_tds_doc_data
 from apps.services.pdf_renderer import render_tds_html, render_tds_pdf
+from apps.core.audit_log import log_tds_action, TDSAuditLog
+from apps.core.models import TDSInput
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,9 @@ def generate_pdf(request, tds_id):
         logger.debug("TDS doc built: %s", doc.tds_number)
     except Exception as exc:
         logger.error("TDS doc build FAILED for tds_id=%s: %s: %s", tds_id, type(exc).__name__, exc, exc_info=True)
-        return Response({'detail': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        # SECURITY (fixed): don't reflect the raw exception text to the client
+        # (internal paths / library details); full detail is already logged above.
+        return Response({'detail': f'TDS {tds_id} could not be found or built.'}, status=status.HTTP_404_NOT_FOUND)
 
     if fmt == 'html':
         try:
@@ -80,7 +84,7 @@ def generate_pdf(request, tds_id):
             logger.debug("HTML rendered: %d bytes for %s", len(html_str), doc.tds_number)
         except Exception as exc:
             logger.error("HTML render failed for %s: %s", doc.tds_number, exc, exc_info=True)
-            return Response({'detail': f'HTML render failed: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Failed to render the TDS document. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return HttpResponse(html_str, content_type='text/html; charset=utf-8')
 
     # PDF path
@@ -94,12 +98,18 @@ def generate_pdf(request, tds_id):
         )
     except Exception as exc:
         logger.error("PDF render failed for %s: %s", doc.tds_number, exc, exc_info=True)
-        error_html = f"<html><body><h2>PDF failed</h2><pre>{exc}</pre></body></html>"
+        # SECURITY (fixed): the exception text used to be embedded directly into
+        # this HTML response unescaped (str(exc) could in principle contain
+        # characters that alter the markup) and leaked internal error detail to
+        # the client; full detail is already logged above.
+        error_html = "<html><body><h2>PDF generation failed</h2><p>Please try again or contact support.</p></body></html>"
         return HttpResponse(error_html, content_type='text/html; charset=utf-8', status=500)
 
     filename = f"TDS-{doc.tds_number}.pdf"
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
+    tds_record = TDSInput.objects.filter(pk=tds_id).first()
+    log_tds_action(request, TDSAuditLog.ACTION_DOWNLOAD, tds=tds_record, detail=fmt)
     return response
 
 

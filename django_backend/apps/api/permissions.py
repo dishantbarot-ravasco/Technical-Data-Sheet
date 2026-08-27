@@ -32,21 +32,21 @@ class IsEditor(BasePermission):
         )
 
 
-class IsCreator(BasePermission):
+class IsCreator(IsEditor):
     """
     Allows access to users with role 'admin' or 'user'.
     Used for create_tds — viewer can search/view/download but cannot create,
     approve, decline, delete, or manage users.
+
+    MAINTAINABILITY (fixed): this used to duplicate IsEditor.has_permission
+    verbatim as a second, independent copy -- harmless today since both
+    currently gate the same role set, but a future change to one without
+    the other would silently make them drift apart. Inheriting from
+    IsEditor keeps the actual check in exactly one place while keeping the
+    two names (and their distinct `message`) for call-site clarity, per
+    the module docstring above on why they are kept as separate concepts.
     """
     message = 'Creator (admin or user) role required.'
-
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user is not None
-            and bool(getattr(user, 'is_active', False))
-            and getattr(user, 'role', None) in ('admin', 'user')
-        )
 
 
 class IsAdmin(BasePermission):

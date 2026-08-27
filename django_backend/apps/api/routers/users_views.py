@@ -20,6 +20,7 @@ import logging
 from datetime import datetime, timezone
 
 import bcrypt
+from django.db import transaction, connection
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -162,25 +163,52 @@ def change_own_password(request):
 
 # ── Bootstrap (no auth required — only works when zero users exist) ────────────
 
+# Arbitrary fixed key for the Postgres advisory lock below — any 64-bit int
+# works, it just needs to be constant and not collide with another lock use.
+_SETUP_FIRST_USER_LOCK_KEY = 727501001
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def setup_first_user(request):
     """Create the very first admin user when no users exist in the database."""
-    if TDSUser.objects.exists():
-        return Response(
-            {'detail': 'Users already exist. Use POST /api/users.'},
-            status=status.HTTP_409_CONFLICT
+    data     = request.data
+    email    = (data.get('email') or '').strip().lower()
+    password = data.get('password') or ''
+
+    if not email:
+        raise ValidationError({'detail': 'Email is required.'})
+    # SECURITY (fixed): this endpoint previously accepted any password —
+    # including empty — for the very first (admin) account, since it skipped
+    # the length/strength check that create_user() below already enforces
+    # for every other user. Apply the same rule here.
+    if not password or len(password) < 8:
+        raise ValidationError({'detail': 'Password must be at least 8 characters.'})
+
+    # SECURITY (fixed): the exists()-check-then-save() below used to run with
+    # no locking, so two concurrent POSTs made before the real admin finishes
+    # setup could both pass the "no users yet" check and both create an admin
+    # account — a first-boot admin-hijack race. A Postgres advisory lock
+    # scoped to this transaction serializes concurrent calls to this endpoint
+    # so only one can ever win, without needing a row to lock (there isn't one
+    # yet — that's exactly the case this endpoint handles).
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT pg_advisory_xact_lock(%s)', [_SETUP_FIRST_USER_LOCK_KEY])
+        if TDSUser.objects.exists():
+            return Response(
+                {'detail': 'Users already exist. Use POST /api/users.'},
+                status=status.HTTP_409_CONFLICT
+            )
+        user = TDSUser(
+            email         = email,
+            password_hash = _hash_password(password),
+            full_name     = data.get('full_name'),
+            designation   = data.get('designation'),
+            role          = 'admin',
+            is_active     = True,
         )
-    data = request.data
-    user = TDSUser(
-        email         = data.get('email', '').strip().lower(),
-        password_hash = _hash_password(data.get('password', '')),
-        full_name     = data.get('full_name'),
-        designation   = data.get('designation'),
-        role          = 'admin',
-        is_active     = True,
-    )
-    user.save()
+        user.save()
     return Response(_user_out(user), status=status.HTTP_201_CREATED)
 
 

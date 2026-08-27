@@ -351,6 +351,11 @@ class TDSInputAdmin(admin.ModelAdmin):
                       'status', 'customer', 'brand', 'standard',
                       'belt_width_mm', 'belt_length_m', 'construction_type',
                       'created_by', 'created_at')
+    # PERF (fixed): list_display references 4 FK columns (customer, brand,
+    # standard, created_by) with no list_select_related, so the admin list
+    # page issued one extra query per FK per row (N+1) — noticeable once TDS
+    # volume grows. This joins them all in the single list query instead.
+    list_select_related = ('customer', 'brand', 'standard', 'created_by')
     list_filter    = ('status', 'brand', 'standard', 'construction_type',
                       'splicing_required')
     search_fields  = ('tds_number', 'tds_doc_number', 'customer__customer_name',

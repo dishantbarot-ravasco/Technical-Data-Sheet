@@ -55,6 +55,7 @@ self.attributes without changing behaviour or improving readability.
 """
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -140,16 +141,36 @@ class TDSDocData:
 
 def _breaker_top(t: TDSInput) -> str:
     if t.breaker_top:
-        plies = f" — {t.breaker_top_plies} Ply" if t.breaker_top_plies else ""
+        plies = f", {t.breaker_top_plies} Ply" if t.breaker_top_plies else ""
         return f"Yes{plies}"
     return "No"
 
 
 def _breaker_bottom(t: TDSInput) -> str:
     if t.breaker_bottom:
-        plies = f" — {t.breaker_bottom_plies} Ply" if t.breaker_bottom_plies else ""
+        plies = f", {t.breaker_bottom_plies} Ply" if t.breaker_bottom_plies else ""
         return f"Yes{plies}"
     return "No"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Reference / test-method sanitiser
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _clean_ref(value: str | None) -> str | None:
+    """
+    Strip verbose ARPM manual citations that overflow PDF table cells.
+    "ARPM MANUAL FOR OPERATIONAL, SAFETY AND MAINTENANCE RECOMMENDATIONS, FIG. R"
+    → None (cell shows —)
+    Any other long string is returned as-is.
+    """
+    if not value:
+        return value
+    if re.search(r'manual\s+for\s+operational', value, re.IGNORECASE):
+        return None          # renders as — in the template
+    if re.search(r'\bFIG\.?\s*R\b', value, re.IGNORECASE):
+        return None
+    return value
 
 
 # NOTE: Django FK accessors use the field name defined in models.py:
@@ -161,7 +182,7 @@ _DIRECT_MAP: dict[str, callable] = {
     "Top Cover Thickness (mm)":              lambda t: str(t.top_cover_mm),
     "Bottom Cover Thickness (mm)":           lambda t: str(t.bottom_cover_mm),
     "Carcass Thickness (mm)":                lambda t: str(t.carcass_thickness_mm),
-    "Interply Skim Thickness (mm)":          lambda t: str(t.interply_skim_mm) if t.interply_skim_mm else "—",
+    "Interply Skim Thickness (mm)":          lambda t: str(t.interply_skim_mm) if t.interply_skim_mm is not None else "—",
     "Total Belt Thickness (mm)":             lambda t: str(t.total_thickness_mm),
     # Belt Construction Parameters
     "Fabric Type":                           lambda t: t.fabric_type.fabric_code if t.fabric_type else "—",
@@ -175,23 +196,23 @@ _DIRECT_MAP: dict[str, callable] = {
     # Packing and Logistics (Django field names — no _rel suffix)
     "Reel Type":                             lambda t: t.reel_type.reel_name if t.reel_type else "—",
     "Packing Type":                          lambda t: t.packing_type.packing_name if t.packing_type else "—",
-    "Number of Rolls":                       lambda t: str(t.num_rolls) if t.num_rolls else "—",
+    "Number of Rolls":                       lambda t: str(t.num_rolls) if t.num_rolls is not None else "—",
     "Rolls Dimensions (H X W)":              lambda t: t.roll_dimensions if t.roll_dimensions else "—",
-    "Total Order Net Weight (kg)":           lambda t: str(t.net_weight_kg) if t.net_weight_kg else "—",
-    "Total Order Gross Weight (kg)":         lambda t: str(t.gross_weight_kg) if t.gross_weight_kg else "—",
-    "Gross Weight per Roll (kg)":            lambda t: str(t.gross_weight_per_roll_kg) if t.gross_weight_per_roll_kg else "—",
+    "Total Order Net Weight (kg)":           lambda t: str(t.net_weight_kg) if t.net_weight_kg is not None else "—",
+    "Total Order Gross Weight (kg)":         lambda t: str(t.gross_weight_kg) if t.gross_weight_kg is not None else "—",
+    "Gross Weight per Roll (kg)":            lambda t: str(t.gross_weight_per_roll_kg) if t.gross_weight_per_roll_kg is not None else "—",
     # International logistics
     "Shipping Region":                       lambda t: t.shipping_region or "—",
     "Container Type":                        lambda t: t.container_type.name if t.container_type else "—",
     # Splicing Parameters
     "Splicing Method":                       lambda t: (t.vulcanization_method or "—").capitalize(),
-    "Number of Splice Joints":               lambda t: str(t.num_joints) if t.num_joints else "—",
-    "Step Length (mm)":                      lambda t: str(t.step_length_mm) if t.step_length_mm else "—",
-    "Splice Length (mm)":                    lambda t: f"{float(t.splice_length_mm):.2f}" if t.splice_length_mm else "—",
-    "Total Extra Belt Length for Splicing (m)": lambda t: f"{float(t.total_extra_length_m):.2f}" if t.total_extra_length_m else "—",
+    "Number of Splice Joints":               lambda t: str(t.num_joints) if t.num_joints is not None else "—",
+    "Step Length (mm)":                      lambda t: str(t.step_length_mm) if t.step_length_mm is not None else "—",
+    "Splice Length (mm)":                    lambda t: f"{float(t.splice_length_mm):.2f}" if t.splice_length_mm is not None else "—",
+    "Total Extra Belt Length for Splicing (m)": lambda t: f"{float(t.total_extra_length_m):.2f}" if t.total_extra_length_m is not None else "—",
     "Total Belt Length with Splicing (m)":   lambda t: (
         f"{float(t.belt_length_m) + float(t.total_extra_length_m):.2f}"
-        if t.total_extra_length_m else "—"
+        if t.total_extra_length_m is not None else "—"
     ),
     # Hot-splice curing — values injected by _curing_resolver; lambdas are safe fallback
     "Specific Pressure (Hot Splicing)":      lambda t: "—",
@@ -372,7 +393,7 @@ def build_tds_doc_data(
     else:
         belt_len_display = f"{belt_len_f:.2f} m"
 
-    _GI_BOLD = frozenset({"TDS Number", "Indus Brand Name"})
+    _GI_BOLD = frozenset({"TDS Number", "Indus Brand Name", "Customer Name"})
     _GI_RESOLVER: dict[str, object] = {
         # tds_doc_number is an optional full reference (e.g. "TDS-2024-0007").
         # If not set, fall back to the sequential tds_number (e.g. "0007").
@@ -387,8 +408,8 @@ def build_tds_doc_data(
         "Belt End Type":                                lambda t: t.construction_type,
         "Belt Description":                             lambda t: t.belt_description or "—",
         "Total Belt Length (with Roll Length Breakup)": lambda t: belt_len_display,
-        "Number of Rolls":                              lambda t: str(t.num_rolls) if t.num_rolls else "—",
-        "Belt Weight per Meter (kg/m)":                 lambda t: f"{float(t.belt_weight_per_m_kg):.2f} kg/m" if t.belt_weight_per_m_kg else "—",
+        "Number of Rolls":                              lambda t: str(t.num_rolls) if t.num_rolls is not None else "—",
+        "Belt Weight per Meter (kg/m)":                 lambda t: f"{float(t.belt_weight_per_m_kg):.2f} kg/m" if t.belt_weight_per_m_kg is not None else "—",
     }
 
     # GI parameters — filtered by brand and group, ordered by brand-level display_order
@@ -496,9 +517,9 @@ def build_tds_doc_data(
                 continue
 
             stm = stm_map.get(param.parameter_id)
-            section     = stm.section      if (stm and show_section)      else None
-            test_method = stm.test_method  if (stm and show_test_method)  else None
-            reference   = stm.reference    if (stm and show_reference)    else None
+            section     = stm.section                                  if (stm and show_section)      else None
+            test_method = _clean_ref(stm.test_method if stm else None) if show_test_method            else None
+            reference   = _clean_ref(stm.reference   if stm else None) if show_reference              else None
 
             # Value resolution: EAV → _curing_resolver → _DIRECT_MAP → dash
             if param.parameter_id in eav:

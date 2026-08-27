@@ -11,7 +11,7 @@ Formula (IS 14206 Part I:1995):
 
 from dataclasses import dataclass
 
-from apps.services.calculations import step_length_mm as _fallback_step, total_extra_length_m
+from apps.services.calculations import step_length_mm as _fallback_step, total_extra_length_m, round_half_up
 
 
 @dataclass(frozen=True)
@@ -94,7 +94,10 @@ def compute_splicing(
     if step is None:
         step = _fallback_step(belt_rating_kn_m, num_plies)
 
-    splice = round(0.3 * belt_width_mm + step * (num_plies - 1) + buffer)
+    # Standard round-half-up, not Python's banker's rounding — see
+    # calculations.py#round_half_up for why, and calculations.py#splice_length_mm
+    # for the equivalent formula this mirrors.
+    splice = round_half_up(0.3 * belt_width_mm + step * (num_plies - 1) + buffer)
     extra = total_extra_length_m(num_joints, splice)
 
     return SplicingResult(

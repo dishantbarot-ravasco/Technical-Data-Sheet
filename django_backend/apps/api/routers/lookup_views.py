@@ -217,23 +217,29 @@ def dimensional_specs(request):
     standard_id = params.get('standard_id')
     if not standard_id:
         raise ValidationError({'detail': 'standard_id is required.'})
-    standard_id = int(standard_id)
 
     belt_width_mm = params.get('belt_width_mm')
     if belt_width_mm is None:
         raise ValidationError({'detail': 'belt_width_mm is required.'})
 
-    # Map parameter_id → user-entered value
-    param_values = {1: float(belt_width_mm)}
-    for qkey, pid in [
-        ('top_cover_mm', 2),
-        ('bottom_cover_mm', 3),
-        ('carcass_thickness_mm', 4),
-        ('total_thickness_mm', 6),
-    ]:
-        val = params.get(qkey)
-        if val is not None:
-            param_values[pid] = float(val)
+    # SECURITY/ROBUSTNESS (fixed): these int()/float() calls used to run
+    # unguarded, so a malformed query param (e.g. standard_id=abc) crashed
+    # with an unhandled ValueError -> generic 500 instead of a clean 400.
+    try:
+        standard_id = int(standard_id)
+        # Map parameter_id → user-entered value
+        param_values = {1: float(belt_width_mm)}
+        for qkey, pid in [
+            ('top_cover_mm', 2),
+            ('bottom_cover_mm', 3),
+            ('carcass_thickness_mm', 4),
+            ('total_thickness_mm', 6),
+        ]:
+            val = params.get(qkey)
+            if val is not None:
+                param_values[pid] = float(val)
+    except (TypeError, ValueError):
+        raise ValidationError({'detail': 'standard_id and all dimensional query params must be numeric.'})
 
     # Load all dimensional spec rows for this standard, ordered for first-match correctness
     # (nulls_first on min_value ensures open lower bounds come first)

@@ -14,7 +14,7 @@
  *   getReelTypes / getPackingTypes / getCoverGrades / getFabricStyles / getBeltRatings
  *   getCustomers / createCustomer / updateCustomer
  *   tdsLookup / getDimensionalSpecs
- *   listTDS / getTDS / createTDS / approveTDS / declineTDS / deleteTDS
+ *   listTDS / getTDS / createTDS / createBatch / approveTDS / declineTDS / deleteTDS
  *   getParameters
  *   listUsers / createUser / updateUser
  *   requestOTP / verifyOTP / changePassword
@@ -263,6 +263,20 @@ export const getTDS = (id) => apiFetch(`/tds/${id}`);
  */
 export const createTDS = (payload) =>
   apiFetch('/tds', { method: 'POST', body: JSON.stringify(payload) });
+
+/**
+ * Create a TDSBatch with N belt records atomically.
+ * Used by the belt-queue multi-belt flow in generate-tds.js.
+ *
+ * Endpoint: POST /api/tds/batch/
+ * Payload shape (see batch_views.py create_batch docstring):
+ *   { shared: {...}, customer: { customer_id }, belts: [{...}, ...] }
+ *
+ * @param {Object} payload - Batch creation payload
+ * @returns {Promise<Object>} { batch, tds_records, count }
+ */
+export const createBatch = (payload) =>
+  apiFetch('/tds/batch/', { method: 'POST', body: JSON.stringify(payload) });
 
 /**
  * Approve a TDS record, recording who approved it and when.

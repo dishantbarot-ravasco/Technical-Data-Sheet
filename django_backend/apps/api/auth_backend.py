@@ -81,10 +81,17 @@ class TDSUserBackend:
             _dummy_verify()
             return None
 
+        # SECURITY (fixed): this used to return immediately for an inactive
+        # user without running _verify_password/_dummy_verify, which meant an
+        # inactive account's login attempt returned faster than a wrong-password
+        # attempt on an active account — a timing side-channel that partially
+        # defeats the account-enumeration protection _dummy_verify() exists to
+        # provide. Always do the bcrypt work first, then check is_active.
+        password_ok = _verify_password(password, user.password_hash)
+
         if not user.is_active:
             return None
-
-        if not _verify_password(password, user.password_hash):
+        if not password_ok:
             return None
 
         return user

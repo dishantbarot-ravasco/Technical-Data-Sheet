@@ -24,5 +24,6 @@ urlpatterns = [
     path('packing-types',                               v.list_packing_types,  name='packing-types'),
     path('container-types',                             v.list_container_types, name='container-types'),
     path('shipping-constraints',                        v.shipping_constraints, name='shipping-constraints'),
+    path('splicing-config',                             v.get_splicing_config, name='splicing-config'),
     path('parameters',                                  v.list_parameters,     name='parameters'),
 ]
