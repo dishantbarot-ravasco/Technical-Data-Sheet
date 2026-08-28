@@ -209,6 +209,17 @@ export const getBeltRatings = (fabricTypeId) =>
 export const getCustomers = () => apiFetch('/customers');
 
 /**
+ * Search customers by name on the server (used by the TDS form autocomplete).
+ * Unlike getCustomers(), this isn't limited to the first 100 alphabetically -
+ * it queries the full table with an icontains match on customer_name.
+ * @param {string} query - Search text (matched anywhere in the customer name)
+ * @param {number} [limit=20] - Max results to return
+ * @returns {Promise<Array>}
+ */
+export const searchCustomers = (query, limit = 20) =>
+  apiFetch(`/customers?search=${encodeURIComponent(query)}&limit=${limit}`);
+
+/**
  * Create a new customer record in the database.
  * @param {Object} payload - { customer_name, contact_person, application, plant_location }
  * @returns {Promise<Object>} The newly created customer, including its customer_id
@@ -322,6 +333,18 @@ export const updateTDS = (id, payload) =>
  */
 export const createBatch = (payload) =>
   apiFetch('/tds/batch/', { method: 'POST', body: JSON.stringify(payload) });
+
+/**
+ * Fetch an existing TDSBatch with a summary of every linked TDS record.
+ * Used by generate-tds.html to re-render the batch-created success panel
+ * when returning to it (e.g. the batch preview page's "Back" link) instead
+ * of only being able to show it right after creation.
+ *
+ * Endpoint: GET /api/tds/batch/{id}/
+ * @param {number} batchId
+ * @returns {Promise<Object>} { batch, customer_name, tds_records, count }
+ */
+export const getBatch = (batchId) => apiFetch(`/tds/batch/${batchId}/`);
 
 /**
  * Approve a TDS record, recording who approved it and when.

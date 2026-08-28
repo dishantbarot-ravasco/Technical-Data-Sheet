@@ -780,8 +780,8 @@
                 <div>
                   <label class="flbl" for="multi-num-joints">No. of Joints</label>
                   <input type="number" id="multi-num-joints" class="finp"
-                         min="1" max="50" step="1" value="2" placeholder="2" />
-                  <div class="form-hint" style="margin-top:3px;">Default 2 · shared across batch</div>
+                         min="1" max="50" step="1" value="1" placeholder="1" />
+                  <div class="form-hint" style="margin-top:3px;">Default 1 (typical 1 joint per roll) · shared across batch</div>
                 </div>
               </div>
             </div>
@@ -1224,10 +1224,50 @@
           <tbody id="bs-records-tbody"></tbody>
         </table>
 
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <!-- Copy type + per-section include, same semantics/defaults as
+             tds-multi-preview.html's action bar - applies to Print All and
+             the ZIP/Merged downloads below, not to the saved records. -->
+        <div class="copy-type-toggle" title="What level of detail to include in generated PDFs"
+             style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;
+                    color:var(--text-muted);background:var(--bg-section);
+                    border:1px solid var(--border);border-radius:6px;padding:6px 12px;margin-top:16px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">
+            <input type="radio" name="bs-copy-type" value="customer" checked /> Customer Copy
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">
+            <input type="radio" name="bs-copy-type" value="internal" /> Internal Copy
+          </label>
+          <span style="border-left:1px solid var(--border);height:14px;margin:0 2px;"></span>
+          <span style="font-size:10px;opacity:.65;white-space:nowrap;">Include:</span>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Fabric Parameters section in PDF">
+            <input type="checkbox" class="bs-section-include-cb" data-group="Fabric Parameters" />
+            Fabric
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Sampling and Testing section in PDF">
+            <input type="checkbox" class="bs-section-include-cb" data-group="Sampling and Testing" />
+            Testing
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Packing and Logistics section in PDF">
+            <input type="checkbox" class="bs-section-include-cb" data-group="Packing and Logistics" />
+            Packing
+          </label>
+          <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
+                 title="Include Splicing Parameters section in PDF">
+            <input type="checkbox" class="bs-section-include-cb" data-group="Splicing Parameters" />
+            Splicing
+          </label>
+        </div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
           <a id="bs-preview-link" href="#" class="btn btn-outline btn-sm">
             👁 Preview Batch
           </a>
+          <button id="bs-print-merged" class="btn btn-outline btn-sm">🖨 Print All (Merged)</button>
+          <button id="bs-download-merged" class="btn btn-outline btn-sm">⬇ Download Merged PDF</button>
+          <button id="bs-print-separate" class="btn btn-outline btn-sm">🖨 Print All (Separate Tabs)</button>
           <button id="bs-zip-btn" class="btn btn-outline btn-sm"
                   style="background:var(--gold-pale);border-color:var(--gold-border);color:var(--navy);font-weight:700;">
             ⬇ Download All PDFs (ZIP)
@@ -1238,6 +1278,39 @@
         </div>
       </div>
     </div><!-- /#batch-success-panel -->
+
+    <!-- QAP Reference popup - shared by the ZIP and Merged downloads above,
+         same PO/Enquiry fields as tds-multi-preview.html's modal. -->
+    <div class="modal-backdrop" id="bs-ref-modal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>QAP Reference Details</h3>
+          <button class="modal-close" id="bs-ref-close">&#10005;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:11px;color:var(--text-muted);margin-bottom:14px;">
+            Applies to every QAP PDF included in this download.
+          </p>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label><input type="radio" name="bs-ref-doc-type" value="PO" checked /> Purchase Order (PO)</label>
+            &nbsp;&nbsp;
+            <label><input type="radio" name="bs-ref-doc-type" value="ENQUIRY" /> Enquiry</label>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label id="bs-ref-no-label" for="bs-ref-no">PO No</label>
+            <input type="text" id="bs-ref-no" class="form-control" placeholder="Enter PO No" />
+          </div>
+          <div class="form-group">
+            <label id="bs-ref-date-label" for="bs-ref-date">PO Date</label>
+            <input type="date" id="bs-ref-date" class="form-control" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-outline btn-sm" id="bs-ref-cancel">Cancel</button>
+          <button class="btn btn-sm" id="bs-ref-confirm">Continue</button>
+        </div>
+      </div>
+    </div>
 
   </div><!-- .page-wrap -->
 
@@ -1266,7 +1339,7 @@
   </div>
 
   <!-- Existing single-belt JS module (unchanged) -->
-  <script type="module" src="./js/generate-tds.js?v=7"></script>
+  <script type="module" src="./js/generate-tds.js?v=8"></script>
 
   <!-- ════════════════════════════════════════════════════════════
        MULTI-BELT MODULE  (self-contained, no ES-module dependencies)
@@ -1305,8 +1378,11 @@
       _refreshBadge                 - updates the "N belts" counter badge
       _collect/_validateShared      - gather + validate the shared config
                                        before submission
-      _showBatchSuccess/_downloadZip- post-submit UI + the "download all as
-                                       ZIP" action (GET /api/tds/batch/{id}/download-zip/)
+      _showBatchSuccess             - post-submit UI: renders the batch table
+                                       and wires the Copy Type/Include toolbar
+                                       (Print All Merged/Separate, Download
+                                       Merged, Download ZIP) against the
+                                       batch's own /api/tds/batch/{id}/* endpoints
   -->
   <script>
   (function () {
@@ -1658,7 +1734,7 @@
         vulcanization_method: splicingOn
           ? (document.getElementById('multi-vulcanization-method').value || null) : null,
         num_joints: splicingOn
-          ? (parseInt(document.getElementById('multi-num-joints').value) || 2) : null,
+          ? (parseInt(document.getElementById('multi-num-joints').value) || 1) : null,
         reel_type_id:     parseInt(document.getElementById('multi-reel-type-id').value)    || null,
         packing_type_id:  parseInt(document.getElementById('multi-packing-type-id').value) || null,
         shipping_region:  (document.getElementById('shipping-region').value || null),
@@ -1801,6 +1877,23 @@
     }
 
     /* ── Show batch success panel ───────────────────────────────── */
+    var _bsBatchId            = null;
+    var _bsRecords            = [];
+    var _bsCustomerName       = '';
+    var _bsSplicingRequired   = false;
+
+    /* Same manual auto-download tds-multi-preview.html triggers alongside
+       any ZIP/Merged download when the batch has splicing_required = true. */
+    function _bsDownloadSplicingManual() {
+      var a = document.createElement('a');
+      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
+      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
     function _showBatchSuccess(result) {
       document.getElementById('tds-form-wrap').style.display  = 'none';
       document.getElementById('form-footer-bar').style.display = 'none';
@@ -1809,6 +1902,11 @@
       var batch   = result.batch       || {};
       var records = result.tds_records || [];
       var batchId = batch.batch_id;
+
+      _bsBatchId          = batchId;
+      _bsRecords          = records;
+      _bsCustomerName     = result.customer_name || '';
+      _bsSplicingRequired = !!batch.splicing_required;
 
       document.getElementById('bs-batch-id').textContent = '#' + (batchId || '-');
       document.getElementById('bs-count').textContent    = result.count || records.length;
@@ -1828,46 +1926,246 @@
 
       if (batchId) {
         document.getElementById('bs-preview-link').href = 'tds-multi-preview.html?batch_id=' + batchId;
-        document.getElementById('bs-zip-btn').onclick = function() { _downloadZip(batchId); };
       }
     }
 
-    /* ── Authenticated ZIP download ────────────────────────────── */
-    async function _downloadZip(batchId) {
-      var btn  = document.getElementById('bs-zip-btn');
+    /* ── Copy type / per-section inclusion (same semantics as
+       tds-multi-preview.html's action bar - unchecked = excluded from PDF,
+       the coarse radio just bulk-sets all four checkboxes). ───────── */
+    function _bsGetExcludeGroups() {
+      return [].slice.call(document.querySelectorAll('.bs-section-include-cb'))
+        .filter(function(cb) { return !cb.checked; })
+        .map(function(cb) { return cb.dataset.group; });
+    }
+    function _bsBuildExcludeQS() {
+      var groups = _bsGetExcludeGroups();
+      if (!groups.length) return '?copy=internal';
+      var qs = new URLSearchParams();
+      groups.forEach(function(g) { qs.append('exclude_groups', g); });
+      return '?' + qs.toString();
+    }
+    document.querySelectorAll('input[name="bs-copy-type"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        var isInternal = this.value === 'internal';
+        document.querySelectorAll('.bs-section-include-cb').forEach(function(cb) {
+          cb.checked = isInternal;
+        });
+      });
+    });
+
+    /* ── QAP Reference popup - shared by ZIP + Merged downloads ───── */
+    var _bsOpenRefModal;
+    (function setupBsRefModal() {
+      var modal = document.getElementById('bs-ref-modal');
+      var pendingCallback = null;
+
+      function updateLabels() {
+        var isEnquiry = document.querySelector('input[name="bs-ref-doc-type"]:checked').value === 'ENQUIRY';
+        document.getElementById('bs-ref-no-label').textContent   = isEnquiry ? 'Enquiry No'   : 'PO No';
+        document.getElementById('bs-ref-date-label').textContent = isEnquiry ? 'Enquiry Date' : 'PO Date';
+        document.getElementById('bs-ref-no').placeholder = isEnquiry ? 'Enter Enquiry No' : 'Enter PO No';
+      }
+      document.querySelectorAll('input[name="bs-ref-doc-type"]').forEach(function(r) {
+        r.addEventListener('change', updateLabels);
+      });
+
+      function close() { modal.classList.remove('open'); pendingCallback = null; }
+      document.getElementById('bs-ref-close').addEventListener('click', close);
+      document.getElementById('bs-ref-cancel').addEventListener('click', close);
+
+      document.getElementById('bs-ref-confirm').addEventListener('click', function() {
+        var docType = document.querySelector('input[name="bs-ref-doc-type"]:checked').value || 'PO';
+        var refNo   = document.getElementById('bs-ref-no').value.trim();
+        var refDate = document.getElementById('bs-ref-date').value;
+        var cb = pendingCallback;
+        close();
+        if (cb) cb({ docType: docType, refNo: refNo, refDate: refDate });
+      });
+
+      _bsOpenRefModal = function(callback) {
+        pendingCallback = callback;
+        updateLabels();
+        modal.classList.add('open');
+      };
+    })();
+
+    /* Reads the ZIP's real filename straight off the server response instead
+       of reconstructing it client-side - the source of the "batch number
+       instead of customer name" mismatch this page used to have (it used to
+       hardcode 'TDS_Batch_<id>.zip' while the server actually names the file
+       after the customer). Falls back to fallback only if the header is
+       somehow missing. */
+    function _bsFilenameFromResponse(resp, fallback) {
+      var cd = resp.headers.get('Content-Disposition') || '';
+      var m  = /filename="?([^";]+)"?/i.exec(cd);
+      return m ? m[1] : fallback;
+    }
+
+    function _bsSaveBlob(blob, filename) {
+      var url = URL.createObjectURL(blob);
+      var a   = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /* ── Authenticated ZIP download (Download All PDFs) ──────────── */
+    document.getElementById('bs-zip-btn').addEventListener('click', function() {
+      _bsOpenRefModal(async function(ref) {
+        var btn  = document.getElementById('bs-zip-btn');
+        var orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating…';
+        try {
+          var qs = new URLSearchParams(_bsBuildExcludeQS().slice(1));
+          qs.set('doc_type', ref.docType);
+          qs.set('ref_no',   ref.refNo);
+          qs.set('ref_date', ref.refDate);
+          var resp = await fetch('/api/tds/batch/' + _bsBatchId + '/download-zip/?' + qs.toString(), {
+            credentials: 'same-origin',
+            headers: _getAuthHeaders(),
+          });
+          if (!resp.ok) {
+            var err = await resp.json().catch(function(){ return {}; });
+            alert('Download failed: ' + (err.detail || resp.statusText));
+            return;
+          }
+          var blob = await resp.blob();
+          _bsSaveBlob(blob, _bsFilenameFromResponse(resp, 'Batch_' + _bsBatchId + '.zip'));
+          if (_bsSplicingRequired) _bsDownloadSplicingManual();
+        } catch (e) {
+          alert('Download error: ' + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = orig;
+        }
+      });
+    });
+
+    /* ── Download Merged PDF (one PDF + per-belt QAP, zipped) ────── */
+    document.getElementById('bs-download-merged').addEventListener('click', function() {
+      _bsOpenRefModal(async function(ref) {
+        var btn  = document.getElementById('bs-download-merged');
+        var orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Generating…';
+        try {
+          var qs = new URLSearchParams(_bsBuildExcludeQS().slice(1));
+          qs.set('doc_type', ref.docType);
+          qs.set('ref_no',   ref.refNo);
+          qs.set('ref_date', ref.refDate);
+          var resp = await fetch('/api/tds/batch/' + _bsBatchId + '/download-merged-zip/?' + qs.toString(), {
+            credentials: 'same-origin',
+            headers: _getAuthHeaders(),
+          });
+          if (!resp.ok) {
+            var err = await resp.json().catch(function(){ return {}; });
+            alert('Download failed: ' + (err.detail || resp.statusText));
+            return;
+          }
+          var blob = await resp.blob();
+          _bsSaveBlob(blob, _bsFilenameFromResponse(resp, 'Batch_' + _bsBatchId + '_Merged.zip'));
+          if (_bsSplicingRequired) _bsDownloadSplicingManual();
+        } catch (e) {
+          alert('Download error: ' + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = orig;
+        }
+      });
+    });
+
+    /* ── Print All (Merged) - opens tab immediately, navigates once ready ── */
+    document.getElementById('bs-print-merged').addEventListener('click', async function() {
+      var btn  = this;
       var orig = btn.textContent;
+      var win  = window.open('', '_blank');
+      if (!win) { alert('Allow pop-ups to print.'); return; }
       btn.disabled = true;
-      btn.textContent = 'Generating…';
+      btn.textContent = 'Preparing…';
       try {
-        // Fixed: this used to read a 'access' key from localStorage/sessionStorage
-        // that is never set anywhere in the app (sessions live under the
-        // 'tds_session' key — see _getAuthHeaders() above), so the Authorization
-        // header here was always empty and the request also never sent the
-        // httpOnly auth cookie, quietly failing this download with a 401.
-        var resp  = await fetch('/api/tds/batch/' + batchId + '/download-zip/', {
-          credentials: 'same-origin',   // send the httpOnly auth cookie
-          headers: _getAuthHeaders(),   // Bearer header only for old token sessions
+        var resp = await fetch('/api/tds/batch/' + _bsBatchId + '/print-all/' + _bsBuildExcludeQS(), {
+          credentials: 'same-origin',
+          headers: _getAuthHeaders(),
         });
         if (!resp.ok) {
           var err = await resp.json().catch(function(){ return {}; });
-          alert('Download failed: ' + (err.detail || resp.statusText));
+          win.close();
+          alert('Print All failed: ' + (err.detail || resp.statusText));
           return;
         }
         var blob = await resp.blob();
-        var url  = URL.createObjectURL(blob);
-        var a    = document.createElement('a');
-        a.href = url;  a.download = 'TDS_Batch_' + batchId + '.zip';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } catch(e) {
-        alert('Download error: ' + e.message);
+        win.location.href = URL.createObjectURL(blob) + '#toolbar=1';
+      } catch (e) {
+        win.close();
+        alert('Print All error: ' + e.message);
       } finally {
-        btn.disabled  = false;
+        btn.disabled = false;
         btn.textContent = orig;
       }
-    }
+    });
+
+    /* ── Print All (Separate Tabs) - one PDF per belt ────────────── */
+    document.getElementById('bs-print-separate').addEventListener('click', function() {
+      if (!_bsRecords.length) return;
+      if (_bsRecords.length > 6 &&
+          !confirm('This opens ' + _bsRecords.length + ' separate tabs, one per belt. Continue?')) {
+        return;
+      }
+      var authHdrs = _getAuthHeaders();
+      var exclude  = _bsBuildExcludeQS();
+      _bsRecords.forEach(function(r) {
+        var win = window.open('', '_blank');
+        if (!win) return; // this tab was blocked - the rest may still succeed
+        fetch('/api/tds/' + r.tds_id + '/pdf' + exclude, { credentials: 'same-origin', headers: authHdrs })
+          .then(function(resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.blob();
+          })
+          .then(function(blob) {
+            win.location.href = URL.createObjectURL(blob) + '#toolbar=1';
+          })
+          .catch(function(err) {
+            win.close();
+            console.error('Print All (separate): tds_id=' + r.tds_id + ' failed: ' + err.message);
+          });
+      });
+    });
+
+    /* ── ?view_batch=<id>: re-open an existing batch's success panel ─────
+       Reached from tds-multi-preview.html's "← Back to Generator" link, so
+       backing out of the preview returns here instead of a blank form -
+       previously that link always went to a plain generate-tds.html with no
+       way back to the batch just created. Fetches the same batch summary
+       shape create_batch/text_import_batch return and feeds it straight into
+       _showBatchSuccess(), so this page's full download toolbar works
+       exactly as it does right after creation. */
+    (async function _maybeShowExistingBatch() {
+      var viewBatchId = new URLSearchParams(window.location.search).get('view_batch');
+      if (!viewBatchId) return;
+      try {
+        var resp = await fetch('/api/tds/batch/' + viewBatchId + '/', {
+          credentials: 'same-origin',
+          headers: _getAuthHeaders(),
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var result = await resp.json();
+        // Not wrapped in a DOMContentLoaded listener: this script tag runs
+        // after the static markup (including #batch-success-panel) has
+        // already been parsed, and the fetch above is async - by the time it
+        // resolves, DOMContentLoaded has very likely already fired, so a
+        // listener registered here would silently never run.
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function() { _showBatchSuccess(result); });
+        } else {
+          _showBatchSuccess(result);
+        }
+      } catch (e) {
+        console.error('Could not reload batch #' + viewBatchId + ': ' + e.message);
+      }
+    })();
 
     /* ── Wire up all events on DOMContentLoaded ─────────────────── */
     document.addEventListener('DOMContentLoaded', function() {

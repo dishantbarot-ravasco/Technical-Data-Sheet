@@ -238,7 +238,18 @@
     // client-side (there is no dedicated /api/dashboard endpoint).
     async function loadData() {
       try {
-        const allTds = await listTDS();
+        // GET /api/tds/ defaults to 50 most-recent rows; page through with
+        // offset (server caps limit at 200/request) so the dashboard counts
+        // reflect every record instead of silently truncating at 50.
+        const PAGE_SIZE = 200;
+        let offset = 0;
+        let allTds = [];
+        for (;;) {
+          const batch = await listTDS({ limit: PAGE_SIZE, offset });
+          allTds = allTds.concat(batch);
+          if (batch.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
+        }
         const now    = new Date();
         const weekAgo = new Date(now - 7 * 86400000);
         const monthStr = now.toLocaleString('default',{month:'long',year:'numeric'});

@@ -9,10 +9,11 @@ Usage:
     python run_django.py seed_qap_templates --file /path/to/SAMPLE_QAP.xlsx --replace
     python run_django.py seed_qap_templates --file /path/to/SAMPLE_QAP.xlsx --dry-run
 
-Sheet → Template mapping (OR and FR CAN skipped — data not yet in DB):
-    'M24 N17 SAR '       → GP     General Purpose
-    'FR ISO'             → FR_ISO Fire Resistant (ISO)
-    'HRT1,T2,UHR,SUHR'  → HR     Heat Resistant
+Sheet → Template mapping (OR and FR CAN CSA skipped — factory data not
+received yet, so those two categories stay unseeded until it arrives):
+    'cover grades for indus brute' → GP     General Purpose
+    'FR grade except CAN CSA'      → FR_ISO Fire Resistant (ISO)
+    'HR cover grades'              → HR     Heat Resistant
 
 Column layout (fixed, confirmed from actual file):
     0  SN                 5  Quantum M      10  D* (skip)
@@ -32,9 +33,9 @@ except ImportError:
 
 # ─── Sheet → template config ──────────────────────────────────────────────────
 SHEET_MAP = {
-    'M24 N17 SAR ':      {'category': 'GP',     'display_name': 'General Purpose'},
-    'FR ISO':            {'category': 'FR_ISO', 'display_name': 'Fire Resistant (ISO)'},
-    'HRT1,T2,UHR,SUHR': {'category': 'HR',     'display_name': 'Heat Resistant'},
+    'cover grades for indus brute': {'category': 'GP',     'display_name': 'General Purpose'},
+    'FR grade except CAN CSA':      {'category': 'FR_ISO', 'display_name': 'Fire Resistant (ISO)'},
+    'HR cover grades':              {'category': 'HR',     'display_name': 'Heat Resistant'},
 }
 
 # Rows to skip — these are page-break signature lines or legal notes
@@ -66,14 +67,40 @@ def _agency(row):
     return ' / '.join(parts) if parts else ''
 
 
+def _row_fields(row):
+    """
+    Every column of ONE physical spreadsheet row, exactly as it appears -
+    blank cells stay '' (they mean "merged with the row above" once this
+    becomes a QAPItemSubRow; see that model's docstring for why this matters).
+    """
+    return {
+        'characteristic':    _val(row, 2),
+        'check_class':       _val(row, 3),
+        'type_of_check':     _val(row, 4),
+        'quantum_m':         _val(row, 5),
+        'quantum_sc':        _val(row, 6),
+        'reference_docs':    _val(row, 7),
+        'acceptance_norms':  _val(row, 8),
+        'format_of_records': _val(row, 9),
+        'agency':            _agency(row),
+        'remarks':           _val(row, 14),
+    }
+
+
 def _parse_sheet(ws):
     """
     Parse one worksheet into a flat list of dicts:
         {'type': 'section', 'code': '1.0', 'name': 'RAW MATERIAL', 'sort': N}
-        {'type': 'item', 'section_code': '1.0', 'sn': '1.1', 'component': ..., ...}
+        {'type': 'item', 'section_code': '1.0', 'sn': '1.1', 'component': ...,
+         ...row 0's fields..., 'sub_rows': [ {...row 1's fields...}, {...row 2...}, ... ]}
 
     Sub-characteristic rows (empty SN, sub-letter checks like "b) Ash Content")
-    are merged into the previous item's 'characteristic' field as newline-separated text.
+    become entries in the parent item's 'sub_rows' list, each keeping its OWN
+    class/type/quantum/reference/acceptance/agency exactly as that row had it
+    (blank where the row was blank) - these are NOT merged into one string
+    anymore, since several items (e.g. "1.1 Raw Rubber", "3.5 Cover Rubber
+    Properties") have sub-rows that genuinely differ from the first row in
+    Type of Check, Quantum, Reference Documents, or Acceptance Norms.
     """
     all_rows = list(ws.iter_rows())
 
@@ -153,32 +180,24 @@ def _parse_sheet(ws):
                 'section_code':      current_sec,
                 'sn':                sn_raw,
                 'component':         _val(row, 1),
-                'characteristic':    _val(row, 2),
-                'check_class':       _val(row, 3),
-                'type_of_check':     _val(row, 4),
-                'quantum_m':         _val(row, 5),
-                'quantum_sc':        _val(row, 6),
-                'reference_docs':    _val(row, 7),
-                'acceptance_norms':  _val(row, 8),
-                'format_of_records': _val(row, 9),
-                'agency':            _agency(row),
-                'remarks':           _val(row, 14),
                 'is_static':         is_static,
                 'sort':              sort_counter,
+                'sub_rows':          [],
+                **_row_fields(row),
             }
             last_item_idx = len(results)
             results.append(item)
             continue
 
         # ── Sub-characteristic row (empty SN, "b) Ash Content" style) ────────
+        # Kept as its own row (with its own class/type/quantum/reference/
+        # acceptance/agency, blank where the source cell was blank) instead of
+        # merging just the characteristic text into the parent - see
+        # QAPItemSubRow's docstring for why several items need this.
         if not sn_raw and _val(row, 2) and last_item_idx is not None:
-            sub_char = _val(row, 2)
             prev = results[last_item_idx]
             if prev['type'] == 'item':
-                if prev['characteristic']:
-                    prev['characteristic'] += '\n' + sub_char
-                else:
-                    prev['characteristic'] = sub_char
+                prev['sub_rows'].append(_row_fields(row))
             continue
 
         # Anything else — skip
@@ -197,7 +216,7 @@ class Command(BaseCommand):
         if openpyxl is None:
             raise CommandError('openpyxl is not installed. Run: pip install openpyxl')
 
-        from apps.core.models import QAPTemplate, QAPSection, QAPItem
+        from apps.core.models import QAPTemplate, QAPSection, QAPItem, QAPItemSubRow
 
         file_path = options['file']
         replace   = options['replace']
@@ -213,12 +232,18 @@ class Command(BaseCommand):
         self.stdout.write(f'Opened: {file_path}')
         self.stdout.write(f'Available sheets: {wb.sheetnames}')
 
+        # NOTE: --replace no longer deletes the QAPTemplate rows themselves -
+        # only wipes their sections (which cascades to items/sub-rows). This
+        # keeps each category's template PK stable across a re-seed, so any
+        # QAPRecord already pointing at it (generated_at/doc_number history
+        # for a previously-downloaded QAP) doesn't get its FK nulled out by
+        # QAPRecord.template's on_delete=SET_NULL.
         if replace and not dry_run:
             cats = [v['category'] for v in SHEET_MAP.values()]
-            deleted = QAPTemplate.objects.filter(category__in=cats).delete()
-            self.stdout.write(self.style.WARNING(f'Wiped existing QAP data: {deleted}'))
+            deleted = QAPSection.objects.filter(template__category__in=cats).delete()
+            self.stdout.write(self.style.WARNING(f'Wiped existing QAP sections/items: {deleted}'))
 
-        totals = {'templates': 0, 'sections': 0, 'items': 0}
+        totals = {'templates': 0, 'sections': 0, 'items': 0, 'sub_rows': 0}
 
         for sheet_name, cfg in SHEET_MAP.items():
             category, display_name = cfg['category'], cfg['display_name']
@@ -228,12 +253,13 @@ class Command(BaseCommand):
                     f'  Sheet "{sheet_name}" not found — skipping {category}'))
                 continue
 
-            if not replace and QAPTemplate.objects.filter(category=category).exists():
+            existing_template = QAPTemplate.objects.filter(category=category).first()
+            if existing_template and existing_template.sections.exists() and not replace:
                 self.stdout.write(
                     f'  {category}: already seeded — skipping (use --replace to overwrite)')
                 continue
 
-            self.stdout.write(f'\n  Parsing sheet: "{sheet_name}" → {category}')
+            self.stdout.write(f'\n  Parsing sheet: "{sheet_name}" -> {category}')
             ws   = wb[sheet_name]
             rows = _parse_sheet(ws)
 
@@ -248,12 +274,12 @@ class Command(BaseCommand):
                     self.stdout.write(f'      ... ({len(rows) - 20} more rows)')
                 continue
 
-            template = QAPTemplate.objects.create(
+            template, created = QAPTemplate.objects.get_or_create(
                 category=category,
-                display_name=display_name,
-                is_active=True,
+                defaults={'display_name': display_name, 'is_active': True},
             )
-            totals['templates'] += 1
+            if created:
+                totals['templates'] += 1
 
             section_objs = {}
             for sec in sections:
@@ -272,7 +298,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.WARNING(
                         f'    Orphan item {item["sn"]} (section {item["section_code"]}) — skipping'))
                     continue
-                QAPItem.objects.create(
+                item_obj = QAPItem.objects.create(
                     section=sec_obj,
                     sn=item['sn'],
                     component=item['component'],
@@ -291,8 +317,26 @@ class Command(BaseCommand):
                 )
                 totals['items'] += 1
 
+                for i, sub in enumerate(item['sub_rows'], start=1):
+                    QAPItemSubRow.objects.create(
+                        item=item_obj,
+                        characteristic=sub['characteristic'],
+                        check_class=sub['check_class'],
+                        type_of_check=sub['type_of_check'],
+                        quantum_m=sub['quantum_m'],
+                        quantum_sc=sub['quantum_sc'],
+                        reference_docs=sub['reference_docs'],
+                        acceptance_norms=sub['acceptance_norms'],
+                        format_of_records=sub['format_of_records'],
+                        agency=sub['agency'],
+                        remarks=sub['remarks'],
+                        sort_order=i,
+                    )
+                    totals['sub_rows'] += 1
+
             self.stdout.write(self.style.SUCCESS(
-                f'    Created "{display_name}" — {len(sections)} sections, {len(items)} items'))
+                f'    Created "{display_name}" — {len(sections)} sections, {len(items)} items, '
+                f'{sum(len(it["sub_rows"]) for it in items)} sub-rows'))
 
         self.stdout.write('')
         if dry_run:
@@ -300,4 +344,5 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS(
                 f'Done. Created: {totals["templates"]} templates, '
-                f'{totals["sections"]} sections, {totals["items"]} items.'))
+                f'{totals["sections"]} sections, {totals["items"]} items, '
+                f'{totals["sub_rows"]} sub-rows.'))

@@ -1040,6 +1040,55 @@ class QAPItem(models.Model):
         return f"{self.sn} {self.component[:50]}"
 
 
+class QAPItemSubRow(models.Model):
+    """
+    One additional physical spreadsheet row within a QAPItem's group (the
+    "b) Ash Content", "c) Mooney Viscosity", ... lines under an item like
+    "1.1 Raw Rubber"). QAPItem itself represents the group's first physical
+    row; every row after that is one of these.
+
+    Each column here is stored EXACTLY as it appeared in that row of the
+    source spreadsheet: blank ('') means the source cell was blank, i.e. that
+    column is visually merged with the nearest non-blank cell above it in the
+    same group (this is literally how the Excel source represents "same
+    class/quantum/reference/... as the row above" - a merged cell, not a
+    repeated value). A non-blank value means this row starts a NEW value for
+    that column from here down, e.g. item 1.1's characteristic often switches
+    Type of Check from "Physical" to "Chemical" partway through the group,
+    and item 3.5 switches Reference Documents/Acceptance Norms partway
+    through for "Angular Tear Strength"/"Abrasion Loss"/"Shore Hardness".
+
+    build_qap_context() in qap_service.py walks the combined [item, *subrows]
+    sequence per column and computes the actual rowspan/merge structure from
+    this blank-vs-non-blank pattern, so the rendered PDF reproduces the same
+    merged-cell layout as the source Excel instead of the previous behaviour
+    of losing every non-first-row value except the sub-row's own bullet text.
+    """
+    id                 = models.AutoField(primary_key=True)
+    item               = models.ForeignKey(QAPItem, on_delete=models.CASCADE,
+                                           related_name='sub_rows_data')
+    characteristic     = models.CharField(blank=True)
+    check_class        = models.CharField(max_length=50,  blank=True)
+    type_of_check      = models.CharField(blank=True)
+    quantum_m          = models.CharField(max_length=200, blank=True)
+    quantum_sc         = models.CharField(max_length=200, blank=True)
+    reference_docs     = models.TextField(blank=True)
+    acceptance_norms   = models.TextField(blank=True)
+    format_of_records  = models.CharField(max_length=200, blank=True)
+    agency             = models.CharField(max_length=100, blank=True)
+    record_mark        = models.CharField(max_length=10, blank=True)
+    remarks            = models.TextField(blank=True)
+    sort_order         = models.PositiveIntegerField()   # 1-based position within the group
+
+    class Meta:
+        db_table = 'qap_item_sub_rows'
+        managed  = True
+        ordering = ['sort_order']
+
+    def __str__(self):
+        return f"{self.item.sn}#{self.sort_order} {self.characteristic[:50]}"
+
+
 class QAPRecord(models.Model):
     """
     A generated QAP linked to one TDS record.

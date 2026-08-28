@@ -4,9 +4,15 @@
                  doc_type, ref_label_no, ref_label_date, ref_no, ref_date,
                  logo_data_uri, notes,
                  sections — list of QAPSectionData with .code .name .item_groups
-   Each item_group: .sn .comp .cls .qm .qsc .ref .acc .fmt .d .m .s .c .remarks
-                    .rowspan .first_char .first_typ .sub_rows (list of {char, typ})
+   Each item_group: .sn .comp .rowspan .rows (list of QAPPhysicalRow)
                     .is_merged (narrative-only rows like "Identification & Marking")
+                    .first_char (first row's characteristic - used by is_merged rows)
+   Each row in .rows: .char (always shown) and, for every other column, either
+                    a {value, rowspan} cell (row STARTS a new merged-cell run
+                    for that column - render a <td rowspan=...>) or None (this
+                    row is covered by an earlier row's rowspan - render nothing):
+                    .typ_cell .cls_cell .qm_cell .qsc_cell .ref_cell .acc_cell
+                    .fmt_cell .d_cell .m_cell .s_cell .c_cell .remarks_cell
 #}
 <!DOCTYPE html>
 <html lang="en">
@@ -130,9 +136,10 @@ body {
 /* ── Data cells (use !important to beat any cascade conflicts) ───────────────── */
 td.data-cell {
   border: 0.5px solid #bbb !important;
-  padding: 0.6mm 1.2mm !important;
+  padding: 0.5mm 1.2mm !important;
   vertical-align: top;
   font-size: 6pt;
+  line-height: 1.1;
   word-break: break-word;
   overflow-wrap: break-word;
 }
@@ -205,9 +212,13 @@ tr.section-row {
 }
 .footer-sig-cell { width: 20%; }
 .sig-space {
-  height: 8mm;
+  /* Enlarged from 8mm so there's more room for an actual pen signature +
+     rubber stamp - widths/columns untouched, so the legend cell and overall
+     table layout are unaffected; only the shared footer row grows a little
+     taller on every page. */
+  height: 14mm;
   border-bottom: 1px solid #888;
-  margin: 0.8mm 4mm 0 4mm;
+  margin: 0.8mm 3mm 0 3mm;
 }
 .sig-label {
   font-size: 6pt;
@@ -220,9 +231,9 @@ tr.section-row {
 
 /* ── Notes block ─────────────────────────────────────────────────────────────── */
 .notes-row td {
-  font-size: 6.5pt !important;
-  line-height: 1.6;
-  padding: 2.5mm 3mm !important;
+  font-size: 6.3pt !important;
+  line-height: 1.4;
+  padding: 2mm 3mm !important;
   border: 0.5px solid #bbb !important;
   background: #fff !important;
 }
@@ -372,27 +383,25 @@ P : PERFORM,  W : WITNESS,  V : VERIFICATION AS APPROPRIATE</td>
         <td class="data-cell merged-cell" colspan="14">{{ grp.comp }}{% if grp.first_char %} — {{ grp.first_char }}{% endif %}</td>
       </tr>
       {% else %}
-      <tr{% if grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
-        <td class="data-cell vcenter col-sn"    rowspan="{{ grp.rowspan }}">{{ grp.sn }}</td>
-        <td class="data-cell col-comp"          rowspan="{{ grp.rowspan }}">{{ grp.comp }}</td>
-        <td class="data-cell col-char">{{ grp.first_char }}</td>
-        <td class="data-cell vcenter col-class" rowspan="{{ grp.rowspan }}">{{ grp.cls }}</td>
-        <td class="data-cell vcenter col-type">{{ grp.first_typ }}</td>
-        <td class="data-cell vcenter col-qm"    rowspan="{{ grp.rowspan }}">{{ grp.qm }}</td>
-        <td class="data-cell vcenter col-qsc"   rowspan="{{ grp.rowspan }}">{{ grp.qsc }}</td>
-        <td class="data-cell vcenter col-ref"   rowspan="{{ grp.rowspan }}">{{ grp.ref }}</td>
-        <td class="data-cell vcenter col-acc"   rowspan="{{ grp.rowspan }}">{{ grp.acc }}</td>
-        <td class="data-cell vcenter col-fmt"   rowspan="{{ grp.rowspan }}">{{ grp.fmt }}</td>
-        <td class="data-cell vcenter col-d"     rowspan="{{ grp.rowspan }}">{{ grp.d }}</td>
-        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.m }}</td>
-        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.s }}</td>
-        <td class="data-cell vcenter col-agency" rowspan="{{ grp.rowspan }}">{{ grp.c }}</td>
-        <td class="data-cell col-remarks"       rowspan="{{ grp.rowspan }}">{{ grp.remarks }}</td>
-      </tr>
-      {% for sub in grp.sub_rows %}
-      <tr>
-        <td class="data-cell col-char">{{ sub.char }}</td>
-        <td class="data-cell vcenter col-type">{{ sub.typ }}</td>
+      {% for row in grp.rows %}
+      <tr{% if loop.first and grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
+        {% if loop.first %}
+        <td class="data-cell vcenter col-sn" rowspan="{{ grp.rowspan }}">{{ grp.sn }}</td>
+        <td class="data-cell col-comp"       rowspan="{{ grp.rowspan }}">{{ grp.comp }}</td>
+        {% endif %}
+        <td class="data-cell col-char">{{ row.char }}</td>
+        {% if row.cls_cell %}<td class="data-cell vcenter col-class" rowspan="{{ row.cls_cell.rowspan }}">{{ row.cls_cell.value }}</td>{% endif %}
+        {% if row.typ_cell %}<td class="data-cell vcenter col-type"  rowspan="{{ row.typ_cell.rowspan }}">{{ row.typ_cell.value }}</td>{% endif %}
+        {% if row.qm_cell  %}<td class="data-cell vcenter col-qm"    rowspan="{{ row.qm_cell.rowspan }}">{{ row.qm_cell.value }}</td>{% endif %}
+        {% if row.qsc_cell %}<td class="data-cell vcenter col-qsc"   rowspan="{{ row.qsc_cell.rowspan }}">{{ row.qsc_cell.value }}</td>{% endif %}
+        {% if row.ref_cell %}<td class="data-cell vcenter col-ref"   rowspan="{{ row.ref_cell.rowspan }}">{{ row.ref_cell.value }}</td>{% endif %}
+        {% if row.acc_cell %}<td class="data-cell vcenter col-acc"   rowspan="{{ row.acc_cell.rowspan }}">{{ row.acc_cell.value }}</td>{% endif %}
+        {% if row.fmt_cell %}<td class="data-cell vcenter col-fmt"   rowspan="{{ row.fmt_cell.rowspan }}">{{ row.fmt_cell.value }}</td>{% endif %}
+        {% if row.d_cell   %}<td class="data-cell vcenter col-d"     rowspan="{{ row.d_cell.rowspan }}">{{ row.d_cell.value }}</td>{% endif %}
+        {% if row.m_cell   %}<td class="data-cell vcenter col-agency" rowspan="{{ row.m_cell.rowspan }}">{{ row.m_cell.value }}</td>{% endif %}
+        {% if row.s_cell   %}<td class="data-cell vcenter col-agency" rowspan="{{ row.s_cell.rowspan }}">{{ row.s_cell.value }}</td>{% endif %}
+        {% if row.c_cell   %}<td class="data-cell vcenter col-agency" rowspan="{{ row.c_cell.rowspan }}">{{ row.c_cell.value }}</td>{% endif %}
+        {% if row.remarks_cell %}<td class="data-cell col-remarks"   rowspan="{{ row.remarks_cell.rowspan }}">{{ row.remarks_cell.value }}</td>{% endif %}
       </tr>
       {% endfor %}
       {% endif %}

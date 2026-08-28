@@ -64,7 +64,7 @@ import {
   getBootstrap,
   getCoverGrades,
   getFabricStyles, getBeltRatings,
-  createCustomer, updateCustomer,
+  createCustomer, updateCustomer, searchCustomers,
   tdsLookup, createTDS, updateTDS, getTDS, createBatch, downloadPdf, getParameters,
   getDimensionalSpecs, getShippingConstraints,
 } from './api.js';
@@ -134,6 +134,10 @@ let beltQueue     = [];   // array of captured belt-spec objects waiting to be s
 // This is also how the preview page's "← Back" link avoids losing data:
 // it links back here with the same ?edit=<tds_id> instead of history.back().
 let editingTdsId  = null;
+// Set from ?batch_id=<id> when editing a belt opened from the batch preview
+// page (tds-multi-preview.html) - lets submitTDS() send the user back into
+// that batch instead of the single-belt preview once the edit is saved.
+let editingBatchId = null;
 
 /* ── DOM utility helpers ──────────────────────────────────── */
 /**
@@ -257,7 +261,8 @@ async function init() {
   // a full re-entry — see prefillFormFromRecord() below).
   const editId = new URLSearchParams(window.location.search).get('edit');
   if (editId) {
-    editingTdsId = +editId;
+    editingTdsId  = +editId;
+    editingBatchId = new URLSearchParams(window.location.search).get('batch_id') || null;
     try {
       const record = await getTDS(editingTdsId);
       await prefillFormFromRecord(record);
@@ -1215,12 +1220,22 @@ function positionDropdown(inputEl, listEl) {
  */
 function sortByQueryMatch(items, query, labelOf) {
   const q = (query || '').toLowerCase();
+  // Rank tiers: 0 = name starts with query, 1 = some word starts with query
+  // (e.g. "Alliance Fibres" for "f"), 2 = query merely appears mid-word.
+  // Without the word-boundary tier, a query like "f" ranks names containing
+  // an incidental "f" (e.g. "Infrastructure") above names where a whole word
+  // actually starts with F, which reads as the search "not working".
+  function tier(name) {
+    if (name.startsWith(q)) return 0;
+    if (name.split(/\s+/).some(word => word.startsWith(q))) return 1;
+    return 2;
+  }
   return items.slice().sort((a, b) => {
     const an = labelOf(a).toLowerCase();
     const bn = labelOf(b).toLowerCase();
-    const aStarts = an.startsWith(q);
-    const bStarts = bn.startsWith(q);
-    if (aStarts !== bStarts) return aStarts ? -1 : 1;
+    const at = tier(an);
+    const bt = tier(bn);
+    if (at !== bt) return at - bt;
     return an.localeCompare(bn);
   });
 }
@@ -1242,7 +1257,17 @@ function wireDropdownAutoClose(containers, isOpenFn, onClose) {
     if (containers.some(el => el.contains(e.target))) return;
     onClose();
   });
-  window.addEventListener('scroll', () => { if (isOpenFn()) onClose(); }, true);
+  // capture:true is needed to see scroll events from elements that don't
+  // bubble them (the page body, other ancestors) - but that also means this
+  // fires for a scroll INSIDE the dropdown list itself (mouse wheel over the
+  // options), since capture reaches window before the event target. Without
+  // the containers check below, every wheel tick inside the list closed the
+  // dropdown on the spot, making its own scrollbar effectively unusable.
+  window.addEventListener('scroll', (e) => {
+    if (!isOpenFn()) return;
+    if (containers.some(el => el.contains(e.target))) return;
+    onClose();
+  }, true);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1281,19 +1306,35 @@ function wireCustomerAutocomplete() {
   function openList()  { positionDropdown(inp, list); list.style.display = 'block'; }
   function closeList() { list.style.display = 'none'; }
 
+  let debounceTimer = null;
+  let requestSeq = 0;
+
   inp.addEventListener('input', () => {
     const q = inp.value.toLowerCase().trim();
     hidId.value = '';
     clearCustomerDetailFields();
-    if (!q) { closeList(); return; }
-    const matches = sortByQueryMatch(
-      allCustomers.filter(c =>
-        c.customer_name.toLowerCase().includes(q) ||
-        (c.plant_location || '').toLowerCase().includes(q)
-      ),
-      q,
-      c => c.customer_name
-    ).slice(0, 10);
+    if (!q) { closeList(); if (debounceTimer) clearTimeout(debounceTimer); return; }
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const mySeq = ++requestSeq;
+    debounceTimer = setTimeout(async () => {
+      let matches = [];
+      try {
+        // The server now ranks matches (starts-with > word-starts-with >
+        // mid-word contains) before truncating to `limit`, so it's safe to
+        // ask for exactly what's displayed instead of over-fetching and
+        // re-ranking client-side.
+        matches = await searchCustomers(q, 10);
+      } catch {
+        // Fall back to whatever's cached locally if the search call fails.
+        matches = allCustomers.filter(c => c.customer_name.toLowerCase().includes(q));
+      }
+      if (mySeq !== requestSeq) return; // a newer keystroke already superseded this request
+      renderCustomerMatches(sortByQueryMatch(matches, q, c => c.customer_name).slice(0, 10));
+    }, 200);
+  });
+
+  function renderCustomerMatches(matches) {
     list.innerHTML = matches.map(c => `
       <div class="autocomplete-item"
            data-id="${c.customer_id}" data-name="${escapeHtml(c.customer_name)}"
@@ -1306,7 +1347,7 @@ function wireCustomerAutocomplete() {
          ➕ Add new customer: "<strong>${escapeHtml(inp.value)}</strong>"
        </div>`;
     openList();
-  });
+  }
 
   list.addEventListener('click', (e) => {
     const item = e.target.closest('.autocomplete-item');
@@ -2387,6 +2428,18 @@ async function submitTDS(mode = 'preview') {
     // ── Step 6: Handle mode ───────────────────────────────────────────────────
     const verb = editingTdsId ? 'updated' : 'created';
     if (mode === 'preview') {
+      // If this edit was opened from a batch preview (?batch_id=<id> passed
+      // alongside ?edit=<tds_id>), go back into that batch instead of the
+      // single-belt preview - otherwise the edit saves fine but the user is
+      // dropped outside the batch entirely and it reads as "my change vanished."
+      if (editingTdsId && editingBatchId) {
+        showToast(`TDS-${tds.tds_number} ${verb}! Returning to batch…`, 'success', 2000);
+        navigatingAway = true;
+        setTimeout(() => {
+          window.location.href = `tds-multi-preview.html?batch_id=${editingBatchId}`;
+        }, 600);
+        return;
+      }
       // Navigate directly to the preview page (options sidebar is built in)
       showToast(`TDS-${tds.tds_number} ${verb}! Opening preview…`, 'success', 2000);
       navigatingAway = true;

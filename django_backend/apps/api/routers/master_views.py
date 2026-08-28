@@ -27,6 +27,7 @@ Endpoints:
   GET  /api/parameters
 """
 import logging
+import re
 
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -300,12 +301,26 @@ def list_fabric_styles(request, fabric_type_id):
     return Response([_fabric_style(s) for s in objs])
 
 
+def _rating_sort_key(rating_name):
+    """
+    rating_name is free text like 'EP 1000/5' - sorting it as a string puts
+    'EP 1000/5' before 'EP 200/3' (since '1' < '2' lexicographically). Parse
+    out the kN/m and ply-count numbers so the dropdown lists ratings in the
+    ascending numeric order users actually expect.
+    """
+    m = re.search(r'(\d+(?:\.\d+)?)\s*/\s*(\d+)', rating_name or '')
+    if not m:
+        return (float('inf'), float('inf'), rating_name or '')
+    return (float(m.group(1)), int(m.group(2)), rating_name or '')
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_belt_ratings(request, fabric_type_id):
     if not FabricType.objects.filter(pk=fabric_type_id).exists():
         raise NotFound(f"Fabric type {fabric_type_id} not found")
-    objs = BeltRating.objects.filter(fabric_type_id=fabric_type_id).order_by('rating_name')
+    objs = list(BeltRating.objects.filter(fabric_type_id=fabric_type_id))
+    objs.sort(key=lambda r: _rating_sort_key(r.rating_name))
     return Response([_belt_rating_brief(r) for r in objs])
 
 
@@ -316,6 +331,26 @@ def get_belt_rating(request, rating_id):
     if not rating:
         raise NotFound(f"Belt rating {rating_id} not found")
     return Response(_belt_rating_full(rating))
+
+
+def _customer_search_tier(name, search_lc):
+    """
+    0 = name starts with the query, 1 = some word in the name starts with it
+    (e.g. "Alliance Fibres" for "f"), 2 = query only appears mid-word.
+
+    Needed because plain `.order_by('customer_name')[:limit]` sorts and
+    truncates alphabetically BEFORE relevance is considered - a search for a
+    common letter like "s" can have far more than `limit` alphabetically-early
+    matches that merely contain an "s" somewhere, so real "starts with S"
+    matches get cut off by the slice and never even reach this ranking. Rank
+    first, slice second.
+    """
+    name_lc = (name or '').lower()
+    if name_lc.startswith(search_lc):
+        return 0
+    if any(word.startswith(search_lc) for word in name_lc.split()):
+        return 1
+    return 2
 
 
 @api_view(['GET', 'POST'])
@@ -335,9 +370,16 @@ def customers(request):
         limit  = max(1, min(200, limit))
         qs = Customer.objects.all()
         if search:
-            qs = qs.filter(customer_name__icontains=search)
-        qs = qs.order_by('customer_name')[:limit]
-        return Response([_customer_brief(c) for c in qs])
+            search_lc = search.lower()
+            objs = list(qs.filter(customer_name__icontains=search))
+            objs.sort(key=lambda c: (
+                _customer_search_tier(c.customer_name, search_lc),
+                (c.customer_name or '').lower(),
+            ))
+            objs = objs[:limit]
+        else:
+            objs = list(qs.order_by('customer_name')[:limit])
+        return Response([_customer_brief(c) for c in objs])
 
     # POST — create customer
     data    = request.data

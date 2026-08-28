@@ -96,7 +96,19 @@ async function loadRecords() {
   wrap.innerHTML = `<div class="loading-overlay"><div class="spinner spinner-lg"></div><span>Loading…</span></div>`;
   document.getElementById('results-count').textContent = '';
   try {
-    allRecords = await listTDS();
+    // GET /api/tds/ defaults to 50 most-recent rows; page through with
+    // offset (server caps limit at 200/request) so this page always shows
+    // every record instead of silently truncating at the first page.
+    const PAGE_SIZE = 200;
+    let offset = 0;
+    let all = [];
+    for (;;) {
+      const batch = await listTDS({ limit: PAGE_SIZE, offset });
+      all = all.concat(batch);
+      if (batch.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+    allRecords = all;
     applyFilters();
   } catch (err) {
     wrap.innerHTML = `

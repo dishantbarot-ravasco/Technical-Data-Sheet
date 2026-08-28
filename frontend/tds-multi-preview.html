@@ -320,7 +320,7 @@
                        color:var(--navy);font-weight:700;">
           ⬇ Download All PDFs (ZIP)
         </button>
-        <a href="generate-tds.html" class="btn btn-ghost btn-sm">← Back to Generator</a>
+        <a href="generate-tds.html" id="btn-back-to-generator" class="btn btn-ghost btn-sm">← Back to Generator</a>
         <a href="search-tds.html"   class="btn btn-primary btn-sm">View All TDS</a>
       </div>
 
@@ -559,6 +559,11 @@
       document.getElementById('main-content').style.display  = '';
 
       /* wire events */
+      // "Back to Generator" returns to this batch's Batch Created success
+      // screen (not a blank form) - that page now has the full download
+      // toolbar too, so backing out doesn't strand the user on an empty
+      // generator with no way back to what they just made.
+      document.getElementById('btn-back-to-generator').href = 'generate-tds.html?view_batch=' + id;
       wirePdfButtons();
       wireZipButton(id, data.customer_name || '', _batchSplicingRequired);
       wirePrintAllMerged(id);
@@ -619,7 +624,11 @@
         // before the generic row-click, since the button lives inside the row.
         const editBtn = e.target.closest('[data-action="edit"]');
         if (editBtn) {
-          window.location.href = 'generate-tds.html?edit=' + editBtn.dataset.tdsId;
+          // Pass batch_id along so generate-tds.js's submitTDS() can send the
+          // user back here (instead of the single-belt preview) once the edit
+          // is saved - otherwise the save succeeds but the user lands outside
+          // the batch entirely and it reads as "my change didn't save."
+          window.location.href = 'generate-tds.html?edit=' + editBtn.dataset.tdsId + '&batch_id=' + batchId;
           return;
         }
         /* clicking anywhere else on the row opens that record's preview */

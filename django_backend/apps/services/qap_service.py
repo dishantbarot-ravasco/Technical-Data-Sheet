@@ -6,9 +6,11 @@ Two public functions:
     build_qap_context(tds, template) → dict  (passed straight to Jinja2)
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +38,16 @@ STANDARD_TO_QAP_CATEGORY = {
 
 # ─── Mid-section page-break SNs per QAP category ────────────────────────────
 # SNs listed here trigger a forced page-break BEFORE that item row.
-# GP layout:  page 1 = 1.1-1.7, page 2 = 1.8-1.12+sig, page 4 = 3.1-3.5,
-#             page 5 = items 4+5+notes+sig.
-# HR / FR_ISO / OR / FR_CAN: fill in once those templates are seeded and
-# the actual SN values are known; leave empty set in the meantime.
+# GP layout: page 1 = 1.1-1.7, page 2 = 1.8-1.12+sig, ... items 4+5+notes flow
+# naturally after 3.5 (no forced break there - forcing one left a mostly-empty
+# 5th page and pushed the doc to 6 pages after the item-3.5 rendering fix
+# changed row heights slightly; natural flow keeps it at 5).
+# HR and FR_ISO share GP's section 1.0 item layout (1.1-1.12), so the same
+# split point applies. OR / FR_CAN: fill in once those templates are seeded.
 MID_BREAK_SNS = {
-    'GP':     {'1.8', '4'},
-    'HR':     set(),
-    'FR_ISO': set(),
+    'GP':     {'1.8'},
+    'HR':     {'1.8'},
+    'FR_ISO': {'1.8'},
     'OR':     set(),
     'FR_CAN': set(),
 }
@@ -56,36 +60,79 @@ MID_BREAK_SNS = {
 # first thing on page 1, so a forced break there would just add a blank page.
 SECTION_BREAK_CODES = {
     'GP':     {'2.0', '3.0'},
-    'HR':     set(),
-    'FR_ISO': set(),
+    'HR':     {'2.0', '3.0'},
+    'FR_ISO': {'2.0', '3.0'},
     'OR':     set(),
     'FR_CAN': set(),
 }
 
 # ─── Notes text per QAP category ─────────────────────────────────────────────
-# Page 5 notes block. Only GP currently has full text.
+# Page 5 notes block - transcribed verbatim (wording/numbering as-is) from the
+# source spreadsheet's own "Notes:" cell for each category, not paraphrased.
+# GP and FR_ISO share the exact same text in the source; HR has its own
+# distinct wording (different repair-norm numbering and units - "per 100m of
+# belt length" instead of "per 100 sq.m of belt surface").
+_GP_FR_ISO_NOTES = (
+    "Notes:\n"
+    "1. Belts must be offered for visual inspection without any surface finishing, top & "
+    "bottom cover surface aesthetics improvement activities.\n"
+    "2. Repair Norms shall be reflected in the internal procedure and shall be followed "
+    "during manufacturing & Internal Inspection.\n"
+    "REPAIR NORMS\n"
+    "A) Patch Repairs: Localized rectification of surface blemishes / defects in cured belt "
+    "by using rubber compound similar to the mother compound up to top carcass may be done "
+    "followed by hot vulcanization\n"
+    "B) Buffing / Dough Filling: Entrapment of foreign matters may be buffed suitably. Depth "
+    "of buffing should not exceed the difference in thickness of the cover rubber (as "
+    "measured in test sample for the purpose of acceptance of cover rubber thickness) and the "
+    "specified minimum cover thickness. Where the indentation depth is more, the same may be "
+    "filled with rubber compound followed by vulcanization locally\n"
+    "C) The repairs of size up to 25mm x 25mm (625mm Sq.) shall not be considered as repair\n"
+    "D) Maximum number of repairs as per A, above shall be limited to 5 per 100 sq.m of belt "
+    "surface (rounded up to the higher unit).\n"
+    "E) Total number of repairs as per A and B, above shall not exceed more than 10 per 100 "
+    "sq.m of belt surface (rounded up to the higher unit).\n"
+    "F) In case of patch repair as indicated in 1 above the maximum size/area of each repair "
+    "shall be limited to 1/5W x 1/5W, with one dimension maximum 1/5W where W is the width of "
+    "the belt\n"
+    "G) The gap between plies at longitudinal Ply joint area may be checked at one point over "
+    "a belt length during inspection by removing 100 mm x 25 mm cover rubber from the "
+    "finished belt. This portion shall be repaired by vulcanization and shall not be "
+    "considered as repair. Longitudinal Joints may be provided only for belt."
+)
+
 QAP_NOTES = {
-    'GP': (
-        "NOTES:\n"
-        "1. The above Quality Assurance Plan is prepared for the Conveyor Belt and covers all "
-        "stages of manufacture from raw material procurement to final despatch.\n"
-        "2. All test reports / certificates shall be maintained by the manufacturer and shall "
-        "be made available to the customer / their representative for verification on request.\n"
-        "3. Customer / their representative shall be given 48 hours advance notice for "
-        "witnessing of tests.\n"
-        "4. Acceptance norms shall be as per applicable standard and / or mutually agreed "
-        "specifications.\n"
-        "5. All measuring and test equipment used shall be calibrated as per the calibration "
-        "schedule maintained by the manufacturer.\n\n"
-        "REPAIR NORMS:\n"
-        "Minor surface defects on the top cover of the belt such as air pockets, blisters, "
-        "cuts, etc., are repaired by buffing and hot / cold repair methods as per the "
-        "manufacturer's standard repair procedure. Such repairs shall not affect the "
-        "performance of the belt and shall be acceptable provided the repaired area does not "
-        "exceed the limits specified in the applicable standard."
+    'GP':     _GP_FR_ISO_NOTES,
+    'FR_ISO': _GP_FR_ISO_NOTES,
+    'HR': (
+        "Notes:\n"
+        "1. Belts must be offered for visual inspection without any surface finishing, top & "
+        "bottom cover surface aesthetics improvement activities.\n"
+        "2. Repair Norms shall be reflected in the internal procedure and shall be followed "
+        "during manufacturing & Internal Inspection.\n"
+        "3. Patch Repairs Norms:\n"
+        "a) Localized rectification of surface blemishes / defects in cured belt by using "
+        "rubber compound similar to the mother compound up to top carcass may be done "
+        "followed by hot vulcanization\n"
+        "b) Buffing / Dough Filling: Entrapment of foreign matters may be buffed suitably. "
+        "Depth of buffing should not exceed the difference in thickness of the cover rubber "
+        "(as measured in test sample for the purpose of acceptance of cover rubber thickness) "
+        "and the specified minimum cover thickness. Where the indentation depth is more, the "
+        "same may be filled with rubber compound followed by vulcanization locally\n"
+        "c) The repairs of size up to 25mm x 25mm (625mm Sq.) shall not be considered as "
+        "repair\n"
+        "d) Maximum number of repairs as per 'a' above shall be limited to 5 per 100m of belt "
+        "length (rounded up to the higher unit).\n"
+        "d) Total number of repairs as per 'a' and 'b' above shall not exceed more than 10 per "
+        "100m of belt length (rounded up to the higher unit).\n"
+        "e) In case of patch repair as indicated in 1 above the maximum size/area of each "
+        "repair shall be limited to 1/5W x 1/5W, with one dimension maximum 1/5W where W is "
+        "the width of the belt\n"
+        "f) The gap between plies at longitudinal Ply joint area may be checked at one point "
+        "over a belt length during inspection by removing 100 mm x 25 mm cover rubber from "
+        "the finished belt. This portion shall be repaired by vulcanization and shall not be "
+        "considered as repair. Longitudinal Joints may be provided only for belt."
     ),
-    'HR':     '',
-    'FR_ISO': '',
     'OR':     '',
     'FR_CAN': '',
 }
@@ -125,48 +172,70 @@ def resolve_qap_template(tds):
 # ─── Dataclasses ─────────────────────────────────────────────────────────────
 
 @dataclass
-class QAPSubRow:
-    """One sub-characteristic line within an item group (rows 2+ only)."""
-    char: str
-    typ:  str   # same as parent's type_of_check (repeated for column alignment)
+class QAPCell:
+    """
+    One rendered <td>, covering `rowspan` physical rows starting at this one.
+    A physical row that has NO QAPCell for a given column is covered by an
+    earlier row's rowspan and renders no <td> at all for that column - exactly
+    how the source Excel represents "same value as the row above" (a merged
+    cell), see _column_cells() below.
+    """
+    value:   str
+    rowspan: int
+
+
+@dataclass
+class QAPPhysicalRow:
+    """
+    One literal row of the source spreadsheet within an item group - either
+    the group's first row (the SN/Component row) or one of its QAPItemSubRow
+    children. `char` is always its own cell (every physical row's
+    characteristic text is unique - it's never merged with the row above).
+    Every other column is a QAPCell when this row STARTS a new merge run for
+    that column, or None when it's covered by an earlier row's rowspan.
+    """
+    char:         str
+    typ_cell:     Optional[QAPCell]
+    cls_cell:     Optional[QAPCell]
+    qm_cell:      Optional[QAPCell]
+    qsc_cell:     Optional[QAPCell]
+    ref_cell:     Optional[QAPCell]
+    acc_cell:     Optional[QAPCell]
+    fmt_cell:     Optional[QAPCell]
+    d_cell:       Optional[QAPCell]
+    m_cell:       Optional[QAPCell]
+    s_cell:       Optional[QAPCell]
+    c_cell:       Optional[QAPCell]
+    remarks_cell: Optional[QAPCell]
 
 
 @dataclass
 class QAPItemGroup:
-    """
-    One logical QAP item (one SN).
-
-    Sub-characteristics are split from item.characteristic on '\\n' by the seeder.
-    All other columns (qm, qsc, ref, acc, fmt, agency, remarks) are stored once
-    at the item level and span all sub-rows via HTML rowspan.
-    """
+    """One logical QAP item (one SN) - the merged SN/Component cell spans
+    `rowspan` physical rows, listed in `rows` (see QAPPhysicalRow)."""
     sn:      str
     comp:    str
-    cls:     str
-    qm:      str   # quantum_m  (rowspan = all sub-rows)
-    qsc:     str   # quantum_sc (rowspan = all sub-rows)
-    ref:     str   # reference_docs (rowspan)
-    acc:     str   # acceptance_norms (rowspan)
-    fmt:     str   # format_of_records (rowspan)
-    d:       str   # record_mark — 'D' column (rowspan)
-    m:       str   # agency M value  (rowspan)
-    s:       str   # agency S value  (rowspan)
-    c:       str   # agency C value  (rowspan)
-    remarks: str   # (rowspan)
-
-    rowspan:    int   # total number of characteristic lines (≥ 1)
-    first_char: str   # characteristic text for the first <tr>
-    first_typ:  str   # type_of_check for the first <tr>
-
-    # Remaining sub-rows (index 1+) — only char + typ needed
-    sub_rows: List[QAPSubRow] = field(default_factory=list)
+    rowspan: int                              # total physical rows in this group
+    rows:    List[QAPPhysicalRow] = field(default_factory=list)
 
     @property
     def is_merged(self) -> bool:
         """True for narrative-only rows (e.g. item 4 'Identification & Marking')
         that carry no inspection class — rendered as a single merged cell
-        spanning the whole row instead of the normal column layout."""
-        return not (self.cls or '').strip()
+        spanning the whole row instead of the normal column layout. The first
+        physical row always gets its own QAPCell for every column (even a
+        blank one - see _column_cells), so this checks the cell's VALUE, not
+        whether a cell exists."""
+        if not self.rows:
+            return True
+        cell = self.rows[0].cls_cell
+        return not (cell.value if cell else '').strip()
+
+    @property
+    def first_char(self) -> str:
+        """Characteristic text of the first physical row - used for the
+        narrative (is_merged) rendering, which has only one row."""
+        return self.rows[0].char if self.rows else ''
 
 
 @dataclass
@@ -199,6 +268,61 @@ def _parse_agency(agency_str: str):
         elif part.upper().startswith('C:'):
             c = part[2:].strip()
     return m, s, c
+
+
+# ─── Excel-accurate merged-cell computation ──────────────────────────────────
+
+def _column_cells(values: List[str]) -> List[Optional[QAPCell]]:
+    """
+    Turn a list of per-physical-row string values for ONE column into the
+    QAPCell/None sequence that reproduces the source Excel's merged cells:
+    a blank value means that row's cell was blank in the spreadsheet, i.e.
+    visually merged with the nearest non-blank cell above it - so it gets
+    None here (render nothing) and extends the previous cell's rowspan.
+    A non-blank value always starts a brand-new cell/rowspan run, even if it
+    happens to repeat the previous run's text.
+
+    The first row is always the start of a run (rowspan >= 1) even if its own
+    value is blank, since a table row can't omit its very first cell in a
+    column - only rows COVERED by an earlier rowspan can skip rendering.
+    """
+    n = len(values)
+    cells: List[Optional[QAPCell]] = [None] * n
+    run_start = 0
+    run_value = values[0]
+    for i in range(1, n):
+        if values[i]:
+            cells[run_start] = QAPCell(value=run_value, rowspan=i - run_start)
+            run_start = i
+            run_value = values[i]
+    cells[run_start] = QAPCell(value=run_value, rowspan=n - run_start)
+    return cells
+
+
+def _flat_cells(values: List[str]) -> List[QAPCell]:
+    """
+    Same forward-fill semantics as _column_cells (a blank value means "same as
+    the row above"), but every row gets its OWN rowspan=1 cell instead of a
+    merged/covered one.
+
+    Used for "compound" items (see is_compound below) as a deliberately less
+    elegant but bulletproof fallback: WeasyPrint's table layout has a
+    reproducible bug where a rowspan cell that's supposed to reach an item
+    group's LAST physical row silently gets dropped/truncated when that group
+    also contains ANOTHER column with a shorter, independent merge run partway
+    through (confirmed via isolated reproduction - identical HTML structure
+    rendered correctly in one test and incorrectly in another, so the trigger
+    is content/height-dependent, not purely structural, and not worth chasing
+    further for a document used for QA sign-off). Repeating the resolved value
+    on every row costs a nicer merged look but can never silently lose data.
+    """
+    cells = []
+    current = values[0]
+    for v in values:
+        if v:
+            current = v
+        cells.append(QAPCell(value=current, rowspan=1))
+    return cells
 
 
 # ─── Context builder ──────────────────────────────────────────────────────────
@@ -273,7 +397,7 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
     # ── Sections and item groups ───────────────────────────────────────────────
     sections_data: List[QAPSectionData] = []
 
-    for section in template.sections.prefetch_related('items').order_by('sort_order'):
+    for section in template.sections.prefetch_related('items__sub_rows_data').order_by('sort_order'):
         sec_data = QAPSectionData(code=section.section_code, name=section.section_name)
 
         # PERF (fixed): this used to call section.items.order_by('sort_order'),
@@ -283,40 +407,85 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
         # section.items.all() returns the prefetched rows, already in the
         # right order, with no extra query.
         for item in section.items.all():
-            # Sub-characteristics are stored as '\n'-joined lines in characteristic.
-            # Split them into individual rows; guarantee at least one entry.
-            chars = [c.strip() for c in (item.characteristic or '').split('\n') if c.strip()]
-            if not chars:
-                chars = ['']
+            # Combine the group's first physical row (the item itself) with
+            # its sub-rows (item.sub_rows_data, already ordered by sort_order
+            # via that model's Meta) into one physical-row sequence, each with
+            # every column exactly as the source spreadsheet had it - blank
+            # where that row's cell was blank.
+            physical = [item] + list(item.sub_rows_data.all())
+            n = len(physical)
 
-            n    = len(chars)
-            typ  = item.type_of_check or ''
-            m_v, s_v, c_v = _parse_agency(item.agency)
+            chars   = [p.characteristic or '' for p in physical]
+            typs    = [p.type_of_check   or '' for p in physical]
+            clss    = [p.check_class     or '' for p in physical]
+            qms     = [p.quantum_m       or '' for p in physical]
+            qscs    = [p.quantum_sc      or '' for p in physical]
+            refs    = [p.reference_docs  or '' for p in physical]
+            accs    = [p.acceptance_norms or '' for p in physical]
+            fmts    = [p.format_of_records or '' for p in physical]
+            ds      = [p.record_mark     or '' for p in physical]
+            agencys = [p.agency          or '' for p in physical]
+            remarks = [p.remarks         or '' for p in physical]
 
-            # For FINAL INSPECTION (section 3.0), the customer's "C" column is
-            # WITNESS, not VERIFICATION — the source data still says 'V' for
-            # historical reasons, so override it here at render time.
-            if section.section_code == '3.0' and c_v == 'V':
-                c_v = 'W'
+            # "Compound" item = at least one sub-row overrides class/quantum/
+            # reference/acceptance rather than just adding characteristic text
+            # (e.g. item 3.5 "Cover Rubber Properties" restating a different
+            # Reference Document for "Angular Tear Strength"/"Abrasion Loss").
+            # Type of Check varying per sub-row is normal even for simple items
+            # (e.g. "a) ... Physical" / "b) ... Chemical") so it's excluded
+            # from this check - only cls/qm/qsc/ref/acc matter here.
+            is_compound = any(
+                clss[i] or qms[i] or qscs[i] or refs[i] or accs[i]
+                for i in range(1, n)
+            )
+            cell_fn = _flat_cells if is_compound else _column_cells
+
+            typ_cells = cell_fn(typs)
+            cls_cells = cell_fn(clss)
+            qm_cells  = cell_fn(qms)
+            qsc_cells = cell_fn(qscs)
+            ref_cells = cell_fn(refs)
+            acc_cells = cell_fn(accs)
+            fmt_cells = cell_fn(fmts)
+            d_cells   = cell_fn(ds)
+            agency_cells = cell_fn(agencys)
+            remarks_cells = cell_fn(remarks)
+
+            # Agency is stored as one combined "M:x / S:y / C:z" string per
+            # merge-run - split each surviving cell into its M/S/C values,
+            # keeping the SAME rowspan (they always change together).
+            m_cells = [None] * n
+            s_cells = [None] * n
+            c_cells = [None] * n
+            for i, cell in enumerate(agency_cells):
+                if cell is None:
+                    continue
+                m_v, s_v, c_v = _parse_agency(cell.value)
+                # For FINAL INSPECTION (section 3.0), the customer's "C"
+                # column is WITNESS, not VERIFICATION — the source data still
+                # says 'V' for historical reasons, so override it here.
+                if section.section_code == '3.0' and c_v == 'V':
+                    c_v = 'W'
+                m_cells[i] = QAPCell(value=m_v, rowspan=cell.rowspan)
+                s_cells[i] = QAPCell(value=s_v, rowspan=cell.rowspan)
+                c_cells[i] = QAPCell(value=c_v, rowspan=cell.rowspan)
+
+            rows = [
+                QAPPhysicalRow(
+                    char=chars[i], typ_cell=typ_cells[i], cls_cell=cls_cells[i],
+                    qm_cell=qm_cells[i], qsc_cell=qsc_cells[i], ref_cell=ref_cells[i],
+                    acc_cell=acc_cells[i], fmt_cell=fmt_cells[i], d_cell=d_cells[i],
+                    m_cell=m_cells[i], s_cell=s_cells[i], c_cell=c_cells[i],
+                    remarks_cell=remarks_cells[i],
+                )
+                for i in range(n)
+            ]
 
             grp = QAPItemGroup(
                 sn      = item.sn or '',
                 comp    = item.component or '',
-                cls     = item.check_class or '',
-                qm      = item.quantum_m or '',
-                qsc     = item.quantum_sc or '',
-                ref     = item.reference_docs or '',
-                acc     = item.acceptance_norms or '',
-                fmt     = item.format_of_records or '',
-                d       = item.record_mark or '',
-                m       = m_v,
-                s       = s_v,
-                c       = c_v,
-                remarks = item.remarks or '',
-                rowspan    = n,
-                first_char = chars[0],
-                first_typ  = typ,
-                sub_rows   = [QAPSubRow(char=ch, typ=typ) for ch in chars[1:]],
+                rowspan = n,
+                rows    = rows,
             )
             sec_data.item_groups.append(grp)
 

@@ -466,12 +466,12 @@ def create_batch(request):
                     )
 
             # Splicing: shared method, per-belt joint count
-            # num_joints = 2 per roll (auto-computed from packing result);
+            # num_joints = 1 per roll (typical, matches single-belt flow);
             # falls back to whatever the request sent if packing wasn't run.
             step_len   = None
             spl_len    = None
             extra_len  = None
-            num_joints = (packing_num_rolls * 2) if packing_num_rolls else b.get('num_joints')
+            num_joints = packing_num_rolls if packing_num_rolls else b.get('num_joints')
 
             if splicing_required and num_joints and vulcanization_method:
                 try:
@@ -559,9 +559,16 @@ def create_batch(request):
         detail=f'batch_id={batch.batch_id} belts={len(created_records)}',
     )
 
+    # Matches get_batch()'s response shape (top-level customer_name, not nested
+    # in `batch`) so both endpoints can be handled identically on the frontend.
+    batch_customer_name = next(
+        (r.customer.customer_name for r in created_records if r.customer_id), None
+    )
+
     return Response(
         {
-            "batch": _batch_brief(batch),
+            "batch":         _batch_brief(batch),
+            "customer_name": batch_customer_name,
             "tds_records": [
                 {
                     "tds_id":         r.tds_id,
@@ -1288,7 +1295,7 @@ def text_import_batch(request):
     tds_doc_number_shared = (shared.get('tds_doc_number') or '').strip() or None
     splicing_required    = bool(shared.get('splicing_required', False))
     vulcanization_method = shared.get('vulcanization_method')
-    num_joints_shared    = shared.get('num_joints', 2)
+    num_joints_shared    = shared.get('num_joints', 1)
     reel_type_id         = shared.get('reel_type_id')
     packing_type_id      = shared.get('packing_type_id')
     shipping_region      = shared.get('shipping_region')
@@ -1450,12 +1457,12 @@ def text_import_batch(request):
                         b['belt_rating_id'], b['belt_width_mm'],
                     )
 
-            # Splicing — num_joints = 2 per roll (auto-computed from packing);
+            # Splicing — num_joints = 1 per roll (typical, auto-computed from packing);
             # falls back to shared value if packing wasn't computed.
             step_len   = None
             spl_len    = None
             extra_len  = None
-            num_joints = (packing_num_rolls * 2) if packing_num_rolls else (int(num_joints_shared) if num_joints_shared else None)
+            num_joints = packing_num_rolls if packing_num_rolls else (int(num_joints_shared) if num_joints_shared else None)
 
             if splicing_required and num_joints and vulcanization_method:
                 try:
@@ -1535,9 +1542,14 @@ def text_import_batch(request):
         batch.batch_id, current_user.user_id, len(created_records),
     )
 
+    batch_customer_name = next(
+        (r.customer.customer_name for r in created_records if r.customer_id), None
+    )
+
     return Response(
         {
-            "batch": _batch_brief(batch),
+            "batch":         _batch_brief(batch),
+            "customer_name": batch_customer_name,
             "tds_records": [
                 {
                     "tds_id":           r.tds_id,
