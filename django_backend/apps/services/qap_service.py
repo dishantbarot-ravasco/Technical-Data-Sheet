@@ -36,18 +36,22 @@ STANDARD_TO_QAP_CATEGORY = {
     # OR and FR_CAN not yet mapped — data not in DB
 }
 
-# ─── Mid-section page-break SNs per QAP category ────────────────────────────
-# SNs listed here trigger a forced page-break BEFORE that item row.
-# GP layout: page 1 = 1.1-1.7, page 2 = 1.8-1.12+sig, ... items 4+5+notes flow
-# naturally after 3.5 (no forced break there - forcing one left a mostly-empty
-# 5th page and pushed the doc to 6 pages after the item-3.5 rendering fix
-# changed row heights slightly; natural flow keeps it at 5).
-# HR and FR_ISO share GP's section 1.0 item layout (1.1-1.12), so the same
-# split point applies. OR / FR_CAN: fill in once those templates are seeded.
-MID_BREAK_SNS = {
-    'GP':     {'1.8'},
-    'HR':     {'1.8'},
-    'FR_ISO': {'1.8'},
+# ─── Mid-section page-break points per QAP category ─────────────────────────
+# Each entry is an (sn, component) PAIR, not a bare SN - the source data has
+# duplicate SNs within a category (e.g. FR_ISO's "3.5" is used by BOTH
+# "Troughability" AND "Cover Rubber Properties"), so matching on SN alone
+# forced the break before the wrong one of the two.
+#
+# Layout matches the reference document exactly:
+#   page 1 = 1.1-1.5, page 2 = 1.6-1.12, page 3 = 2.1-2.6 (own section break,
+#   see SECTION_BREAK_CODES), page 4 = 3.1-3.4 (+3.5 Troughability for
+#   FR_ISO, which numbers Adhesion/Troughability one SN later than GP/HR),
+#   page 5 = Cover Rubber Properties + items 4/5 + notes.
+# OR / FR_CAN: fill in once those templates are seeded.
+MID_BREAKS = {
+    'GP':     {('1.6', 'Protective\nAgent'), ('3.5', 'Cover Rubber Properties')},
+    'HR':     {('1.6', 'Protective\nAgent'), ('3.5', 'Cover Rubber Properties')},
+    'FR_ISO': {('1.6', 'Protective\nAgent'), ('3.5', 'Cover Rubber Properties')},
     'OR':     set(),
     'FR_CAN': set(),
 }
@@ -461,11 +465,6 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
                 if cell is None:
                     continue
                 m_v, s_v, c_v = _parse_agency(cell.value)
-                # For FINAL INSPECTION (section 3.0), the customer's "C"
-                # column is WITNESS, not VERIFICATION — the source data still
-                # says 'V' for historical reasons, so override it here.
-                if section.section_code == '3.0' and c_v == 'V':
-                    c_v = 'W'
                 m_cells[i] = QAPCell(value=m_v, rowspan=cell.rowspan)
                 s_cells[i] = QAPCell(value=s_v, rowspan=cell.rowspan)
                 c_cells[i] = QAPCell(value=c_v, rowspan=cell.rowspan)
@@ -505,8 +504,8 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
     # ── Notes ─────────────────────────────────────────────────────────────────
     notes = QAP_NOTES.get(template.category, '')
 
-    # ── Mid-section page-break SNs ────────────────────────────────────────────
-    mid_break_sns     = MID_BREAK_SNS.get(template.category, set())
+    # ── Mid-section page-break points ─────────────────────────────────────────
+    mid_breaks           = MID_BREAKS.get(template.category, set())
     section_break_codes = SECTION_BREAK_CODES.get(template.category, set())
 
     return {
@@ -528,6 +527,6 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
         'logo_data_uri':     logo_data_uri,
         'tuv_logo_data_uri': tuv_logo_data_uri,
         'notes':             notes,
-        'mid_break_sns':     mid_break_sns,
+        'mid_breaks':        mid_breaks,
         'section_break_codes': section_break_codes,
     }

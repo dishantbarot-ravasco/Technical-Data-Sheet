@@ -56,13 +56,20 @@ def _val(row, col):
 
 
 def _agency(row):
-    """Combine the three Agency columns (M=11, S=12, C=13) into one string."""
+    """
+    Combine the three Agency columns (M=11, S=12, C=13) into one string.
+
+    '-' is a MEANINGFUL value here (the source document literally prints a
+    dash for "not applicable"), not a blank marker like it is in the Quantum
+    S/C column - so it must be kept, not dropped. Only a genuinely empty
+    cell is skipped.
+    """
     m = _val(row, 11)
     s = _val(row, 12)
     c = _val(row, 13)
     parts = []
     for label, val in (('M', m), ('S', s), ('C', c)):
-        if val and val != '-':
+        if val:
             parts.append(f'{label}:{val}')
     return ' / '.join(parts) if parts else ''
 
@@ -82,6 +89,7 @@ def _row_fields(row):
         'reference_docs':    _val(row, 7),
         'acceptance_norms':  _val(row, 8),
         'format_of_records': _val(row, 9),
+        'record_mark':       _val(row, 10),   # 'D' column - '√' tick mark
         'agency':            _agency(row),
         'remarks':           _val(row, 14),
     }
@@ -310,6 +318,7 @@ class Command(BaseCommand):
                     reference_docs=item['reference_docs'],
                     acceptance_norms=item['acceptance_norms'],
                     format_of_records=item['format_of_records'],
+                    record_mark=item['record_mark'],
                     agency=item['agency'],
                     remarks=item['remarks'],
                     is_static=item['is_static'],
@@ -328,6 +337,7 @@ class Command(BaseCommand):
                         reference_docs=sub['reference_docs'],
                         acceptance_norms=sub['acceptance_norms'],
                         format_of_records=sub['format_of_records'],
+                        record_mark=sub['record_mark'],
                         agency=sub['agency'],
                         remarks=sub['remarks'],
                         sort_order=i,

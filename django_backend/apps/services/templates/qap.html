@@ -117,10 +117,20 @@ body {
   border: 0.5px solid #d4891a;
   vertical-align: middle;
 }
+/* Numbering row (1,2,3...) - "D*" and "**10" read larger/bolder in the
+   source document than the plain digits around them, since they carry the
+   asterisk footnote markers referenced by the legend below. */
+.col-number-row th { font-size: 6.5pt; }
+.col-number-row .col-d,
+.col-number-row .col-agency-marked { font-size: 8pt; }
 
 /* ── Column widths ───────────────────────────────────────────────────────────── */
 .col-sn     { width: 5%;  text-align: center; }
 .col-comp   { width: 8%; }
+/* Component & Operations text (Raw Rubber, Zinc Oxide, ...) reads better
+   vertically centered within its merged group instead of pinned to the top,
+   while staying left-aligned like the rest of the table's text columns. */
+td.data-cell.col-comp { vertical-align: middle; text-align: left; }
 .col-char   { width: 14%; }
 .col-class  { width: 4%;  text-align: center; }
 .col-type   { width: 7%;  text-align: center; }
@@ -149,10 +159,11 @@ td.data-cell.vcenter { vertical-align: middle; }
 tr.data-even td.data-cell { background: #fafafa !important; }
 tr.data-odd  td.data-cell { background: #ffffff !important; }
 
-/* Merged narrative row (e.g. "Identification & Marking") — headers only,
-   all other columns collapsed into one wide cell. */
+/* Merged narrative row (e.g. "Identification & Marking") - Characteristic
+   through Agency collapsed into one wide cell for the narrative text. Not
+   bold - the source document renders this as plain body text. */
 td.data-cell.merged-cell {
-  font-weight: 700;
+  vertical-align: middle;
 }
 
 /* ── Section heading rows ────────────────────────────────────────────────────── */
@@ -203,14 +214,14 @@ tr.section-row {
 }
 .footer-inner td:last-child { border-right: none; }
 .footer-legend-cell {
-  width: 60%;
-  font-size: 5.6pt !important;
+  width: 70%;
+  font-size: 6.3pt !important;
   padding: 1mm 2.5mm !important;
   background: #fff8ee;
   white-space: pre-line;
-  line-height: 1.45;
+  line-height: 1.4;
 }
-.footer-sig-cell { width: 20%; }
+.footer-sig-cell { width: 15%; }
 .sig-space {
   /* Enlarged from 8mm so there's more room for an actual pen signature +
      rubber stamp - widths/columns untouched, so the legend cell and overall
@@ -317,22 +328,48 @@ tr.section-row {
         </table>
       </td>
     </tr>
+    {# Three-row column header matching the source document exactly:
+       row 1 = labels (Quantum of Check / Agency span two/three sub-columns),
+       row 2 = the M / S-C / M / S / C sub-labels,
+       row 3 = the "1..11" column-number row, where the D column reads "D*"
+       and the Agency-M column reads "**10" instead of a plain number. #}
     <tr class="col-header-row">
-      <th class="col-sn">SN</th>
-      <th class="col-comp">Component &amp; Operations</th>
-      <th class="col-char">Characteristic Check</th>
-      <th class="col-class">Class</th>
-      <th class="col-type">Type of Check</th>
-      <th class="col-qm">Quantum of Check (M)</th>
-      <th class="col-qsc">Quantum of Check (S/C)</th>
-      <th class="col-ref">Reference Documents</th>
-      <th class="col-acc">Acceptance Norms</th>
-      <th class="col-fmt">Format of Records</th>
-      <th class="col-d">D</th>
+      <th class="col-sn"     rowspan="2">SN</th>
+      <th class="col-comp"   rowspan="2">Component &amp; Operations</th>
+      <th class="col-char"   rowspan="2">Characteristic Check</th>
+      <th class="col-class"  rowspan="2">Class</th>
+      <th class="col-type"   rowspan="2">Type of Check</th>
+      <th class="col-qm" colspan="2">Quantum of Check</th>
+      <th class="col-ref"    rowspan="2">Reference Documents</th>
+      <th class="col-acc"    rowspan="2">Acceptance Norms</th>
+      <th class="col-fmt"    rowspan="2">Format of Records</th>
+      <th class="col-d"      rowspan="2"></th>
+      <th class="col-agency" colspan="3">Agency</th>
+      <th class="col-remarks" rowspan="2">Remarks</th>
+    </tr>
+    <tr class="col-header-row">
+      <th class="col-qm">M</th>
+      <th class="col-qsc">S/C</th>
       <th class="col-agency">M</th>
       <th class="col-agency">S</th>
       <th class="col-agency">C</th>
-      <th class="col-remarks">Remarks</th>
+    </tr>
+    <tr class="col-header-row col-number-row">
+      <th class="col-sn">1</th>
+      <th class="col-comp">2</th>
+      <th class="col-char">3</th>
+      <th class="col-class">4</th>
+      <th class="col-type">5</th>
+      <th class="col-qm">6</th>
+      <th class="col-qsc"></th>
+      <th class="col-ref">7</th>
+      <th class="col-acc">8</th>
+      <th class="col-fmt">9</th>
+      <th class="col-d">D*</th>
+      <th class="col-agency col-agency-marked">**10</th>
+      <th class="col-agency"></th>
+      <th class="col-agency"></th>
+      <th class="col-remarks">11</th>
     </tr>
   </thead>
 
@@ -346,9 +383,8 @@ tr.section-row {
               <div class="sig-space"></div>
               <div class="sig-label">CUSTOMER Signature &amp; Stamp</div>
             </td>
-            <td class="footer-legend-cell">LEGEND : D COLUMN RECORDS MARKED "&#10003;" SHALL BE ESSENTIALLY INCLUDED IN QA DOCUMENTATION.
-M : MANUFACTURER / SUB-SUPPLIER,  S : MAIN SUPPLIER,  C : CUSTOMER
-P : PERFORM,  W : WITNESS,  V : VERIFICATION AS APPROPRIATE</td>
+            <td class="footer-legend-cell">LEGEND : RECORDS INDENTIFIED WITH "TICK" (&radic;) SHALL BE ESSENTIALLY INCLUDED BY SUPPLIER IN QA DOCUMENTATION.
+**M:MANUFACTURER/SUB-SUPPLIER , S : MAIN SUPPLIER , C: CUSTOMER  P : PERFORM , W : WITNESS , &amp; V : VERIFICATION AS APPROPRIATE</td>
             <td class="footer-sig-cell sig-right">
               <div class="sig-space"></div>
               <div class="sig-label">Ravasco Transmission &amp; Packing Pvt Ltd.</div>
@@ -372,19 +408,26 @@ P : PERFORM,  W : WITNESS,  V : VERIFICATION AS APPROPRIATE</td>
     </tbody>
 
     {% for grp in section.item_groups %}
-      {# Mid-section forced page breaks — driven by mid_break_sns set in qap_service.py.
-         GP:     {'1.8', '4'} → page 1: 1.1-1.7, page 2: 1.8-1.12,
-                                page 4: 3.1-3.5,  page 5: items 4+5+notes
-         HR/FR_ISO/OR/FR_CAN: fill in MID_BREAK_SNS in qap_service.py once seeded. #}
+      {# Mid-section forced page breaks — driven by mid_breaks set in
+         qap_service.py, keyed by (sn, component) rather than bare sn since
+         the source data reuses the same SN for two different items in some
+         categories (e.g. FR_ISO's "3.5" is both Troughability AND Cover
+         Rubber Properties - only the latter should force a break). #}
     <tbody class="item-group">
       {% if grp.is_merged %}
-      <tr{% if grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
+      {# Narrative-only rows (item 4 "Identification & Marking", etc.) - the
+         source document keeps Component & Operations in its own column, with
+         only Characteristic-Check-through-Agency merged into one wide cell
+         for the narrative text (no bold, no dash separator). #}
+      <tr{% if (grp.sn, grp.comp) in mid_breaks %} class="mid-section-break"{% endif %}>
         <td class="data-cell vcenter col-sn">{{ grp.sn }}</td>
-        <td class="data-cell merged-cell" colspan="14">{{ grp.comp }}{% if grp.first_char %} — {{ grp.first_char }}{% endif %}</td>
+        <td class="data-cell col-comp">{{ grp.comp }}</td>
+        <td class="data-cell merged-cell" colspan="12">{{ grp.first_char }}</td>
+        <td class="data-cell col-remarks"></td>
       </tr>
       {% else %}
       {% for row in grp.rows %}
-      <tr{% if loop.first and grp.sn in mid_break_sns %} class="mid-section-break"{% endif %}>
+      <tr{% if loop.first and (grp.sn, grp.comp) in mid_breaks %} class="mid-section-break"{% endif %}>
         {% if loop.first %}
         <td class="data-cell vcenter col-sn" rowspan="{{ grp.rowspan }}">{{ grp.sn }}</td>
         <td class="data-cell col-comp"       rowspan="{{ grp.rowspan }}">{{ grp.comp }}</td>

@@ -134,10 +134,16 @@ def _fetch_carcass_eav(belt_rating_id: int):
 
 
 def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge, belt_type_name):
-    """Canonical belt description shown on the TDS PDF header."""
+    """
+    Canonical belt description shown on the TDS PDF header.
+
+    Both cover thicknesses carry an explicit 'mm' suffix (top used to be a
+    bare number, e.g. "...X 6.0 X 3.0mm X..." - inconsistent with every other
+    dimension in the string, which always states its unit).
+    """
     return (
         f"{width}mm X {fabric_code} X {rating_name} X "
-        f"{top} X {bottom}mm X {grade_code} X {edge} X {belt_type_name}"
+        f"{top}mm X {bottom}mm X {grade_code} X {edge} X {belt_type_name}"
     )
 
 

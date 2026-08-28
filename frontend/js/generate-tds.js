@@ -681,8 +681,8 @@ function autoSelectFabricStyle() {
 ══════════════════════════════════════════════════════════ */
 /**
  * Auto-assemble the belt description string from the current form values.
- * Format: {width} × {fabric} × {rating} × {top} × {bottom} × {grade} × {edge} × {construction} {belt type}
- * Example: "600 × EP × EP 1000/5 × 5 × 2 × H × Cut Edge × Open End Flat Belt"
+ * Format: {width}mm X {fabric} X {rating} X {top}mm X {bottom}mm X {grade} X {edge} X {construction} {belt type}
+ * Example: "600mm X EP X EP 1000/5 X 5mm X 2mm X H X Cut Edge X Open End Flat Belt"
  *
  * Requires at minimum: width, belt rating, top cover, and bottom cover.
  * Clears the description field if any required field is missing.
@@ -714,12 +714,12 @@ function updateBeltDescription() {
   const btLabel = (bt && bt !== '- Select Belt Type -') ? bt : 'Flat Belt';
   const beltTypeStr = ct === 'Endless' ? `Endless ${btLabel}` : btLabel;
 
-  // Format: 1200mm X EP X EP 400/3 X 6.0 X 3.0mm X H X Cut Edge X Flat Belt
+  // Format: 1200mm X EP X EP 400/3 X 6.0mm X 3.0mm X H X Cut Edge X Flat Belt
   const parts = [
     `${w}mm`,
     ft_clean,
     br,
-    tc,
+    `${tc}mm`,
     `${bc}mm`,
     cg_clean,
     ec_clean,
