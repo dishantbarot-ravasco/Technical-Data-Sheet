@@ -434,13 +434,22 @@ async function prefillFormFromRecord(record) {
     (record.length_per_roll_m != null  && numsDiffer(autoLpr,   record.length_per_roll_m)) ||
     (record.net_weight_kg != null      && numsDiffer(autoNet,   record.net_weight_kg)) ||
     (record.gross_weight_kg != null    && numsDiffer(autoGross, record.gross_weight_kg));
-  if (overridden) {
+  const hasCustomRollLengths = Array.isArray(record.roll_lengths_m) && record.roll_lengths_m.length > 1;
+  if (overridden || hasCustomRollLengths) {
     const fields = document.getElementById('packing-override-fields');
     if (fields && fields.style.display === 'none') togglePackingOverride();
     set('num-rolls-override',       record.num_rolls         ?? '');
     set('length-per-roll-override', record.length_per_roll_m ?? '');
     set('net-weight-kg-override',   record.net_weight_kg     ?? '');
     set('gross-weight-kg-override', record.gross_weight_kg   ?? '');
+    // A saved custom (unequal) roll-length split is definitive — restore the
+    // exact per-roll values rather than the auto-equal-split renderRollLengthInputs()
+    // would otherwise prefill.
+    if (hasCustomRollLengths) {
+      renderRollLengthInputs(record.roll_lengths_m.length);
+      record.roll_lengths_m.forEach((len, i) => set(`roll-len-override-${i}`, len));
+      checkRollLengths();
+    }
   } else if (record.roll_dimensions) {
     set('roll-dimensions', record.roll_dimensions);
   }
@@ -1719,6 +1728,7 @@ function wireEvents() {
         recalcSplicing();
       }
     }
+    renderRollLengthInputs(v || 0);
   });
   document.getElementById('length-per-roll-override')?.addEventListener('input', () => {
     const v = parseFloat(document.getElementById('length-per-roll-override').value);
@@ -1800,6 +1810,7 @@ function captureBeltSpec() {
     num_rolls:            +val('num-rolls-override')      || +val('num-rolls')        || null,
     roll_dimensions:      val('roll-dimensions')          || null,
     length_per_roll_m:    parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
+    roll_lengths_m:       _customRollLengthsOrNull(),
     net_weight_kg:        parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
     gross_weight_kg:      parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
     splicing_required:    splicingOn,
@@ -2033,6 +2044,140 @@ function togglePackingOverride() {
       set('num-joints', String(numRollsOverride));
       recalcSplicing();
     }
+
+    renderRollLengthInputs(numRollsOverride);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   MANUAL OVERRIDE — UNEQUAL ROLL LENGTHS
+   Lets the user split a belt into rolls of DIFFERENT lengths
+   (e.g. 200m + 100m) instead of the auto-computed equal split, as long as
+   every individual roll still fits the reel's max diameter. Mirrors
+   apps/services/packing_service.py::validate_custom_roll_lengths() —
+   keep the two in sync if the formulas ever change.
+══════════════════════════════════════════════════════════ */
+
+/**
+ * Read the current per-roll length override inputs.
+ * Returns NaN entries for any blank/invalid field.
+ */
+function getRollLengthsOverride() {
+  const n = +val('num-rolls-override') || 0;
+  if (n < 2) return { count: 0, values: [], allFilled: false, allEqual: true };
+  const values = [];
+  for (let i = 0; i < n; i++) {
+    values.push(parseFloat(val(`roll-len-override-${i}`)));
+  }
+  const allFilled = values.every(v => !isNaN(v) && v > 0);
+  const allEqual  = allFilled && values.every(v => Math.abs(v - values[0]) < 0.005);
+  return { count: n, values, allFilled, allEqual };
+}
+
+/**
+ * Payload value for roll_lengths_m: the custom per-roll array when the user
+ * has filled in genuinely UNEQUAL lengths, otherwise null (falls back to the
+ * existing uniform length_per_roll_m path — matches the backend's defensive
+ * >1-distinct-value guard in pdf_service.py's belt_len_display).
+ */
+function _customRollLengthsOrNull() {
+  const { allFilled, allEqual, values } = getRollLengthsOverride();
+  return (allFilled && !allEqual) ? values : null;
+}
+
+/**
+ * Build (or resize) the per-roll length input row inside the override panel.
+ * Called whenever the override roll count changes. Preserves values already
+ * typed for indices still in range; new rows prefill with an equal split of
+ * the belt length so the user edits from a sane baseline.
+ */
+function renderRollLengthInputs(n) {
+  const wrap   = document.getElementById('roll-lengths-override-wrap');
+  const inputs = document.getElementById('roll-lengths-override-inputs');
+  if (!wrap || !inputs) return;
+
+  if (!n || n < 2) {
+    wrap.style.display = 'none';
+    inputs.innerHTML = '';
+    return;
+  }
+
+  const beltLength = parseFloat(val('belt-length-m')) || 0;
+  const equalSplit = beltLength > 0 ? beltLength / n : null;
+
+  const existing = [];
+  for (let i = 0; i < inputs.children.length; i++) {
+    const el = inputs.children[i]?.querySelector('input');
+    existing.push(el ? el.value : '');
+  }
+
+  inputs.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const prefill = existing[i] || (equalSplit !== null ? equalSplit.toFixed(2) : '');
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <label class="flbl" for="roll-len-override-${i}">Roll ${i + 1} Length (m)</label>
+      <input type="number" id="roll-len-override-${i}" class="finp roll-len-override" min="0.5" step="0.5" value="${prefill}" />
+    `;
+    inputs.appendChild(div);
+  }
+  wrap.style.display = 'block';
+
+  inputs.querySelectorAll('.roll-len-override').forEach(el => {
+    el.addEventListener('input', checkRollLengths);
+  });
+
+  checkRollLengths();
+}
+
+/**
+ * Live feedback on the per-roll length inputs: flags any individual roll
+ * that would exceed the reel's max diameter (red border), and shows whether
+ * the entered lengths sum to the belt's total length.
+ */
+function checkRollLengths() {
+  const badge = document.getElementById('roll-lengths-sum-check');
+  const { count, values, allFilled } = getRollLengthsOverride();
+  if (!badge || count < 2) return;
+
+  const beltLength = parseFloat(val('belt-length-m')) || 0;
+  const reelId     = val('reel-type-id');
+  const reel       = allReelTypes.find(r => String(r.id) === reelId);
+  const totalThick = parseFloat(val('total-thickness-mm')) || 0;
+  const d_m        = totalThick / 1000;
+  const k          = reel ? parseFloat(reel.core_diameter_m) : 0;
+  const l          = reel && reel.center_to_center_m ? parseFloat(reel.center_to_center_m) : 1.32;
+  const maxD       = reel ? (parseFloat(reel.max_roll_diameter_m) || Infinity) : Infinity;
+  // Twin rolls behave as independent circular spools once given as a literal
+  // per-roll length — see the backend function's docstring for why the twin
+  // formula (which halves the length again) is wrong here.
+  const diamFormula = (reel && reel.formula_key === 'twin') ? 'circular' : (reel?.formula_key || 'circular');
+
+  document.querySelectorAll('.roll-len-override').forEach(el => {
+    const v = parseFloat(el.value);
+    if (isNaN(v) || v <= 0 || !reel || !d_m) { el.style.borderColor = ''; el.title = ''; return; }
+    const D = computeReelDiam(diamFormula, d_m, v, k, l);
+    if (D > maxD) {
+      el.style.borderColor = '#e53935';
+      el.title = `This roll would need a ${D.toFixed(2)}m diameter, exceeding the reel's ${maxD.toFixed(2)}m maximum.`;
+    } else {
+      el.style.borderColor = '';
+      el.title = '';
+    }
+  });
+
+  if (!allFilled) {
+    badge.textContent = '';
+    return;
+  }
+  const sum  = values.reduce((a, b) => a + b, 0);
+  const diff = sum - beltLength;
+  if (Math.abs(diff) <= 0.01) {
+    badge.textContent = '✓ matches belt length';
+    badge.style.color = '#2e7d32';
+  } else {
+    badge.textContent = `✕ sums to ${sum.toFixed(2)} m, belt is ${beltLength.toFixed(2)} m`;
+    badge.style.color = '#e53935';
   }
 }
 
@@ -2080,6 +2225,19 @@ function validateForm() {
 
   if (document.getElementById('splicing-required').checked && !val('num-joints'))
     errors.push('Number of splice joints is required when splicing is enabled.');
+
+  const rollLengths = getRollLengthsOverride();
+  if (rollLengths.count >= 2) {
+    if (!rollLengths.allFilled) {
+      errors.push('All individual roll lengths must be filled in (or clear the roll count override to use an equal split).');
+    } else {
+      const sum      = rollLengths.values.reduce((a, b) => a + b, 0);
+      const beltLen  = parseFloat(val('belt-length-m')) || 0;
+      if (Math.abs(sum - beltLen) > 0.01) {
+        errors.push(`Individual roll lengths sum to ${sum.toFixed(2)} m, which must equal the belt length of ${beltLen.toFixed(2)} m.`);
+      }
+    }
+  }
 
   return errors;
 }
@@ -2347,6 +2505,7 @@ async function submitTDS(mode = 'preview') {
       num_rolls:          +val('num-rolls-override')      || +val('num-rolls')        || null,
       roll_dimensions:    val('roll-dimensions')          || null,
       length_per_roll_m:  parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
+      roll_lengths_m:     _customRollLengthsOrNull(),
       net_weight_kg:      parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
       gross_weight_kg:    parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
 

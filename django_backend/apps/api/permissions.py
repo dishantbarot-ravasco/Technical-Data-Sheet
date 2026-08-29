@@ -13,7 +13,17 @@ search/view/download TDS (those endpoints use plain IsAuthenticated), never
 create, edit, approve, decline, delete, or manage users.
 """
 
+from django.conf import settings
 from rest_framework.permissions import BasePermission
+
+
+def is_allowed_email_domain(email: str) -> bool:
+    """
+    True only for an email address ending in "@<settings.ALLOWED_EMAIL_DOMAIN>"
+    (case-insensitive). Used to gate account creation and login so no address
+    outside the company domain can ever have or use a TDSUser account.
+    """
+    return (email or '').strip().lower().endswith('@' + settings.ALLOWED_EMAIL_DOMAIN.lower())
 
 
 class IsEditor(BasePermission):

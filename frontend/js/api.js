@@ -299,6 +299,21 @@ export const listTDS = (params = {}) => {
 export const getTDS = (id) => apiFetch(`/tds/${id}`);
 
 /**
+ * List past revisions for a TDS (lightweight — no snapshot data).
+ * @param {number} id - The TDS database ID (tds_id)
+ * @returns {Promise<Array>} [{revision_number, edited_by, edited_at, change_summary}, ...]
+ */
+export const getTdsRevisions = (id) => apiFetch(`/tds/${id}/revisions`);
+
+/**
+ * Get one past revision's full field snapshot.
+ * @param {number} id  - The TDS database ID (tds_id)
+ * @param {number} rev - The revision number
+ * @returns {Promise<Object>} {revision_number, edited_by, edited_at, change_summary, snapshot}
+ */
+export const getTdsRevisionDetail = (id, rev) => apiFetch(`/tds/${id}/revisions/${rev}`);
+
+/**
  * Create a new TDS record from the form payload.
  * The server also computes derived values (total_thickness, splice lengths, etc.)
  * and assigns a sequential TDS number (e.g. "TDS-2024-0042").

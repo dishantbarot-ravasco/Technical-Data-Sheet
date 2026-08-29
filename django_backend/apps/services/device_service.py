@@ -29,6 +29,7 @@ from django.utils import timezone
 
 from apps.core.models import TrustedDevice
 from apps.services.otp_service import generate_otp
+from apps.services.email_service import render_email
 
 log = logging.getLogger(__name__)
 
@@ -200,17 +201,18 @@ def send_device_otp(user) -> str:
     name = user.full_name or user.email.split('@')[0]
 
     subject = 'Your TDS Login Verification Code'
-    body = (
-        f"Hi {name},\n\n"
-        f"Someone is trying to sign in to your Ravasco TDS account from a new device "
-        f"or browser.\n\n"
-        f"Your one-time verification code is:\n\n"
-        f"    {otp}\n\n"
-        f"This code expires in 10 minutes.\n\n"
-        f"If you made this request, enter the code and your device will be "
-        f"remembered for future logins — you won't need to verify again on this device.\n\n"
-        f"If you did NOT attempt to log in, please contact your administrator immediately.\n\n"
-        f"— Ravasco TDS System"
+    _html_body, body = render_email(
+        greeting=f"Hi {name},",
+        body_paragraphs=[
+            "A sign-in attempt was made to your Ravasco TDS account from a new device or browser.",
+            "Your one-time verification code is provided below. It expires in 10 minutes.",
+        ],
+        highlight_value=otp,
+        highlight_label="Verification Code",
+        after_highlight_paragraphs=[
+            "If this was you, enter the code and this device will be remembered for future logins.",
+            "If you did not attempt to sign in, please contact your administrator immediately.",
+        ],
     )
 
     try:
@@ -254,17 +256,17 @@ def send_new_device_notification(user, request) -> None:
     now         = timezone.now().strftime('%Y-%m-%d %H:%M UTC')
 
     subject = 'New Device Signed In to Your TDS Account'
-    body = (
-        f"Hi {name},\n\n"
-        f"A new device was just added to your Ravasco TDS account.\n\n"
-        f"  Device : {device_name}\n"
-        f"  IP     : {ip}\n"
-        f"  Time   : {now}\n\n"
-        f"This device will be trusted automatically on all future logins.\n\n"
-        f"If this was you, no action is needed.\n\n"
-        f"If you did NOT do this, please contact your administrator immediately "
-        f"and change your password.\n\n"
-        f"— Ravasco TDS System"
+    _html_body, body = render_email(
+        greeting=f"Hi {name},",
+        body_paragraphs=[
+            "A new device was added to your Ravasco TDS account.",
+            f"Device: {device_name}",
+            f"IP Address: {ip}",
+            f"Time: {now}",
+            "This device will be trusted automatically for future logins.",
+            "If this was you, no action is needed. If you did not do this, please "
+            "contact your administrator immediately and change your password.",
+        ],
     )
 
     try:
@@ -310,19 +312,20 @@ def notify_admins_new_device_login(user, request) -> None:
     if not admin_emails:
         return
 
-    subject = f'[TDS Admin Alert] New Device Login — {name}'
-    body = (
-        f"Hi,\n\n"
-        f"A user just signed in to the Ravasco TDS system from a device that "
-        f"was not previously trusted.\n\n"
-        f"  User   : {name} ({user.email}, role: {user.role})\n"
-        f"  Device : {device_name}\n"
-        f"  IP     : {ip}\n"
-        f"  Time   : {now}\n\n"
-        f"This device has been trusted for future logins by that account. "
-        f"If this looks suspicious, contact the user directly or revoke the "
-        f"device from the admin panel.\n\n"
-        f"— This is a system-generated email from the Ravasco TDS System."
+    subject = f'[TDS Admin Alert] New Device Login: {name}'
+    _html_body, body = render_email(
+        greeting="Hi,",
+        body_paragraphs=[
+            "A user signed in to the Ravasco TDS system from a device that was not previously trusted.",
+            f"User: {name} ({user.email}, role: {user.role})",
+            f"Device: {device_name}",
+            f"IP Address: {ip}",
+            f"Time: {now}",
+            "This device has been trusted for future logins on that account. If this "
+            "looks suspicious, contact the user directly or revoke the device from the admin panel.",
+        ],
+        closing="",
+        signature="This is a system-generated email from the Ravasco TDS System.",
     )
 
     try:

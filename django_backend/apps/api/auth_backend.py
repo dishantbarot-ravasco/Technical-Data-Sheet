@@ -27,6 +27,7 @@ from django.conf import settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
 from apps.core.models import TDSUser
+from apps.api.permissions import is_allowed_email_domain
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,14 @@ class TDSUserBackend:
         if not user.is_active:
             return None
         if not password_ok:
+            return None
+        # Defense-in-depth: account creation already rejects non-domain emails
+        # (apps/api/routers/users_views.py), so this should never trip on a
+        # normally-created account — but if a non-conforming row ever exists,
+        # block it here the same way any other failed login is blocked (no
+        # distinguishable error, no timing difference — the bcrypt work above
+        # already ran).
+        if not is_allowed_email_domain(user.email):
             return None
 
         return user

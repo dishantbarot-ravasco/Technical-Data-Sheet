@@ -764,6 +764,13 @@ class TDSInput(models.Model):
     # verified: numeric_precision=10, numeric_scale=2 (was incorrectly (8, 3))
     length_per_roll_m        = models.DecimalField(max_digits=10, decimal_places=2,
                                                    null=True, blank=True)
+    # Optional list[float] of individual roll lengths (m), only set when the
+    # user manually overrides with UNEQUAL rolls (e.g. [200, 100] instead of
+    # an even 150/150 split). Null for auto-calc and uniform-override records
+    # — every existing flow is unaffected. When set: num_rolls == len(...)
+    # and length_per_roll_m == average(...), kept for backward compat with
+    # any code still reading the scalar.
+    roll_lengths_m            = models.JSONField(null=True, blank=True)
     roll_dimensions          = models.TextField(null=True, blank=True)
     net_weight_kg            = models.DecimalField(max_digits=10, decimal_places=2,
                                                    null=True, blank=True)
@@ -798,6 +805,14 @@ class TDSInput(models.Model):
         db_column='batch_id',
         related_name='tds_records',
     )
+
+    # ── Version History ──────────────────────────────────────────────────────
+    # Starts at 0 ("Rev 00") for a freshly created record. Bumped by 1 in
+    # tds_views.py::_update_tds() each time an edit actually changes a field
+    # value, right after the pre-edit state is snapshotted into a TDSRevision
+    # row (see that model below) — so revision N's snapshot always holds what
+    # this record looked like immediately before it became revision N+1.
+    current_revision = models.PositiveIntegerField(default=0)
 
     # ── Audit Timestamps ──────────────────────────────────────────────────────
     approved_at = models.DateTimeField(null=True, blank=True)
@@ -860,6 +875,37 @@ class TDSBatch(models.Model):
 
     def __str__(self):
         return f"TDSBatch #{self.batch_id} ({self.created_at.date() if self.created_at else '—'})"
+
+
+class TDSRevision(models.Model):
+    """
+    Version history for TDSInput. One row per edit that actually changed a
+    field — created in tds_views.py::_update_tds() right before the record is
+    overwritten, so `snapshot` holds the record's editable-field values as
+    they were immediately before this edit (i.e. "what TDSInput.tds_id looked
+    like as of TDSInput.current_revision == revision_number").
+
+    snapshot only stores the fields an edit can actually change (belt spec,
+    packing, splicing, etc.) — identity fields that never change after
+    creation (tds_number, tds_date, status, created_by) are read from the
+    live TDSInput row when displaying a past version, since they're the same
+    across every revision of that record.
+    """
+    tds             = models.ForeignKey('TDSInput', on_delete=models.CASCADE, related_name='revisions')
+    revision_number = models.PositiveIntegerField()
+    snapshot        = models.JSONField()
+    edited_by       = models.ForeignKey('TDSUser', on_delete=models.SET_NULL, null=True, blank=True)
+    edited_at       = models.DateTimeField(auto_now_add=True)
+    change_summary  = models.TextField(blank=True)
+
+    class Meta:
+        db_table        = 'tds_revisions'
+        managed         = True
+        unique_together = [('tds', 'revision_number')]
+        ordering        = ['-revision_number']
+
+    def __str__(self):
+        return f"TDS {self.tds_id} Rev {self.revision_number:02d}"
 
 
 class OTPCode(models.Model):

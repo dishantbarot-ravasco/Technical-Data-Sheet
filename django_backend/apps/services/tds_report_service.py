@@ -21,6 +21,7 @@ from django.core.mail import send_mail
 from django.utils import timezone
 
 from apps.core.models import TDSInput, TDSUser
+from apps.services.email_service import render_email
 
 
 def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
@@ -50,10 +51,11 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
                 'skipped_reason': 'no active admin users found'}
 
     if total == 0:
-        body = (
-            f"Daily TDS Report — {report_date.isoformat()}\n\n"
-            f"No TDS documents were created today.\n\n"
-            f"— This is a system-generated email from the Ravasco TDS System."
+        _html_body, body = render_email(
+            greeting=f"Daily TDS Report: {report_date.isoformat()}",
+            body_paragraphs=["No TDS documents were created today."],
+            closing="",
+            signature="This is a system-generated email from the Ravasco TDS System.",
         )
     else:
         by_grade = {}
@@ -71,15 +73,18 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
         grade_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_grade.items(), key=lambda x: -x[1]))
         customer_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_customer.items(), key=lambda x: -x[1]))
 
-        body = (
-            f"Daily TDS Report — {report_date.isoformat()}\n\n"
-            f"Total TDS created today: {total}\n\n"
-            f"By cover grade:\n{grade_lines}\n\n"
-            f"By customer:\n{customer_lines}\n\n"
-            f"— This is a system-generated email from the Ravasco TDS System."
+        _html_body, body = render_email(
+            greeting=f"Daily TDS Report: {report_date.isoformat()}",
+            body_paragraphs=[
+                f"Total TDS created today: {total}.",
+                f"By cover grade:\n{grade_lines}",
+                f"By customer:\n{customer_lines}",
+            ],
+            closing="",
+            signature="This is a system-generated email from the Ravasco TDS System.",
         )
 
-    subject = f"[TDS Daily Report] {report_date.isoformat()} — {total} TDS created"
+    subject = f"[TDS Daily Report] {report_date.isoformat()}: {total} TDS created"
 
     send_mail(
         subject        = subject,

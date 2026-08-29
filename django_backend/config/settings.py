@@ -311,6 +311,13 @@ EMAIL_TIMEOUT         = 10
 # default, which makes the endpoint refuse every request until it's set.
 REPORT_CRON_SECRET = os.environ.get('REPORT_CRON_SECRET', '')
 
+# ── Account domain restriction ──────────────────────────────────────────────────
+# Only email addresses ending in "@<this domain>" may ever have an account or
+# log in (enforced in apps/api/permissions.py::is_allowed_email_domain(), called
+# from user creation, password login, and Google OAuth). Configurable via env
+# rather than hardcoded so a future domain change doesn't require a code edit.
+ALLOWED_EMAIL_DOMAIN = os.environ.get('ALLOWED_EMAIL_DOMAIN', 'ravasco.com')
+
 # ── Security Headers ───────────────────────────────────────────────────────────
 # SECURE_PROXY_SSL_HEADER tells Django to trust the X-Forwarded-Proto header
 # that Render's load balancer sets when terminating TLS.

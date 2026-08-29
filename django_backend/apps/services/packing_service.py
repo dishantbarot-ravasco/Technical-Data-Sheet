@@ -18,7 +18,9 @@ Weight formulas
 import math
 from dataclasses import dataclass
 
-from apps.services.calculations import reel_diameter
+from apps.services.calculations import (
+    reel_diameter, reel_diameter_circular, reel_diameter_elliptical,
+)
 
 
 # ── Result container ─────────────────────────────────────────────────────────
@@ -183,4 +185,109 @@ def compute_packing(
         net_weight_kg            = net_weight_kg,
         gross_weight_kg          = gross_weight_kg,
         gross_weight_per_roll_kg = gross_weight_per_roll_kg,
+    )
+
+
+# ── Manual override: unequal roll lengths ───────────────────────────────────
+
+@dataclass(frozen=True)
+class RollLengthsValidation:
+    """Result of validate_custom_roll_lengths() — display dimensions sized
+    off the largest individual roll (conservative, matches how a single
+    uniform roll_dimensions string already covers every roll today)."""
+    roll_height_m:   float
+    roll_width_m:    float
+    roll_dimensions: str
+
+
+def validate_custom_roll_lengths(
+    reel_type_id:       int,
+    total_thickness_mm: float,
+    belt_length_m:       float,
+    belt_width_mm:       int,
+    roll_lengths_m:      list,
+) -> RollLengthsValidation:
+    """
+    Validate a manually-specified list of UNEQUAL roll lengths for a belt
+    (e.g. [200, 100] instead of the auto-computed equal [150, 150]).
+
+    Every entry must still respect the reel's max_roll_diameter_m, and the
+    lengths must sum to the belt's total length. Raises ValueError on any
+    failure (same convention as compute_packing() above, so callers can
+    catch-and-wrap identically).
+
+    Per-roll diameter formula dispatch by reel.formula_key:
+      - 'circular'   -> reel_diameter_circular  (length wound on that one roll)
+      - 'elliptical' -> reel_diameter_elliptical (length wound on that one roll)
+      - 'twin'       -> reel_diameter_circular, NOT reel_diameter_twin.
+        compute_packing()'s own twin back-calc (above) sizes each individual
+        drum with _max_length_circular (circular formula's inverse) rather
+        than the twin formula — once you're looking at one drum's actual
+        wound length, that drum behaves as an independent circular spool.
+        reel_diameter_twin (which halves L internally) is only correct for
+        checking whether the WHOLE belt fits split evenly across the base 2
+        drums, not for validating an already-per-drum length. Twin rolls are
+        also physically issued in pairs, so an even count is enforced too.
+    """
+    from apps.core.models import ReelType
+
+    reel = ReelType.objects.filter(pk=reel_type_id).first()
+    if reel is None:
+        raise ValueError(f"reel_type_id {reel_type_id} not found in reel_types")
+
+    if not roll_lengths_m:
+        raise ValueError("roll_lengths_m must be a non-empty list.")
+
+    try:
+        lengths = [float(x) for x in roll_lengths_m]
+    except (TypeError, ValueError):
+        raise ValueError("roll_lengths_m must contain only numbers.")
+
+    if any(length <= 0 for length in lengths):
+        raise ValueError("Every roll length must be greater than 0.")
+
+    if not total_thickness_mm or total_thickness_mm <= 0:
+        raise ValueError(
+            f"total_thickness_mm must be greater than 0 to validate roll lengths (got {total_thickness_mm!r})"
+        )
+
+    if abs(sum(lengths) - float(belt_length_m)) > 0.01:
+        raise ValueError(
+            f"Roll lengths sum to {sum(lengths):.2f} m, which must equal the "
+            f"belt length of {float(belt_length_m):.2f} m."
+        )
+
+    if reel.formula_key == "twin" and len(lengths) % 2 != 0:
+        raise ValueError("Twin reels require an even number of rolls.")
+
+    d_m   = total_thickness_mm / 1000
+    k     = float(reel.core_diameter_m)
+    l     = float(reel.center_to_center_m) if reel.center_to_center_m else 0.0
+    max_D = float(reel.max_roll_diameter_m)
+
+    for length in lengths:
+        if reel.formula_key == "elliptical":
+            D = reel_diameter_elliptical(d_m, length, k, l)
+        else:  # 'circular' and 'twin' both validate per-roll with the circular formula
+            D = reel_diameter_circular(d_m, length, k)
+        if D > max_D:
+            raise ValueError(
+                f"A roll of {length:.2f} m would produce a diameter of {D:.2f} m, "
+                f"exceeding this reel's maximum of {max_D:.2f} m."
+            )
+
+    largest = max(lengths)
+    if reel.formula_key == "elliptical":
+        D_largest = reel_diameter_elliptical(d_m, largest, k, l)
+    else:
+        D_largest = reel_diameter_circular(d_m, largest, k)
+
+    roll_height_m = _round_up_half(min(D_largest, max_D))
+    roll_width_m  = _round_up_half((belt_width_mm + 100) / 1000)
+    roll_dimensions = f"H: {roll_height_m:.2f} m × W: {roll_width_m:.2f} m"
+
+    return RollLengthsValidation(
+        roll_height_m   = roll_height_m,
+        roll_width_m    = roll_width_m,
+        roll_dimensions = roll_dimensions,
     )

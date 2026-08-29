@@ -388,6 +388,13 @@ def build_tds_doc_data(
     if is_endless:
         _qty = tds.num_rolls or 1
         belt_len_display = f"{belt_len_f:.2f} X {_qty} {_qty_label}"
+    elif tds.roll_lengths_m and len(set(round(float(x), 2) for x in tds.roll_lengths_m)) > 1:
+        # Manual override with UNEQUAL roll lengths (e.g. 200m + 100m instead
+        # of an even split) — the frontend only sends this field when the
+        # lengths genuinely differ, but the >1-distinct-value guard here is
+        # defensive in case a record was ever saved another way.
+        parts = " + ".join(f"{float(x):.2f}" for x in tds.roll_lengths_m)
+        belt_len_display = f"{parts} m ({len(tds.roll_lengths_m)} {_qty_label})"
     elif tds.num_rolls and tds.length_per_roll_m:
         belt_len_display = f"{float(tds.length_per_roll_m):.2f} X {tds.num_rolls} {_qty_label}"
     else:

@@ -44,6 +44,10 @@ urlpatterns = [
     path('', include('apps.api.routers.batch_urls')),
 
     path('', include('apps.api.routers.tds_urls')),
+    # revisions_urls's paths are suffixes off an already-captured <int:tds_id>
+    # (tds/<id>/revisions[...]), same shape as pdf_urls/packing_urls below —
+    # no ordering conflict with tds_urls' bare <int:tds_id> GET.
+    path('', include('apps.api.routers.revisions_urls')),
     path('', include('apps.api.routers.packing_urls')),
     path('', include('apps.api.routers.users_urls')),
     path('', include('apps.api.routers.pdf_urls')),

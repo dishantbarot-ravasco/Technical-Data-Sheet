@@ -27,7 +27,7 @@ apps/api/routers/device_views.py):
 
 import logging
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.throttling import AnonRateThrottle
@@ -133,24 +133,3 @@ class TDSTokenRefreshView(TokenRefreshView):
 
 TDSTokenVerifyView = TokenVerifyView
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# /auth/me — return current user info (used by nav bar population)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def me_view(request):
-    """
-    GET /api/auth/me
-
-    Returns basic profile info for the authenticated user.
-    Called by auth.js#populateNavUser() on every protected page.
-    """
-    user = request.user
-    return Response({
-        'user_id':   user.user_id,
-        'email':     user.email,
-        'full_name': user.full_name,
-        'role':      user.role,
-    })

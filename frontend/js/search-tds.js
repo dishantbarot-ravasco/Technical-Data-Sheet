@@ -16,7 +16,7 @@
  *   listTDS, getTDS, deleteTDS, downloadPdf, getStandards (from api.js)
  */
 import { requireAuth, populateNavUser, showToast } from './auth.js';
-import { listTDS, getTDS, deleteTDS, downloadPdf, downloadQapPdf, getStandards } from './api.js';
+import { listTDS, getTDS, deleteTDS, downloadPdf, downloadQapPdf, getStandards, getTdsRevisions, getTdsRevisionDetail } from './api.js';
 
 /**
  * Escape a value for safe insertion into an innerHTML template string.
@@ -382,6 +382,9 @@ function wireModal() {
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(`tab-${tab.dataset.tab}`)?.classList.add('active');
+      if (tab.dataset.tab === 'history' && activeModalId) {
+        populateHistoryTab(activeModalId);
+      }
     });
   });
 
@@ -445,6 +448,7 @@ function dash(v, suffix='') {
 function populateModal(t) {
   document.getElementById('modal-title').textContent  = `TDS-${t.tds_number}`;
   document.getElementById('d-tds-number').textContent = t.tds_number;
+  document.getElementById('d-revision').textContent   = 'Rev ' + String(t.current_revision ?? 0).padStart(2, '0');
   document.getElementById('d-date').textContent       = new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('d-standard').textContent   = t.standard?.standard_name || '-';
   document.getElementById('d-purpose').textContent    = t.purpose?.purpose_type   || '-';
@@ -466,7 +470,10 @@ function populateModal(t) {
   document.getElementById('d-reel').textContent       = t.reel_type?.reel_name || (t.reel_type_id ? `Reel ${t.reel_type_id}` : '-');
   document.getElementById('d-packing-type').textContent= t.packing_type?.packing_name || (t.packing_type_id ? `Type ${t.packing_type_id}` : '-');
   document.getElementById('d-rolls').textContent      = dash(t.num_rolls);
-  document.getElementById('d-len-roll').textContent   = t.length_per_roll_m ? parseFloat(t.length_per_roll_m).toFixed(1)+' m' : '-';
+  document.getElementById('d-len-roll').textContent   =
+    (Array.isArray(t.roll_lengths_m) && t.roll_lengths_m.length > 1)
+      ? t.roll_lengths_m.map(x => parseFloat(x).toFixed(1)).join(' + ') + ' m'
+      : (t.length_per_roll_m ? parseFloat(t.length_per_roll_m).toFixed(1)+' m' : '-');
   document.getElementById('d-roll-dims').textContent  = t.roll_dimensions || '-';
   document.getElementById('d-net-wt').textContent     = t.net_weight_kg   ? parseFloat(t.net_weight_kg).toFixed(1)+' kg' : '-';
   document.getElementById('d-gross-wt').textContent   = t.gross_weight_kg ? parseFloat(t.gross_weight_kg).toFixed(1)+' kg' : '-';
@@ -476,6 +483,64 @@ function populateModal(t) {
   document.getElementById('d-step-len').textContent   = t.step_length_mm   ? t.step_length_mm+' mm' : '-';
   document.getElementById('d-splice-len').textContent = t.splice_length_mm ? t.splice_length_mm+' mm' : '-';
   document.getElementById('d-extra-len').textContent  = t.total_extra_length_m ? parseFloat(t.total_extra_length_m).toFixed(3)+' m' : '-';
+}
+
+/**
+ * Lazy-load and render the Version History tab: a list of past revisions,
+ * each expandable to show that revision's stored field snapshot. Refetches
+ * every time the tab is opened (no caching) — consistent with how the rest
+ * of this modal always re-fetches on open rather than caching stale state.
+ *
+ * @param {number} tdsId
+ */
+async function populateHistoryTab(tdsId) {
+  const list = document.getElementById('history-list');
+  list.textContent = 'Loading…';
+  try {
+    const revisions = await getTdsRevisions(tdsId);
+    if (!revisions.length) {
+      list.textContent = 'No edits have been made to this TDS yet.';
+      return;
+    }
+    list.innerHTML = revisions.map(r => {
+      const editor = r.edited_by?.full_name || r.edited_by?.email || 'Unknown user';
+      const when   = r.edited_at ? new Date(r.edited_at).toLocaleString('en-IN') : '-';
+      const rev    = String(r.revision_number).padStart(2, '0');
+      return `
+        <div class="history-row" data-rev="${r.revision_number}" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+          <div style="font-weight:600;color:var(--text);">Rev ${rev} &mdash; edited by ${escapeHtml(editor)}</div>
+          <div style="color:var(--text-muted);font-size:11px;margin-top:2px;">${escapeHtml(when)}</div>
+          <div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${escapeHtml(r.change_summary || '')}</div>
+          <div class="history-snapshot" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-family:monospace;font-size:11px;"></div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.history-row').forEach(row => {
+      row.addEventListener('click', async () => {
+        const snapshotEl = row.querySelector('.history-snapshot');
+        const isOpen = snapshotEl.style.display !== 'none';
+        if (isOpen) { snapshotEl.style.display = 'none'; return; }
+        if (!snapshotEl.dataset.loaded) {
+          snapshotEl.textContent = 'Loading…';
+          snapshotEl.style.display = 'block';
+          try {
+            const detail = await getTdsRevisionDetail(tdsId, row.dataset.rev);
+            const rows = Object.entries(detail.snapshot || {})
+              .map(([k, v]) => `<div>${escapeHtml(k)}: ${escapeHtml(v === null ? '-' : String(v))}</div>`)
+              .join('');
+            snapshotEl.innerHTML = rows || 'No stored values.';
+            snapshotEl.dataset.loaded = '1';
+          } catch (err) {
+            snapshotEl.textContent = 'Failed to load: ' + err.message;
+          }
+        } else {
+          snapshotEl.style.display = 'block';
+        }
+      });
+    });
+  } catch (err) {
+    list.textContent = 'Failed to load history: ' + err.message;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════

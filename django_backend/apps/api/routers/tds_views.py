@@ -16,6 +16,7 @@ Endpoints:
 import math
 import logging
 from datetime import datetime, timezone, date
+from decimal import Decimal
 
 from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
@@ -27,7 +28,7 @@ from rest_framework.exceptions import NotFound, ValidationError, PermissionDenie
 from apps.core.models import (
     BeltRating, BeltRatingValue, CoverGrade, Customer, FabricType,
     IndusBrand, BeltType, PackingType, Purpose, ReelType,
-    Standard, TDSInput, TDSUser,
+    Standard, TDSInput, TDSUser, TDSRevision,
 )
 from apps.api.permissions import IsEditor, IsCreator
 from apps.services.calculations import (
@@ -35,7 +36,7 @@ from apps.services.calculations import (
     validate_endless_belt_length, validate_international_shipping_fields,
 )
 from apps.services.splicing_service import compute_splicing
-from apps.services.packing_service import compute_packing
+from apps.services.packing_service import compute_packing, validate_custom_roll_lengths
 from apps.services.tds_number import next_tds_number
 from apps.core.audit_log import log_tds_action, TDSAuditLog
 
@@ -149,6 +150,7 @@ def _tds_full(t):
         # Packing
         "num_rolls":                t.num_rolls,
         "length_per_roll_m":        float(t.length_per_roll_m) if t.length_per_roll_m else None,
+        "roll_lengths_m":           t.roll_lengths_m,
         "roll_dimensions":          t.roll_dimensions,
         "net_weight_kg":            float(t.net_weight_kg) if t.net_weight_kg else None,
         "gross_weight_kg":          float(t.gross_weight_kg) if t.gross_weight_kg else None,
@@ -168,6 +170,7 @@ def _tds_full(t):
         "approved_at":              t.approved_at.isoformat() if t.approved_at else None,
         "created_at":               t.created_at.isoformat() if t.created_at else None,
         "updated_at":               t.updated_at.isoformat() if t.updated_at else None,
+        "current_revision":         t.current_revision,
     }
 
 
@@ -179,6 +182,46 @@ def _require_obj(model, pk_val, label):
     if not obj:
         raise NotFound(f"{label} with id={pk_val} not found")
     return obj
+
+
+def _json_safe_value(v):
+    """
+    Convert a single TDSInput field value into something JSONField can store
+    as-is — used when snapshotting a record's pre-edit state into
+    TDSRevision.snapshot (see _update_tds()). Decimal -> float, date/datetime
+    -> isoformat string, everything else (None, str, int, bool, list — e.g.
+    roll_lengths_m, which is already a plain JSON-safe list) passes through.
+    """
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    return v
+
+
+def _values_differ(old_val, new_val) -> bool:
+    """
+    Used by _update_tds() to detect a genuine field change (vs. a no-op save)
+    for both the audit-log summary and version-history snapshotting.
+
+    BUG FIX: a plain str(old_val) != str(new_val) comparison — the previous
+    approach — misfires for Decimal fields: str(Decimal('300.00')) == '300.00'
+    but the equal float value 300.0 (as sent by any JSON client, including the
+    frontend, which has no Decimal type) stringifies to '300.0'. Those never
+    match even when the numeric values are identical, so nearly every edit
+    spuriously flagged nearly every Decimal field as "changed" — verified by
+    round-tripping a record's own current values back through this function
+    and finding nothing detected as a no-op. Comparing Decimal fields
+    numerically (old_val != Decimal(str(new_val))) fixes this while every
+    other field type keeps the original string comparison, which is still
+    right for None vs '' and other type-noise cases the old comment described.
+    """
+    if isinstance(old_val, Decimal):
+        try:
+            return old_val != Decimal(str(new_val)) if new_val is not None else old_val is not None
+        except Exception:
+            return str(old_val) != str(new_val)
+    return str(old_val) != str(new_val)
 
 
 def _validate_positive_dimensions(p):
@@ -400,6 +443,27 @@ def create_tds(request):
         packing_gross_weight          = pr.gross_weight_kg
         packing_gross_weight_per_roll = pr.gross_weight_per_roll_kg
 
+    # ── Manual override: unequal roll lengths ─────────────────────────────────
+    # A custom, non-uniform split (e.g. [200, 100] instead of an even 150/150)
+    # takes priority over whatever the block above just computed.
+    roll_lengths_m = p.get('roll_lengths_m')
+    if roll_lengths_m:
+        if not reel_type_id:
+            raise ValidationError({'detail': 'reel_type_id is required when specifying custom roll lengths.'})
+        try:
+            rv = validate_custom_roll_lengths(
+                reel_type_id=reel_type_id,
+                total_thickness_mm=total_thickness_mm,
+                belt_length_m=float(p.get('belt_length_m', 0)),
+                belt_width_mm=int(p.get('belt_width_mm', 0)),
+                roll_lengths_m=roll_lengths_m,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({'detail': str(exc)})
+        packing_num_rolls    = len(roll_lengths_m)
+        packing_len_per_roll = round(sum(map(float, roll_lengths_m)) / len(roll_lengths_m), 2)
+        packing_roll_dims    = rv.roll_dimensions
+
     # Fallback: derive gross_weight_per_roll when num_rolls was sent directly
     if packing_gross_weight_per_roll is None and packing_gross_weight and packing_num_rolls:
         packing_gross_weight_per_roll = math.ceil(
@@ -466,6 +530,7 @@ def create_tds(request):
         packing_type_id      = packing_type_id,
         num_rolls            = packing_num_rolls,
         length_per_roll_m    = packing_len_per_roll,
+        roll_lengths_m       = roll_lengths_m,
         roll_dimensions      = packing_roll_dims,
         net_weight_kg        = packing_net_weight,
         gross_weight_kg      = packing_gross_weight,
@@ -700,6 +765,27 @@ def _update_tds(request, tds_id):
         packing_gross_weight          = pr.gross_weight_kg
         packing_gross_weight_per_roll = pr.gross_weight_per_roll_kg
 
+    # ── Manual override: unequal roll lengths ─────────────────────────────────
+    # A custom, non-uniform split (e.g. [200, 100] instead of an even 150/150)
+    # takes priority over whatever the block above just computed.
+    roll_lengths_m = p.get('roll_lengths_m')
+    if roll_lengths_m:
+        if not reel_type_id:
+            raise ValidationError({'detail': 'reel_type_id is required when specifying custom roll lengths.'})
+        try:
+            rv = validate_custom_roll_lengths(
+                reel_type_id=reel_type_id,
+                total_thickness_mm=total_thickness_mm,
+                belt_length_m=float(p.get('belt_length_m', 0)),
+                belt_width_mm=int(p.get('belt_width_mm', 0)),
+                roll_lengths_m=roll_lengths_m,
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({'detail': str(exc)})
+        packing_num_rolls    = len(roll_lengths_m)
+        packing_len_per_roll = round(sum(map(float, roll_lengths_m)) / len(roll_lengths_m), 2)
+        packing_roll_dims    = rv.roll_dimensions
+
     # Fallback: derive gross_weight_per_roll when num_rolls was sent directly
     if packing_gross_weight_per_roll is None and packing_gross_weight and packing_num_rolls:
         packing_gross_weight_per_roll = math.ceil(
@@ -760,6 +846,7 @@ def _update_tds(request, tds_id):
         'packing_type_id':        packing_type_id,
         'num_rolls':              packing_num_rolls,
         'length_per_roll_m':      packing_len_per_roll,
+        'roll_lengths_m':         roll_lengths_m,
         'roll_dimensions':        packing_roll_dims,
         'net_weight_kg':          packing_net_weight,
         'gross_weight_kg':        packing_gross_weight,
@@ -775,17 +862,27 @@ def _update_tds(request, tds_id):
     }
 
     changed_fields = []
+    old_snapshot = {}
     for field, new_val in new_values.items():
         old_val = getattr(record, field)
-        # Compare as strings so Decimal('5.0') vs 5.0 / None vs '' etc. don't
-        # get flagged as "changed" purely from type noise.
-        if str(old_val) != str(new_val):
+        if _values_differ(old_val, new_val):
             changed_fields.append(field)
+        old_snapshot[field] = _json_safe_value(old_val)
         setattr(record, field, new_val)
+
+    detail = f"fields changed: {', '.join(changed_fields)}" if changed_fields else "saved — no field values actually changed"
+
+    # Version history: only snapshot a genuine change — a no-op save (nothing
+    # in new_values actually differed) shouldn't create an empty revision.
+    if changed_fields:
+        TDSRevision.objects.create(
+            tds=record, revision_number=record.current_revision,
+            snapshot=old_snapshot, edited_by=request.user, change_summary=detail,
+        )
+        record.current_revision += 1
 
     record.save()
 
-    detail = f"fields changed: {', '.join(changed_fields)}" if changed_fields else "saved — no field values actually changed"
     log_tds_action(request, TDSAuditLog.ACTION_UPDATE, tds=record, detail=detail)
     return Response(_tds_full(_load_full(tds_id)))
 

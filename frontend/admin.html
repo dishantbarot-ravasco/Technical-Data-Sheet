@@ -1037,6 +1037,7 @@
       const role = document.getElementById('uf-role').value;
       const act  = document.getElementById('uf-active').value==='true';
       if (!em) { errEl.textContent='Email is required.'; errEl.classList.add('show'); return; }
+      if (!editingUid && !em.toLowerCase().endsWith('@ravasco.com')) { errEl.textContent='Only @ravasco.com email addresses are allowed.'; errEl.classList.add('show'); return; }
       if (!editingUid && (!pw||pw.length<8)) { errEl.textContent='Password must be ≥ 8 characters.'; errEl.classList.add('show'); return; }
       const btn = document.getElementById('uf-submit');
       btn.disabled=true; btn.textContent='Saving…';

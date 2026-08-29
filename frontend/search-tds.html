@@ -165,12 +165,14 @@
         <div class="modal-tab" data-tab="belt">Belt Specs</div>
         <div class="modal-tab" data-tab="packing">Packing</div>
         <div class="modal-tab" data-tab="splicing">Splicing</div>
+        <div class="modal-tab" data-tab="history">History</div>
       </div>
       <div class="modal-body">
         <div class="tab-panel active" id="tab-overview">
           <div class="detail-section">
             <div class="detail-section-title">Document</div>
             <div class="detail-row"><span class="detail-key">TDS Number</span>  <span class="detail-val td-mono" id="d-tds-number">-</span></div>
+            <div class="detail-row"><span class="detail-key">Revision</span>     <span class="detail-val td-mono" id="d-revision">-</span></div>
             <div class="detail-row"><span class="detail-key">Date</span>         <span class="detail-val" id="d-date">-</span></div>
             <div class="detail-row"><span class="detail-key">Standard</span>     <span class="detail-val" id="d-standard">-</span></div>
             <div class="detail-row"><span class="detail-key">Purpose</span>      <span class="detail-val" id="d-purpose">-</span></div>
@@ -221,6 +223,11 @@
             <div class="detail-row"><span class="detail-key">Step Length</span>       <span class="detail-val" id="d-step-len">-</span></div>
             <div class="detail-row"><span class="detail-key">Splice Length</span>     <span class="detail-val" id="d-splice-len">-</span></div>
             <div class="detail-row"><span class="detail-key">Total Extra Length</span><span class="detail-val" id="d-extra-len">-</span></div>
+          </div>
+        </div>
+        <div class="tab-panel" id="tab-history">
+          <div class="detail-section">
+            <div id="history-list" style="font-size:12px;color:var(--text-muted);">Loading…</div>
           </div>
         </div>
       </div>

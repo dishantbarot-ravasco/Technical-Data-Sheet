@@ -41,6 +41,7 @@ from django.views.decorators.csrf import csrf_exempt
 from google_auth_oauthlib.flow import Flow
 
 from apps.core.models import TDSUser
+from apps.api.permissions import is_allowed_email_domain
 from apps.services.device_service import is_trusted_device
 
 # Allow google-auth-oauthlib to relax scope validation
@@ -163,6 +164,12 @@ def google_callback(request):
     if not email or not email_verified:
         log.warning("Google OAuth: email missing or not verified")
         return HttpResponseRedirect(f'{_FRONTEND_LOGIN}?oauth_error=unverified_email')
+
+    # Defense-in-depth: account creation already rejects non-domain emails, so
+    # this should never trip on a normally-created account.
+    if not is_allowed_email_domain(email):
+        log.warning("Google OAuth: email %s is outside the allowed domain", email)
+        return HttpResponseRedirect(f'{_FRONTEND_LOGIN}?oauth_error=domain_not_allowed')
 
     # Look up TDSUser — no auto-registration
     try:

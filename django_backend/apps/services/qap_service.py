@@ -358,6 +358,7 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
         sections            — list of QAPSectionData (each with .item_groups)
         logo_data_uri       — base64 PNG for Indus logo
         tuv_logo_data_uri   — base64 PNG for TÜV SÜD logo
+        stamp_data_uri      — base64 PNG for Ravasco company sign & stamp
         notes               — notes/repair-norms text (GP only, else '')
     """
     from apps.core.models import QAPRecord
@@ -501,6 +502,11 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
     except Exception:
         tuv_logo_data_uri = ''
 
+    try:
+        stamp_data_uri = _logo_data_uri('ravasco_stamp.png')
+    except Exception:
+        stamp_data_uri = ''
+
     # ── Notes ─────────────────────────────────────────────────────────────────
     notes = QAP_NOTES.get(template.category, '')
 
@@ -526,6 +532,7 @@ def build_qap_context(tds, template, doc_type=None, ref_no=None, ref_date=None):
         'sections':          sections_data,
         'logo_data_uri':     logo_data_uri,
         'tuv_logo_data_uri': tuv_logo_data_uri,
+        'stamp_data_uri':    stamp_data_uri,
         'notes':             notes,
         'mid_breaks':        mid_breaks,
         'section_break_codes': section_break_codes,

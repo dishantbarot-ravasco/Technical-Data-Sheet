@@ -144,64 +144,22 @@ def send_otp_email(to_email: str, otp: str, full_name: str = "") -> None:
     """
     from django.conf import settings
     from django.core.mail import send_mail
+    from apps.services.email_service import render_email
 
     greeting = f"Hi {full_name}," if full_name else "Hello,"
 
-    html_body = f"""
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8" /></head>
-<body style="margin:0;padding:0;background:#F0F2F5;font-family:Inter,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0"
-             style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;">
-        <tr>
-          <td style="background:#1A2535;padding:24px 32px;border-bottom:3px solid #D4940A;">
-            <p style="margin:0;font-family:Montserrat,Arial,sans-serif;font-size:18px;
-                      font-weight:900;letter-spacing:.04em;color:#fff;">
-              INDUS <span style="color:#F0B429;">TDS</span> SYSTEM
-            </p>
-            <p style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.6);
-                      letter-spacing:.08em;text-transform:uppercase;">
-              Ravasco Transmission &amp; Packing
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 8px;font-size:14px;color:#1A202C;">{greeting}</p>
-            <p style="margin:0 0 24px;font-size:13px;color:#4A5568;line-height:1.6;">
-              You requested a password change for your TDS System account.
-              Use the code below — it expires in <strong>10 minutes</strong>.
-            </p>
-            <div style="background:#FEF3C7;border:2px dashed #D4940A;border-radius:8px;
-                        padding:20px;text-align:center;margin:0 0 24px;">
-              <p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:.15em;
-                        text-transform:uppercase;color:#C17F0A;">Your One-Time Password</p>
-              <p style="margin:0;font-family:Courier New,monospace;font-size:36px;
-                        font-weight:900;letter-spacing:.25em;color:#1A2535;">{otp}</p>
-            </div>
-            <p style="margin:0 0 6px;font-size:11px;color:#718096;line-height:1.5;">
-              If you did not request this, please ignore this email.
-              Your password will remain unchanged.
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#F7F8FA;padding:16px 32px;border-top:1px solid #E2E8F0;">
-            <p style="margin:0;font-size:10px;color:#A0AEC0;text-align:center;">
-              ISO 9001:2015 Certified · Internal Use Only
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-
-    text_body = f"{greeting}\n\nYour TDS System OTP: {otp}\n\nExpires in 10 minutes.\n"
+    html_body, text_body = render_email(
+        greeting=greeting,
+        body_paragraphs=[
+            "You requested a password reset for your TDS System account.",
+            "Your one-time password is provided below. It expires in 10 minutes.",
+        ],
+        highlight_value=otp,
+        highlight_label="Your One-Time Password",
+        after_highlight_paragraphs=[
+            "If you did not request this change, no action is required and your password will remain unchanged.",
+        ],
+    )
 
     if not getattr(settings, 'EMAIL_HOST', ''):
         if settings.DEBUG:

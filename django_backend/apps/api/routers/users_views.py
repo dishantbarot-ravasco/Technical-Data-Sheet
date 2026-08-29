@@ -39,7 +39,7 @@ class OTPVerifyThrottle(AnonRateThrottle):
     scope = 'otp_verify'
 
 from apps.core.models import TDSUser
-from apps.api.permissions import IsAdmin
+from apps.api.permissions import IsAdmin, is_allowed_email_domain
 from apps.services.otp_service import generate_otp, verify_otp, send_otp_email
 
 logger = logging.getLogger(__name__)
@@ -197,6 +197,8 @@ def setup_first_user(request):
 
     if not email:
         raise ValidationError({'detail': 'Email is required.'})
+    if not is_allowed_email_domain(email):
+        raise ValidationError({'detail': 'Only @ravasco.com email addresses are allowed.'})
     # SECURITY (fixed): this endpoint previously accepted any password —
     # including empty — for the very first (admin) account, since it skipped
     # the length/strength check that create_user() below already enforces
@@ -264,6 +266,8 @@ def create_user(request):
     if role not in _VALID_ROLES:
         raise ValidationError({'detail': f"role must be one of {_VALID_ROLES}"})
     email = (data.get('email') or '').strip().lower()
+    if not is_allowed_email_domain(email):
+        raise ValidationError({'detail': 'Only @ravasco.com email addresses are allowed.'})
     if TDSUser.objects.filter(email=email).exists():
         return Response(
             {'detail': 'Email already registered'},

@@ -386,7 +386,7 @@ tr.section-row {
             <td class="footer-legend-cell">LEGEND : RECORDS INDENTIFIED WITH "TICK" (&radic;) SHALL BE ESSENTIALLY INCLUDED BY SUPPLIER IN QA DOCUMENTATION.
 **M:MANUFACTURER/SUB-SUPPLIER , S : MAIN SUPPLIER , C: CUSTOMER  P : PERFORM , W : WITNESS , &amp; V : VERIFICATION AS APPROPRIATE</td>
             <td class="footer-sig-cell sig-right">
-              <div class="sig-space"></div>
+              <div class="sig-space">{% if stamp_data_uri %}<img src="{{ stamp_data_uri }}" alt="Ravasco sign and stamp" style="height:13mm;">{% endif %}</div>
               <div class="sig-label">Ravasco Transmission &amp; Packing Pvt Ltd.</div>
             </td>
           </tr>
