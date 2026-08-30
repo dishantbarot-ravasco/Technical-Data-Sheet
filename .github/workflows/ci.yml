@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  django:
+    runs-on: ubuntu-22.04
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tds_ci
+          POSTGRES_PASSWORD: tds_ci
+          POSTGRES_DB: tds_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tds_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TDS_SECRET_KEY: ci-only-secret-key-not-used-in-production
+      JWT_SIGNING_KEY: ci-only-jwt-key-not-used-in-production
+      APP_ENV: production
+      DATABASE_URL: postgres://tds_ci:tds_ci@localhost:5432/tds_ci
+      ALLOWED_EMAIL_DOMAIN: ravasco.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      # WeasyPrint's system libs (packages.txt) — needed for pdf_renderer.py
+      # imports to succeed even though the test suite doesn't render PDFs.
+      - name: Install system packages for WeasyPrint
+        run: |
+          sudo apt-get update
+          grep -v '^#' packages.txt | grep -v '^\s*$' | xargs sudo apt-get install -y
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Audit dependencies for known vulnerabilities
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+        working-directory: django_backend
+
+      - name: Django system check
+        run: python manage.py check
+        working-directory: django_backend
+
+      - name: Run migrations
+        run: python manage.py migrate --noinput
+        working-directory: django_backend
+
+      - name: Create cache table
+        run: python manage.py createcachetable
+        working-directory: django_backend
+
+      - name: Run test suite
+        run: python manage.py test
+        working-directory: django_backend

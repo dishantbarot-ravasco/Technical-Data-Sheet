@@ -13,6 +13,7 @@ What the report includes, per day:
   - Total number of TDS documents created that day
   - A breakdown of how many used each cover grade
   - A breakdown of how many were for each customer
+  - A breakdown of how many were created by each user
 """
 import datetime
 
@@ -39,7 +40,7 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
     qs = (
         TDSInput.objects
         .filter(created_at__date=report_date)
-        .select_related('cover_grade', 'cover_grade__standard', 'customer')
+        .select_related('cover_grade', 'cover_grade__standard', 'customer', 'created_by')
     )
     total = qs.count()
 
@@ -54,12 +55,11 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
         _html_body, body = render_email(
             greeting=f"Daily TDS Report: {report_date.isoformat()}",
             body_paragraphs=["No TDS documents were created today."],
-            closing="",
-            signature="This is a system-generated email from the Ravasco TDS System.",
         )
     else:
         by_grade = {}
         by_customer = {}
+        by_creator = {}
         for rec in qs:
             grade_label = (
                 f"{rec.cover_grade.grade_code} ({rec.cover_grade.standard.standard_name})"
@@ -70,8 +70,15 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
             customer_label = rec.customer.customer_name if rec.customer_id else "No customer set"
             by_customer[customer_label] = by_customer.get(customer_label, 0) + 1
 
+            creator_label = (
+                rec.created_by.full_name or rec.created_by.email
+                if rec.created_by_id else "Unknown"
+            )
+            by_creator[creator_label] = by_creator.get(creator_label, 0) + 1
+
         grade_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_grade.items(), key=lambda x: -x[1]))
         customer_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_customer.items(), key=lambda x: -x[1]))
+        creator_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_creator.items(), key=lambda x: -x[1]))
 
         _html_body, body = render_email(
             greeting=f"Daily TDS Report: {report_date.isoformat()}",
@@ -79,9 +86,8 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
                 f"Total TDS created today: {total}.",
                 f"By cover grade:\n{grade_lines}",
                 f"By customer:\n{customer_lines}",
+                f"Created by:\n{creator_lines}",
             ],
-            closing="",
-            signature="This is a system-generated email from the Ravasco TDS System.",
         )
 
     subject = f"[TDS Daily Report] {report_date.isoformat()}: {total} TDS created"

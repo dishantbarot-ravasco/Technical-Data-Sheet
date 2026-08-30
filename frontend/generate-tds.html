@@ -43,18 +43,21 @@
       align-items: center;
       justify-content: space-between;
     }
+    /* ACCESSIBILITY (fixed): white text on #F5A623 is 2.03:1 — a WCAG AA
+       color-contrast failure (needs 4.5:1) an axe-core scan caught across
+       every section header on this page. #1A2535 (navy) is 7.62:1. */
     .section-card-header h3 {
       font-family: var(--font-head);
-      font-size: 10px;
+      font-size:12px;
       font-weight: 700;
       letter-spacing: .09em;
       text-transform: uppercase;
-      color: #fff;
+      color: #1A2535;
       margin: 0;
     }
     .section-card-header .sub {
-      font-size: 10px;
-      color: rgba(255,255,255,.75);
+      font-size:12px;
+      color: rgba(26,37,53,.75);
     }
     .section-card-body { padding: 14px 16px; }
 
@@ -65,11 +68,15 @@
       border-color: #E8C060 !important;
       font-weight: 600;
     }
+    /* ACCESSIBILITY (fixed): font-size 8.5px was even smaller than the
+       9-10px sweep elsewhere caught (missed a decimal value); color:#fff on
+       this #F5A623 background was 2.03:1, same WCAG AA failure as the
+       section headers above. */
     .badge-auto {
       display: inline-block;
-      font-size: 8.5px;
+      font-size: 11px;
       background: #F5A623;
-      color: #fff;
+      color: #1A2535;
       padding: 1px 5px;
       border-radius: 2px;
       margin-left: 4px;
@@ -90,7 +97,7 @@
 
     /* Compact label + input */
     .flbl {
-      font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      font-size:12px; font-weight: 600; letter-spacing: .05em;
       text-transform: uppercase; color: var(--navy);
       display: block; margin-bottom: 4px;
     }
@@ -124,7 +131,7 @@
       border-bottom: 1px solid var(--border); transition: background .12s;
     }
     .autocomplete-item:hover { background: var(--gold-pale); }
-    .autocomplete-item small { color: var(--text-muted); font-size: 10.5px; display: block; }
+    .autocomplete-item small { color: var(--text-muted); font-size:12.5px; display: block; }
     .autocomplete-item.new-customer { color: #D4940A; }
     .new-customer-form {
       background: var(--bg-section); border: 1px solid var(--border);
@@ -139,15 +146,18 @@
       border: 1px solid var(--gold-border); border-radius: var(--radius); margin-top: 8px;
     }
     .cv { display: flex; flex-direction: column; gap: 1px; }
-    .cv label { font-size: 9px; color: var(--text-muted); letter-spacing: .07em; text-transform: uppercase; }
+    .cv label { font-size:11px; color: var(--text-muted); letter-spacing: .07em; text-transform: uppercase; }
     .cv .num { font-family: var(--font-head); font-size: 18px; font-weight: 900; color: var(--navy); }
-    .cv .unit { font-size: 10px; color: var(--text-muted); }
+    .cv .unit { font-size:12px; color: var(--text-muted); }
     .cv-sep { width: 1px; height: 30px; background: var(--gold-border); }
 
     /* ── Splicing toggle in yellow header ─────────────────── */
     .spl-toggle-wrap { display: flex; align-items: center; gap: 8px; }
-    .spl-toggle-wrap .toggle-label { font-size: 10px; color: rgba(255,255,255,.85); font-weight: 600; letter-spacing: .05em; }
-    .spl-toggle-text { font-size: 10px; color: rgba(255,255,255,.65); min-width: 20px; }
+    /* ACCESSIBILITY (fixed): white-ish text on the #F5A623 section header —
+       same WCAG AA contrast failure as the header title itself; navy-based
+       rgba matches that fix. */
+    .spl-toggle-wrap .toggle-label { font-size:12px; color: rgba(26,37,53,.85); font-weight: 600; letter-spacing: .05em; }
+    .spl-toggle-text { font-size:12px; color: rgba(26,37,53,.75); min-width: 20px; }
 
     /* ── Sticky footer ────────────────────────────────────── */
     .form-footer-bar {
@@ -156,7 +166,7 @@
       padding: 10px 16px; display: flex; align-items: center; gap: 12px;
     }
     .ftr-chip {
-      padding: 3px 10px; border-radius: 3px; font-size: 10.5px; font-weight: 700;
+      padding: 3px 10px; border-radius: 3px; font-size:12.5px; font-weight: 700;
       text-transform: uppercase; background: #fff3cd; color: #856404;
       border: 1px solid #e0a800; font-family: var(--font-head); letter-spacing: .05em;
     }
@@ -170,9 +180,13 @@
     .success-screen.show { display: block; }
     .success-icon { font-size: 64px; margin-bottom: 20px; animation: popIn .5s ease; }
     @keyframes popIn { 0%{transform:scale(.5);opacity:0} 70%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+    /* ACCESSIBILITY (fixed): --gold-light as text is 2.61:1 on white — fails
+       even WCAG AA's relaxed 3:1 threshold for large bold text (this
+       qualifies at 36px/900 weight), let alone 4.5:1 for normal text.
+       --gold-text passes comfortably (5.49:1). */
     .success-tds-number {
       font-family: var(--font-head); font-size: 36px; font-weight: 900;
-      color: var(--gold-light); letter-spacing: .08em; margin-bottom: 8px;
+      color: var(--gold-text); letter-spacing: .08em; margin-bottom: 8px;
     }
     .success-screen h2 { font-family: var(--font-head); font-size: 22px; font-weight: 900; color: var(--navy); margin-bottom: 8px; }
     .success-screen > p { color: var(--text-muted); font-size: 13px; margin-bottom: 32px; }
@@ -208,7 +222,11 @@
       letter-spacing: .08em; text-transform: uppercase;
       transition: background .15s, color .15s;
     }
-    .mode-btn.active { background: #F5A623; color: #fff; }
+    /* ACCESSIBILITY (fixed): white text on #F5A623 was 2.02:1 — a WCAG AA
+       color-contrast failure (needs 4.5:1) an axe-core scan caught.
+       var(--navy) is 7.62:1 on this background — same fix as .btn-primary
+       in style.css (gold background, dark text). */
+    .mode-btn.active { background: #F5A623; color: var(--navy); }
     .mode-btn:not(.active):hover { background: var(--gold-pale); color: var(--navy); }
     .mode-btn .mode-icon { margin-right: 6px; }
 
@@ -239,7 +257,7 @@
     .mtable thead th {
       position: sticky; top: 0;
       background: #1e3a5f; color: #fff;
-      font-size: 9px; font-weight: 700; letter-spacing: .08em;
+      font-size:11px; font-weight: 700; letter-spacing: .08em;
       text-transform: uppercase; white-space: nowrap;
       padding: 7px 6px; border-right: 1px solid rgba(255,255,255,.15);
     }
@@ -266,7 +284,7 @@
 
     /* ── Row controls ────────────────────────────────────── */
     .row-num {
-      text-align: center; font-size: 9px; font-weight: 700;
+      text-align: center; font-size:11px; font-weight: 700;
       color: var(--text-muted); padding: 0 4px; white-space: nowrap;
     }
     .row-del {
@@ -299,7 +317,7 @@
     .bs-table th {
       text-align: left; padding: 8px 12px;
       background: var(--bg-section); border-bottom: 1px solid var(--border);
-      font-size: 9.5px; font-weight: 700; letter-spacing: .07em;
+      font-size:11.5px; font-weight: 700; letter-spacing: .07em;
       text-transform: uppercase; color: var(--text-muted);
     }
     .bs-table td {
@@ -319,7 +337,7 @@
       margin-bottom: 0;
     }
     .parser-format-label {
-      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      font-size:11px; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px;
     }
     .parser-format-code {
@@ -416,7 +434,7 @@
             <div id="grp-doc-number">
               <label class="flbl" for="tds-doc-number">TDS Document No.
                 <span id="doc-number-req-mark" class="req">*</span>
-                <span id="doc-number-opt-note" style="display:none;font-weight:400;font-size:9px;
+                <span id="doc-number-opt-note" style="display:none;font-weight:400;font-size:11px;
                              color:var(--text-muted);text-transform:none;letter-spacing:0;margin-left:4px;">
                   optional - shared across all belts in this batch
                 </span>
@@ -516,19 +534,26 @@
             </div>
           </div>
 
-          <!-- SINGLE ONLY: belt description (auto per-belt in multi mode) -->
+          <!-- SINGLE ONLY: belt description (auto per-belt in multi mode).
+               Always a normal editable input - no lock/toggle. It auto-fills
+               live from the Belt Specification fields below (same "X"
+               separated format as the Multiple Belts line format), and the
+               moment the user types something of their own into it directly,
+               it stops being overwritten and the badge flips to MANUAL.
+               Clearing the field resumes auto-fill. -->
           <div id="grp-belt-desc" class="form-row-c frc-4 frc-mt">
             <div class="sp4">
               <label class="flbl" for="belt-description">
                 Belt Description
-                <span class="badge-auto">AUTO</span>
+                <span id="belt-desc-auto-badge" class="badge-auto">AUTO</span>
                 <span style="font-size:9px;color:var(--text-muted);font-weight:400;
                              text-transform:none;letter-spacing:0;margin-left:6px;">
                   width X fabric X rating X top X bottom X grade X edge X type
                 </span>
               </label>
-              <input type="text" id="belt-description" class="finp auto-field" readonly
-                     placeholder="Fill Belt Specification to auto-generate…" />
+              <input type="text" id="belt-description" class="finp auto-field"
+                     placeholder="Fill Belt Specification to auto-generate, or type your own…" />
+              <div class="form-hint" id="belt-desc-hint" style="margin-top:3px;">Auto-fills live · type here to enter your own</div>
             </div>
           </div>
 
@@ -536,7 +561,7 @@
           <div class="multi-mode-note" id="multi-mode-note">
             ℹ In Multiple Belts mode, enter each belt's full specification as a single line
             in the text area below - one belt per line, fields separated by
-            <strong>*</strong>. Fill in the shared customer info and standard above first.
+            <strong>X</strong>. Fill in the shared customer info and standard above first.
           </div>
 
         </div>
@@ -548,7 +573,7 @@
         <div class="section-card-header">
           <h3>② Belt Specifications</h3>
           <span class="sub">One belt per line · fields separated by
-            <code style="background:rgba(255,255,255,.2);padding:1px 5px;border-radius:2px;font-size:10px;">*</code>
+            <code style="background:rgba(255,255,255,.2);padding:1px 5px;border-radius:2px;font-size:12px;">X</code>
           </span>
         </div>
         <div class="section-card-body">
@@ -558,15 +583,15 @@
             <div style="background:#1e3a5f;color:#fff;padding:9px 14px;border-radius:var(--radius) var(--radius) 0 0;
                         display:flex;align-items:center;justify-content:space-between;">
               <span style="font-family:var(--font-head);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;">
-                Belt Line Format Guide - fields separated by *
+                Belt Line Format Guide - fields separated by X
               </span>
-              <span style="font-size:10px;color:rgba(255,255,255,.7);">Last 3 fields are optional (fields 11–13)</span>
+              <span style="font-size:12px;color:rgba(255,255,255,.7);">Last 3 fields are optional (fields 11–13)</span>
             </div>
             <div style="border:1.5px solid #1e3a5f;border-top:none;border-radius:0 0 var(--radius) var(--radius);overflow:hidden;">
               <table style="width:100%;border-collapse:collapse;font-size:11px;">
                 <thead>
                   <tr style="background:#f0f4fa;">
-                    <th style="padding:5px 8px;text-align:center;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;font-size:9.5px;color:#1e3a5f;width:28px;">#</th>
+                    <th style="padding:5px 8px;text-align:center;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;font-size:11.5px;color:#1e3a5f;width:28px;">#</th>
                     <th style="padding:5px 8px;text-align:left;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Full Field Name</th>
                     <th style="padding:5px 8px;text-align:left;border-right:1px solid #d0d9e8;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Example Value</th>
                     <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #d0d9e8;color:#1e3a5f;">Notes / Accepted Values</th>
@@ -635,19 +660,19 @@
                   </tr>
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">11</td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOT Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOT Plies <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-top plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">12</td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOB Plies <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOB Plies <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-bottom plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">13</td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">Carcass (mm) <span style="font-weight:400;font-size:9.5px;">(optional)</span></td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">Carcass (mm) <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">5.4</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Per-belt carcass thickness override. Leave blank to auto-calculate from rating</td>
                   </tr>
@@ -657,7 +682,7 @@
                 <strong style="color:#1e3a5f;">Example line:</strong>
                 <code style="font-family:monospace;font-size:11px;color:#7a5000;background:#FFF8E6;
                              border:1px solid #E8C060;border-radius:3px;padding:3px 8px;margin-left:6px;">
-                  1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300</code>
+                  1200 X EP X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300</code>
                 <span style="color:#888;margin-left:8px;">- fields 11–13 omitted (all use defaults)</span>
               </div>
             </div>
@@ -666,11 +691,11 @@
           <!-- Belt text input -->
           <div style="margin-bottom:14px;">
             <label class="flbl" for="multi-belt-text">Belt Lines <span class="req">*</span>
-              <span style="font-weight:400;font-size:9.5px;color:var(--text-muted);
+              <span style="font-weight:400;font-size:11.5px;color:var(--text-muted);
                            text-transform:none;letter-spacing:0;margin-left:6px;">- one belt per line</span>
             </label>
             <textarea id="multi-belt-text" class="finp" rows="6"
-              placeholder="1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300&#10;900 * EP * EP 315/3 * 5 * 3 * H * Cut * Open-End * Flat * 250&#10;&#10;- Carcass override (field 13) is optional per belt:&#10;1200 * EP * EP 400/3 * 6 * 3 * H * Cut * Open-End * Flat * 300 * 1 * 1 * 5.4"></textarea>
+              placeholder="1200 X EP X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300&#10;900 X EP X EP 315/3 X 5 X 3 X H X Cut X Open-End X Flat X 250&#10;&#10;- Carcass override (field 13) is optional per belt:&#10;1200 X EP X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300 X 1 X 1 X 5.4"></textarea>
           </div>
 
           <!-- Shared fabric override -->
@@ -686,7 +711,7 @@
 
           <!-- Live parse preview -->
           <div id="multi-parse-preview" style="display:none;margin-top:16px;">
-            <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;
                         letter-spacing:.08em;color:var(--text-muted);margin-bottom:6px;">
               Parsed Preview - <span id="multi-parse-count">0</span> belt(s)
             </div>
@@ -764,7 +789,7 @@
               </label>
               <span id="multi-splice-text"
                     style="font-size:11px;color:var(--text-muted);font-weight:600;">No</span>
-              <span style="font-size:10.5px;color:var(--text-muted);margin-left:4px;">
+              <span style="font-size:12.5px;color:var(--text-muted);margin-left:4px;">
                 - shared across all belts in this batch
               </span>
             </div>
@@ -845,10 +870,11 @@
                      labels: one for the number field, one for the toggle. -->
                 <div class="flbl" style="display:flex;align-items:center;justify-content:space-between;">
                   <label for="carcass-thickness-mm">Carcass (mm)
-                    <span style="font-size:9px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">from rating</span>
+                    <span style="font-size:11px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">from rating</span>
                   </label>
                   <label class="toggle" style="margin:0;" title="Unlock to override">
-                    <input type="checkbox" id="carcass-override-toggle" />
+                    <input type="checkbox" id="carcass-override-toggle"
+                           aria-label="Unlock to override auto-calculated carcass thickness" />
                     <span class="toggle-slider"></span>
                   </label>
                 </div>
@@ -907,7 +933,7 @@
                 <div class="cv-sep"></div>
                 <div class="cv"><label>Gross Wt / m</label><span class="num" id="cv-gross-pm">-</span><span class="unit">kg/m</span></div>
               </div>
-              <div id="cv-weight-formula" style="font-size:9.5px;color:var(--text-muted);margin-top:4px;text-align:center;"></div>
+              <div id="cv-weight-formula" style="font-size:11.5px;color:var(--text-muted);margin-top:4px;text-align:center;"></div>
             </div>
 
             <input type="hidden" id="cv-total-weight" />
@@ -1017,7 +1043,7 @@
 
             <div style="margin-top:10px;">
               <button type="button" class="btn btn-ghost btn-sm" id="btn-toggle-override"
-                      style="font-size:10px;padding:4px 10px;">✏ Manual Override</button>
+                      style="font-size:12px;padding:4px 10px;">✏ Manual Override</button>
               <div id="packing-override-fields" style="display:none;margin-top:10px;">
                 <div class="form-row-c frc-4">
                   <div>
@@ -1039,8 +1065,8 @@
                 </div>
                 <div id="roll-lengths-override-wrap" style="display:none;margin-top:10px;">
                   <label class="flbl">
-                    Individual Roll Lengths (m) — pre-filled with an equal split; edit any to make them unequal (must still sum to the belt length)
-                    <span id="roll-lengths-sum-check" style="font-size:10px;margin-left:6px;"></span>
+                    Individual Roll Lengths (m) - pre-filled with an equal split; edit any to make them unequal (must still sum to the belt length)
+                    <span id="roll-lengths-sum-check" style="font-size:12px;margin-left:6px;"></span>
                   </label>
                   <div id="roll-lengths-override-inputs" class="form-row-c frc-4"></div>
                 </div>
@@ -1061,7 +1087,7 @@
                 <div class="cv-sep"></div>
                 <div class="cv"><label>Gross Wt</label><span class="num" id="pc-gross">-</span><span class="unit">kg</span></div>
               </div>
-              <div style="font-size:9.5px;color:var(--text-muted);margin-top:4px;text-align:center;">
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;text-align:center;">
                 Preview - final values confirmed by backend at submission
               </div>
             </div>
@@ -1077,7 +1103,7 @@
             <div class="spl-toggle-wrap">
               <span class="toggle-label">Splicing Required</span>
               <label class="toggle" style="margin:0;">
-                <input type="checkbox" id="splicing-required" />
+                <input type="checkbox" id="splicing-required" aria-label="Splicing Required" />
                 <span class="toggle-slider"></span>
               </label>
               <span class="spl-toggle-text" id="splice-toggle-text">No</span>
@@ -1149,7 +1175,7 @@
       <div id="param-select-panel">
         <div style="background:var(--bg-section);border:1px solid var(--border);border-radius:var(--radius-lg);
                     padding:14px 18px;margin-bottom:16px;">
-          <div style="font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.1em;
+          <div style="font-family:var(--font-head);font-size:12px;font-weight:700;letter-spacing:.1em;
                       text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Display Options</div>
           <div style="display:flex;gap:24px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
@@ -1165,7 +1191,7 @@
         </div>
         <div style="background:var(--bg-section);border:1px solid var(--border);border-radius:var(--radius-lg);
                     padding:16px 20px;margin-bottom:20px;">
-          <div style="font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.1em;
+          <div style="font-family:var(--font-head);font-size:12px;font-weight:700;letter-spacing:.1em;
                       text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;">
             Include Parameter Groups &amp; Parameters
           </div>
@@ -1184,7 +1210,7 @@
         </div>
         <div style="border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:20px;">
           <div style="background:var(--bg-section);padding:10px 16px;border-bottom:1px solid var(--border);
-                      font-family:var(--font-head);font-size:10px;font-weight:700;
+                      font-family:var(--font-head);font-size:12px;font-weight:700;
                       letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);
                       display:flex;align-items:center;gap:8px;">
             <span>📄</span> TDS Preview
@@ -1245,7 +1271,7 @@
             <input type="radio" name="bs-copy-type" value="internal" /> Internal Copy
           </label>
           <span style="border-left:1px solid var(--border);height:14px;margin:0 2px;"></span>
-          <span style="font-size:10px;opacity:.65;white-space:nowrap;">Include:</span>
+          <span style="font-size:12px;opacity:.65;white-space:nowrap;">Include:</span>
           <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
                  title="Include Fabric Parameters section in PDF">
             <input type="checkbox" class="bs-section-include-cb" data-group="Fabric Parameters" />
@@ -1589,12 +1615,12 @@
       var errors = [];
 
       lines.forEach(function(line, i) {
-        var parts   = line.split('*').map(function(p){ return p.trim(); });
+        var parts   = line.split(/\s+X\s+/i).map(function(p){ return p.trim(); });
         var lineNum = i + 1;
 
         if (parts.length < 10) {
           errors.push('Line ' + lineNum + ': needs at least 10 fields (got ' + parts.length
-            + ') - check that fields are separated by *');
+            + ') - check that fields are separated by X');
           return;
         }
 
@@ -1694,7 +1720,7 @@
           + '<td>' + _escHtml(b.bot_plies || '1') + '</td>'
           + '<td>' + _escHtml(b.bob_plies || '1') + '</td>'
           + '<td style="color:' + (b.carcass_mm ? '#7a5000' : '#aaa') + ';">'
-            + (b.carcass_mm ? _escHtml(b.carcass_mm) : '<em style="color:#aaa;font-size:9px;">AUTO</em>') + '</td>';
+            + (b.carcass_mm ? _escHtml(b.carcass_mm) : '<em style="color:#aaa;font-size:11px;">AUTO</em>') + '</td>';
           tbody.appendChild(tr);
         });
         _refreshBadge(belts.length);
@@ -1851,7 +1877,7 @@
                 Object.entries(errs).forEach(function(fe) {
                   var fieldName = fe[0].replace(/_/g,' ');
                   var fieldErr  = Array.isArray(fe[1]) ? fe[1].join(', ') : fe[1];
-                  lineErrs.push('Belt ' + lineNum + ' — ' + fieldName + ': ' + fieldErr);
+                  lineErrs.push('Belt ' + lineNum + ' - ' + fieldName + ': ' + fieldErr);
                 });
               }
             });
@@ -1861,7 +1887,7 @@
                     return '<div style="padding:3px 0 3px 12px;border-left:3px solid #EF4444;margin-bottom:4px;">' + _escHtml(le) + '</div>';
                   }).join('');
               errBox.style.display = '';
-              msg = lineErrs.length + ' belt line error(s) — see details above';
+              msg = lineErrs.length + ' belt line error(s) - see details above';
             }
           } else if (e.shared) {
             var sharedErrs = Object.entries(e.shared).map(function(se) {

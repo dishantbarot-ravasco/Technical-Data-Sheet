@@ -136,10 +136,23 @@ class Migration(migrations.Migration):
             name='approved_by',
             field=models.ForeignKey(blank=True, db_column='approved_by', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='approved_tds', to='core.tdsuser'),
         ),
-        migrations.AddField(
-            model_name='tdsinput',
-            name='batch',
-            field=models.ForeignKey(blank=True, db_column='batch_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tds_records', to='core.tdsbatch'),
+        # SeparateDatabaseAndState (fixed): the physical batch_id column was
+        # already added by 0006_tds_batch's own RunSQL (`ADD COLUMN IF NOT
+        # EXISTS batch_id ...`, which runs unconditionally regardless of
+        # managed status) — a plain AddField here re-adds the same column for
+        # real (tdsinput was managed=True again by this point, so AddField is
+        # not a no-op) and fails with "column already exists" on any replay
+        # from a fresh database. Django's own state just needs to learn about
+        # the `batch` FK field; no new database column is needed.
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.AddField(
+                    model_name='tdsinput',
+                    name='batch',
+                    field=models.ForeignKey(blank=True, db_column='batch_id', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='tds_records', to='core.tdsbatch'),
+                ),
+            ],
+            database_operations=[],
         ),
         migrations.AddField(
             model_name='tdsinput',

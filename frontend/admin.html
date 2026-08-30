@@ -69,7 +69,9 @@
       font-family: var(--font-head); font-size: 11px; font-weight: 800;
       letter-spacing: .12em; text-transform: uppercase; color: var(--gold-bright);
     }
-    .sidebar-head p { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 3px; }
+    /* ACCESSIBILITY (fixed): .45 opacity white-on-navy was 4.26:1, just
+       under WCAG AA's 4.5:1 (axe-core flagged it); .55 clears it (~4.8:1). */
+    .sidebar-head p { font-size:12px; color: rgba(255,255,255,.55); margin-top: 3px; }
     .sidebar-nav { padding: 8px 0; }
     .snav-item {
       display: flex; align-items: center; gap: 10px;
@@ -79,12 +81,17 @@
       border-left: 3px solid transparent;
     }
     .snav-item:hover { background: var(--bg-section); color: var(--text); }
-    .snav-item.active { background: var(--gold-dim); color: var(--gold); border-left-color: var(--gold); font-weight: 600; }
+    /* ACCESSIBILITY (fixed): both .active and .snav-badge used --gold as
+       text (2.99:1 / 2.98:1 here — WCAG AA color-contrast failures found by
+       an axe-core scan of this page). --gold-text is style.css's designated
+       text-safe variant (5.49:1 on white); border-left-color is a border,
+       not text, so it's left as --gold. */
+    .snav-item.active { background: var(--gold-dim); color: var(--gold-text); border-left-color: var(--gold); font-weight: 600; }
     .snav-item .si { font-size: 15px; width: 20px; text-align: center; }
     .snav-badge {
       margin-left: auto; background: var(--gold-pale);
-      color: var(--gold); border: 1px solid var(--gold-border);
-      border-radius: 10px; font-size: 9px; font-weight: 700;
+      color: var(--gold-text); border: 1px solid var(--gold-border);
+      border-radius: 10px; font-size:11px; font-weight: 700;
       padding: 1px 7px; letter-spacing: .04em;
     }
     .snav-sep { height: 1px; background: var(--border); margin: 6px 12px; }
@@ -102,8 +109,13 @@
       display: flex; align-items: center; justify-content: space-between;
     }
     .pc-head h3 {
+      /* ACCESSIBILITY (fixed): --gold-light as text is 2.45:1 on this
+         panel's --bg-section background — an axe-core scan of this page
+         flagged it as a WCAG AA color-contrast failure (needs 4.5:1).
+         --gold-text is the variable style.css already designates for text
+         use (5.49:1 on white); swapping to it here matches that intent. */
       font-family: var(--font-head); font-size: 11px; font-weight: 700;
-      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-light);
+      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-text);
     }
     .pc-head p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .pc-body { padding: 20px; }
@@ -128,11 +140,11 @@
     .kpi-icon.green { background: var(--green-pale);  border-color: var(--green-border); }
     .kpi-icon.orange{ background: var(--orange-dim);  border-color: rgba(217,107,10,.3); }
     .kpi-icon.navy  { background: rgba(26,37,53,.07); border-color: rgba(26,37,53,.15); }
-    .kpi-label { font-size: 10px; font-weight: 600; letter-spacing: .07em;
+    .kpi-label { font-size:12px; font-weight: 600; letter-spacing: .07em;
                  text-transform: uppercase; color: var(--text-muted); }
     .kpi-value { font-family: var(--font-head); font-size: 26px; font-weight: 900;
                  color: var(--navy); line-height: 1.1; }
-    .kpi-sub   { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+    .kpi-sub   { font-size:12px; color: var(--text-muted); margin-top: 1px; }
 
     /* ── Breakdown bars ───────────────────────────────── */
     .breakdown-list { display: flex; flex-direction: column; gap: 8px; }
@@ -142,7 +154,10 @@
     .bdrow-bar-wrap { flex: 1; background: var(--bg-section); border-radius: 4px; height: 8px; overflow: hidden; }
     .bdrow-bar { height: 100%; border-radius: 4px; background: var(--gold);
                  transition: width .4s ease; }
-    .bdrow-count { font-size: 11px; font-weight: 700; color: var(--gold); width: 28px; text-align: right; flex-shrink: 0; }
+    /* ACCESSIBILITY (fixed): --gold as text is only 3.32:1 on white — same
+       WCAG AA color-contrast failure as .pc-head h3 above; --gold-text
+       (5.49:1 on white) is the designated text-safe variant. */
+    .bdrow-count { font-size: 11px; font-weight: 700; color: var(--gold-text); width: 28px; text-align: right; flex-shrink: 0; }
 
     /* ── Monthly sparkline table ──────────────────────── */
     .month-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
@@ -152,7 +167,7 @@
       border-radius: var(--radius); padding: 10px 8px; text-align: center;
     }
     .month-cell.highlight { background: var(--gold-dim); border-color: var(--gold-border); }
-    .month-name { font-size: 9px; font-weight: 700; letter-spacing: .08em;
+    .month-name { font-size:11px; font-weight: 700; letter-spacing: .08em;
                   text-transform: uppercase; color: var(--text-muted); }
     .month-count { font-family: var(--font-head); font-size: 20px; font-weight: 900;
                    color: var(--navy); line-height: 1; margin: 4px 0 2px; }
@@ -182,8 +197,8 @@
     .user-card-info { flex: 1; min-width: 0; }
     .user-card-name { font-size: 13px; font-weight: 600; color: var(--text);
                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .user-card-email { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
-    .user-card-desig { font-size: 10px; color: var(--text-light); }
+    .user-card-email { font-size:12px; color: var(--text-muted); margin-top: 1px; }
+    .user-card-desig { font-size:12px; color: var(--text-light); }
     .user-card-stats {
       display: grid; grid-template-columns: repeat(3,1fr);
       border-bottom: 1px solid var(--border);
@@ -191,7 +206,7 @@
     .ucs { padding: 10px 8px; text-align: center; border-right: 1px solid var(--border); }
     .ucs:last-child { border-right: none; }
     .ucs-val { font-family: var(--font-head); font-size: 18px; font-weight: 900; color: var(--navy); }
-    .ucs-label { font-size: 9px; font-weight: 600; letter-spacing: .07em;
+    .ucs-label { font-size:11px; font-weight: 600; letter-spacing: .07em;
                  text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
     .user-card-foot {
       padding: 10px 16px; display: flex; align-items: center;
@@ -199,7 +214,7 @@
     }
     .status-pill {
       display: inline-flex; align-items: center; gap: 5px;
-      font-size: 10px; font-weight: 600; padding: 3px 10px;
+      font-size:12px; font-weight: 600; padding: 3px 10px;
       border-radius: 20px;
     }
     .status-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
@@ -218,9 +233,11 @@
       padding: 10px 16px; display: flex; align-items: center;
       justify-content: space-between; border-bottom: 1px solid var(--border);
     }
+    /* ACCESSIBILITY (fixed): --gold-light as text on --bg-section fails
+       WCAG AA (~2.45:1, needs 4.5:1) — same recurring issue, same fix. */
     .drawer-head h4 {
-      font-family: var(--font-head); font-size: 10px; font-weight: 700;
-      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-light);
+      font-family: var(--font-head); font-size:12px; font-weight: 700;
+      letter-spacing: .1em; text-transform: uppercase; color: var(--gold-text);
     }
     .drawer-body { max-height: 260px; overflow-y: auto; }
     .drawer-row {
@@ -232,12 +249,12 @@
     .drawer-row:last-child { border-bottom: none; }
     .drawer-row:hover { background: var(--bg-card); }
     .drawer-row-head {
-      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      font-size:11px; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--text-muted);
       background: var(--bg-card); position: sticky; top: 0; z-index: 1;
     }
-    .dr-num { font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700; color: var(--navy); }
-    .dr-date { color: var(--text-muted); font-size: 10px; }
+    .dr-num { font-family: 'Courier New', monospace; font-size:12px; font-weight: 700; color: var(--navy); }
+    .dr-date { color: var(--text-muted); font-size:12px; }
 
     /* ── All TDS table ────────────────────────────────── */
     .tds-all-table th, .tds-all-table td { font-size: 11px; }
@@ -274,7 +291,7 @@
       color: var(--text); outline: none; transition: border-color .15s; box-sizing: border-box;
     }
     .uf-input:focus { border-color: var(--gold); }
-    .uf-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+    .uf-hint { font-size:12px; color: var(--text-muted); margin-top: 4px; }
     .uf-err { display: none; padding: 9px 12px; background: var(--red-pale);
               border: 1px solid var(--red-border); border-radius: var(--radius);
               font-size: 12px; color: var(--red); margin-bottom: 12px; }
@@ -287,7 +304,7 @@
 
     /* ── Section label ────────────────────────────────── */
     .sec-label {
-      font-family: var(--font-head); font-size: 9px; font-weight: 700;
+      font-family: var(--font-head); font-size:11px; font-weight: 700;
       letter-spacing: .14em; text-transform: uppercase; color: var(--gold);
       margin-bottom: 6px; padding-bottom: 4px;
       border-bottom: 1px solid var(--gold-border);
@@ -777,7 +794,7 @@
               <div class="user-card-email">${u.email}</div>
               ${u.designation?`<div class="user-card-desig">${u.designation}</div>`:''}
             </div>
-            <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:9px;
+            <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;
                          font-weight:700;letter-spacing:.09em;text-transform:uppercase;
                          background:${rb};color:${rc};border:1px solid ${rbr};flex-shrink:0;">
               ${rl}</span>
@@ -820,7 +837,7 @@
           <div class="user-tds-drawer" id="drawer-${u.user_id}">
             <div class="drawer-head">
               <h4>TDS Created by ${u.full_name||u.email}</h4>
-              <span style="font-size:10px;color:var(--text-muted);">${count} document${count!==1?'s':''}</span>
+              <span style="font-size:12px;color:var(--text-muted);">${count} document${count!==1?'s':''}</span>
             </div>
             <div class="drawer-body">
               <div class="drawer-row drawer-row-head">
@@ -829,7 +846,7 @@
               ${allTDS.filter(t=>t.created_by_id===u.user_id).map(t=>`
               <div class="drawer-row">
                 <span class="dr-num">${t.tds_number}</span>
-                <span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <span style="font-size:12px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                   ${t.customer?.customer_name||'-'}</span>
                 <span class="dr-date">${t.belt_width_mm}×${parseFloat(t.belt_length_m).toFixed(0)}m</span>
                 <span class="dr-date">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</span>
@@ -919,14 +936,14 @@
         </tr></thead>
         <tbody>
           ${records.map(t=>`<tr>
-            <td class="td-mono" style="font-size:10px;">${t.tds_number}</td>
+            <td class="td-mono" style="font-size:12px;">${t.tds_number}</td>
             <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
             <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
               ${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
-            <td><span class="badge badge-muted" style="font-size:9px;">
+            <td><span class="badge badge-muted" style="font-size:11px;">
               ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
             <td class="td-muted">${t.belt_width_mm}×${parseFloat(t.belt_length_m).toFixed(0)}m</td>
-            <td class="td-muted" style="font-size:10px;">${t.belt_rating?.rating_name||'-'}</td>
+            <td class="td-muted" style="font-size:12px;">${t.belt_rating?.rating_name||'-'}</td>
             <td>
               <div style="font-size:11px;font-weight:500;color:var(--text);">
                 ${t.created_by_user?.full_name||t.created_by_user?.email||`User ${t.created_by}`}</div>
@@ -962,7 +979,7 @@
           <div class="bdrow-bar-wrap">
             <div class="bdrow-bar" style="width:${Math.round(count/maxVal*100)}%;background:${color};"></div>
           </div>
-          <span class="bdrow-count" style="color:${color};">${count}</span>
+          <span class="bdrow-count">${count}</span>
         </div>`).join('')}
       </div>`;
     }
@@ -977,10 +994,10 @@
         </tr></thead>
         <tbody>
           ${items.map(t=>`<tr>
-            <td class="td-mono" style="font-size:10px;">${t.tds_number}</td>
+            <td class="td-mono" style="font-size:12px;">${t.tds_number}</td>
             <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
             <td>${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
-            <td><span class="badge badge-muted" style="font-size:9px;">
+            <td><span class="badge badge-muted" style="font-size:11px;">
               ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
             <td class="td-muted">${t.belt_width_mm}mm×${parseFloat(t.belt_length_m).toFixed(0)}m</td>
             <td style="font-size:11px;">

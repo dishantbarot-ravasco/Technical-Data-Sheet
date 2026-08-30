@@ -49,10 +49,12 @@
       padding: 28px;
       box-shadow: var(--shadow-sm);
     }
+    /* ACCESSIBILITY (fixed): --gold as text is 3.32:1 on white — fails
+       WCAG AA (needs 4.5:1); --gold-text passes (5.49:1). */
     .calc-card-head {
       font-family: var(--font-head);
-      font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
-      color: var(--gold); margin-bottom: 22px;
+      font-size:12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+      color: var(--gold-text); margin-bottom: 22px;
       display: flex; align-items: center; gap: 8px;
     }
     .calc-card-head::after {
@@ -60,7 +62,7 @@
     }
 
     .flbl {
-      display: block; font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      display: block; font-size:12px; font-weight: 600; letter-spacing: .05em;
       text-transform: uppercase; color: var(--navy); margin-bottom: 4px;
     }
     .flbl .req { color: #905F07; margin-left: 2px; } /* AA-safe (2.03:1 -> 5.49:1 on white); see css/style.css --gold-text */
@@ -73,7 +75,7 @@
     }
     .finp:focus { border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
     .frow { margin-bottom: 14px; }
-    .fhint { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+    .fhint { font-size:12px; color: var(--text-muted); margin-top: 3px; }
     .frc-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     /* Results */
@@ -84,7 +86,7 @@
     }
     .result-highlight-label { font-size: 11px; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
     .result-highlight-val { font-family: var(--font-head); font-size: 32px; font-weight: 900; color: var(--gold); line-height: 1; }
-    .result-highlight-sub { font-size: 10px; color: var(--gold); opacity: .7; margin-top: 3px; }
+    .result-highlight-sub { font-size:12px; color: var(--gold); opacity: .7; margin-top: 3px; }
 
     .result-table { width: 100%; border-collapse: collapse; }
     .result-table tr { border-bottom: 1px solid var(--border); }
@@ -92,7 +94,7 @@
     .result-table td { padding: 10px 4px; font-size: 13px; vertical-align: middle; }
     .result-table .rl { color: var(--text-muted); font-size: 11px; }
     .result-table .rv { font-family: var(--font-head); font-weight: 700; color: var(--navy); text-align: right; }
-    .result-table .ru { font-size: 10px; color: var(--text-muted); margin-left: 3px; }
+    .result-table .ru { font-size:12px; color: var(--text-muted); margin-left: 3px; }
 
     .empty-state {
       text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 13px;
@@ -103,7 +105,7 @@
     .intl-section { display: none; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
     .intl-section.visible { display: block; }
     .constraint-badge {
-      font-size: 10px; color: #166534; background: #f0fdf4; border: 1px solid #86efac;
+      font-size:12px; color: #166534; background: #f0fdf4; border: 1px solid #86efac;
       border-radius: var(--radius); padding: 6px 10px; margin-top: 8px; display: none;
     }
     .weight-warn {
@@ -113,7 +115,7 @@
 
     /* Section label inside results */
     .res-section-label {
-      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      font-family: var(--font-head); font-size:11px; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--text-muted); padding: 8px 4px 4px;
       border-bottom: 1px solid var(--border);
     }
@@ -163,12 +165,12 @@
 
         <div class="frc-2">
           <div class="frow">
-            <label class="flbl">Belt Width <span class="req">*</span></label>
+            <label class="flbl" for="p-width">Belt Width <span class="req">*</span></label>
             <input type="number" id="p-width" class="finp" placeholder="e.g. 600" min="100" max="2400" step="50" />
             <div class="fhint">mm</div>
           </div>
           <div class="frow">
-            <label class="flbl">Belt Length <span class="req">*</span></label>
+            <label class="flbl" for="p-length">Belt Length <span class="req">*</span></label>
             <input type="number" id="p-length" class="finp" placeholder="e.g. 500" min="1" />
             <div class="fhint">metres</div>
           </div>
@@ -176,26 +178,26 @@
 
         <div class="frc-2">
           <div class="frow">
-            <label class="flbl">Total Thickness <span class="req">*</span></label>
+            <label class="flbl" for="p-thick">Total Thickness <span class="req">*</span></label>
             <input type="number" id="p-thick" class="finp" placeholder="e.g. 12" min="1" step="0.5" />
             <div class="fhint">mm (top cover + carcass + bottom cover)</div>
           </div>
           <div class="frow">
-            <label class="flbl">Specific Gravity</label>
+            <label class="flbl" for="p-sg">Specific Gravity</label>
             <input type="number" id="p-sg" class="finp" value="1.15" min="0.8" max="2.5" step="0.01" />
             <div class="fhint">default 1.15 for rubber</div>
           </div>
         </div>
 
         <div class="frow">
-          <label class="flbl">Reel Type <span class="req">*</span></label>
+          <label class="flbl" for="p-reel">Reel Type <span class="req">*</span></label>
           <select id="p-reel" class="finp">
             <option value="">Loading…</option>
           </select>
         </div>
 
         <div class="frow">
-          <label class="flbl">Purpose</label>
+          <label class="flbl" for="p-purpose">Purpose</label>
           <select id="p-purpose" class="finp">
             <option value="domestic">Domestic</option>
             <option value="international">International</option>
@@ -204,12 +206,12 @@
 
         <!-- International section -->
         <div id="p-intl-section" class="intl-section">
-          <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); margin-bottom:12px;">
+          <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted); margin-bottom:12px;">
             🌍 International Logistics
           </div>
           <div class="frc-2">
             <div class="frow">
-              <label class="flbl">Shipping Region</label>
+              <label class="flbl" for="p-region">Shipping Region</label>
               <select id="p-region" class="finp">
                 <option value="">Select Region</option>
                 <option value="USA">USA</option>
@@ -217,7 +219,7 @@
               </select>
             </div>
             <div class="frow">
-              <label class="flbl">Container Type</label>
+              <label class="flbl" for="p-container">Container Type</label>
               <select id="p-container" class="finp">
                 <option value="">Select Container</option>
               </select>

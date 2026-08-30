@@ -3,6 +3,7 @@ Django settings for TDS Automation App — Django Backend
 Reads credentials from tds_app/.env (same file FastAPI uses).
 """
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 
@@ -108,6 +109,31 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
+
+# ── Cache ──────────────────────────────────────────────────────────────────────
+# PERFORMANCE: backs cache_page on the reference/lookup endpoints in
+# master_views.py and lookup_views.py. Production runs 2 separate gunicorn
+# worker PROCESSES (render.yaml) — Django's default LocMemCache is per-process,
+# so each worker would keep its own independent cache and only ever serve
+# roughly half its requests from a hit. DatabaseCache is shared across every
+# worker (and across dynos, if this ever scales past one) without needing new
+# infrastructure (Redis, memcached) — it just uses the same Postgres instance.
+# Requires `python manage.py createcachetable` once (see build.sh); the table
+# it creates isn't a Django migration and needs no schema management here.
+if 'test' in sys.argv:
+    # DatabaseCache's table is created by `manage.py createcachetable`, a
+    # one-off management command rather than a migration — the test runner's
+    # throwaway test database never gets it, so cache_page would 500 with
+    # "relation django_cache_table does not exist" on every cached endpoint.
+    # LocMemCache needs no such setup and is naturally test-process-isolated.
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'django_cache_table',
+        }
+    }
 
 # ── Templates ──────────────────────────────────────────────────────────────────
 # Django templates are used for Django Admin only.
@@ -326,9 +352,41 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS              = 'DENY'
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER        = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # SECURITY (fixed): `manage.py check --deploy` flagged this as unset.
+    # Render's edge already terminates TLS, and SECURE_PROXY_SSL_HEADER above
+    # already tells Django to trust its X-Forwarded-Proto header — this adds
+    # the matching Django-level redirect (HTTP -> HTTPS) as defense-in-depth,
+    # in case a request ever reaches the app over a non-HTTPS hop.
+    SECURE_SSL_REDIRECT            = True
     SECURE_HSTS_SECONDS            = 31536000      # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD            = True
+
+# ── Error monitoring (Sentry) ─────────────────────────────────────────────────
+# Right now a production error just happens — logged to app.log and otherwise
+# silent. This makes it visible: completely inert until SENTRY_DSN is set (no
+# account exists for this project yet), so local dev and CI are unaffected.
+# To enable: create a free Sentry project at sentry.io, then set SENTRY_DSN in
+# Render's environment variables (never commit the DSN itself — it's not
+# secret-sensitive the way an API key is, but keep it in env vars for the same
+# reason every other credential here lives in env vars, not source).
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        environment=os.environ.get('APP_ENV', 'production'),
+        # Captures a sample of normal request traces for performance
+        # monitoring, not just errors. Kept low — this is a low-traffic
+        # internal tool, not a reason to add DB/APM load for its own sake.
+        traces_sample_rate=0.1,
+        # Don't leak request bodies/headers (customer names, TDS data) to a
+        # third-party service by default.
+        send_default_pii=False,
+    )
 
 # ── Internationalisation ───────────────────────────────────────────────────────
 LANGUAGE_CODE = 'en-us'

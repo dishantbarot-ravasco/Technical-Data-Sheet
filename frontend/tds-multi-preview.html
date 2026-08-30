@@ -62,13 +62,16 @@
       justify-content: space-between;
       gap: 12px;
     }
+    /* ACCESSIBILITY (fixed): white text on #F5A623 is 2.03:1 — fails WCAG
+       AA (needs 4.5:1); #1A2535 (navy) is 7.62:1. Same fix as
+       generate-tds.html's identical .section-card-header. */
     .section-card-header h3 {
       font-family: var(--font-head);
-      font-size: 10px;
+      font-size:12px;
       font-weight: 700;
       letter-spacing: .09em;
       text-transform: uppercase;
-      color: #fff;
+      color: #1A2535;
       margin: 0;
     }
     .section-card-body { padding: 16px; }
@@ -105,7 +108,7 @@
       border-bottom: 1px solid var(--border);
       padding: 7px 10px;
       font-family: var(--font-head);
-      font-size: 9px;
+      font-size:11px;
       font-weight: 700;
       letter-spacing: .07em;
       text-transform: uppercase;
@@ -128,7 +131,7 @@
     }
     .status-badge {
       display: inline-block;
-      font-size: 9px;
+      font-size:11px;
       font-weight: 700;
       letter-spacing: .05em;
       text-transform: uppercase;
@@ -289,7 +292,7 @@
           </label>
           <!-- Fine-grained per-section include checkboxes -->
           <span style="border-left:1px solid var(--border);height:14px;margin:0 2px;"></span>
-          <span style="font-size:10px;opacity:.65;white-space:nowrap;">Include:</span>
+          <span style="font-size:12px;opacity:.65;white-space:nowrap;">Include:</span>
           <label style="display:flex;align-items:center;gap:3px;cursor:pointer;white-space:nowrap;"
                  title="Include Fabric Parameters section in PDF">
             <input type="checkbox" class="section-include-cb" data-group="Fabric Parameters" />
@@ -328,7 +331,7 @@
       <div class="section-card">
         <div class="section-card-header">
           <h3>Batch Summary</h3>
-          <span style="font-size:10px;color:rgba(255,255,255,.8);"
+          <span style="font-size:12px;color:rgba(255,255,255,.8);"
                 id="hdr-sub">0 TDS documents</span>
         </div>
         <div class="section-card-body">
@@ -342,7 +345,7 @@
       <div class="section-card">
         <div class="section-card-header" style="justify-content:flex-start;gap:16px;">
           <h3>TDS Documents</h3>
-          <span style="font-size:10px;color:rgba(255,255,255,.75);">
+          <span style="font-size:12px;color:rgba(255,255,255,.75);">
             Click a row to open its preview (same customizable preview as the single-belt flow)
           </span>
         </div>
@@ -541,11 +544,11 @@
           '  <td style="text-align:center;">'          + length + '</td>',
           '  <td style="text-align:center;">'          + statusBadge(r.status) + '</td>',
           '  <td style="text-align:center;white-space:nowrap;">',
-          '    <button class="btn btn-ghost btn-sm pdf-btn" style="font-size:10px;padding:3px 8px;"',
+          '    <button class="btn btn-ghost btn-sm pdf-btn" style="font-size:12px;padding:3px 8px;"',
           '            data-tds-id="' + r.tds_id + '" data-label="' + escHtml(r.tds_number) + '">',
           '      Preview',
           '    </button>',
-          '    <button class="btn btn-ghost btn-sm edit-btn" style="font-size:10px;padding:3px 8px;"',
+          '    <button class="btn btn-ghost btn-sm edit-btn" style="font-size:12px;padding:3px 8px;"',
           '            data-action="edit" data-tds-id="' + r.tds_id + '">',
           '      ✏ Edit',
           '    </button>',

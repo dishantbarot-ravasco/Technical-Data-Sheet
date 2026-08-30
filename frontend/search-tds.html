@@ -22,8 +22,15 @@
   <link rel="stylesheet" href="css/style.css" />
   <style>
     .results-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:12px; }
-    .results-count  { font-size:12px;color:var(--muted); }
-    .results-count strong { color:var(--gold-light); }
+    /* BUG FIX: --muted and --panel (below) were never defined in style.css's
+       :root — a typo for --text-muted / --bg-card. An undefined custom
+       property falls back to the inherited value for an inherited property
+       like color/background, so this silently inherited from the parent
+       instead of applying the intended muted-gray / card-background look. */
+    .results-count  { font-size:12px;color:var(--text-muted); }
+    /* ACCESSIBILITY (fixed): --gold-light as text was 2.32:1 on this page's
+       background — WCAG AA needs 4.5:1; --gold-text is the text-safe variant. */
+    .results-count strong { color:var(--gold-text); }
     .detail-section { margin-bottom:20px; }
     .detail-row { display:flex;justify-content:space-between;padding:7px 0;
                   border-bottom:1px solid var(--border);gap:12px; }
@@ -32,12 +39,14 @@
     .detail-val { font-size:12px;color:var(--text);font-weight:500;text-align:right; }
     .modal { max-width:700px; }
     .modal-tabs { display:flex;gap:0;border-bottom:1px solid var(--border);
-                  padding:0 24px;background:var(--panel); }
+                  padding:0 24px;background:var(--bg-card); }
     .modal-tab { padding:10px 16px;font-size:11px;font-weight:700;letter-spacing:.07em;
-                 text-transform:uppercase;color:var(--muted);cursor:pointer;
+                 text-transform:uppercase;color:var(--text-muted);cursor:pointer;
                  border-bottom:2px solid transparent;transition:all .15s;
                  margin-bottom:-1px;font-family:var(--font-head); }
-    .modal-tab.active { color:var(--gold-light);border-bottom-color:var(--gold); }
+    /* ACCESSIBILITY (fixed): --gold-light as text fails WCAG AA here too
+       (same reasoning as .results-count strong above); --gold-text passes. */
+    .modal-tab.active { color:var(--gold-text);border-bottom-color:var(--gold); }
     .tab-panel { display:none; }
     .tab-panel.active { display:block; }
     /* Fixed body height so the modal card doesn't visibly resize as you switch
@@ -55,7 +64,7 @@
     .confirm-card p  { font-size:12px;color:var(--text-muted);margin-bottom:24px; }
     .confirm-actions { display:flex;gap:12px;justify-content:center; }
     .detail-section-title {
-      font-family:var(--font-head);font-size:9px;font-weight:700;letter-spacing:.12em;
+      font-family:var(--font-head);font-size:11px;font-weight:700;letter-spacing:.12em;
       text-transform:uppercase;color:var(--gold);margin-bottom:8px;
       padding-bottom:4px;border-bottom:1px solid var(--gold-border);
     }
@@ -96,22 +105,22 @@
     <!-- Filter Bar -->
     <div class="filter-bar">
       <div class="filter-group">
-        <div class="filter-label">Search</div>
+        <label class="filter-label" for="filter-search">Search</label>
         <input type="text" id="filter-search" class="filter-control"
                placeholder="TDS number, customer, rating…" style="min-width:220px;" />
       </div>
       <div class="filter-group">
-        <div class="filter-label">Standard</div>
+        <label class="filter-label" for="filter-standard">Standard</label>
         <select id="filter-standard" class="filter-control">
           <option value="">All Standards</option>
         </select>
       </div>
       <div class="filter-group">
-        <div class="filter-label">From Date</div>
+        <label class="filter-label" for="filter-from">From Date</label>
         <input type="date" id="filter-from" class="filter-control" />
       </div>
       <div class="filter-group">
-        <div class="filter-label">To Date</div>
+        <label class="filter-label" for="filter-to">To Date</label>
         <input type="date" id="filter-to" class="filter-control" />
       </div>
       <div class="filter-spacer"></div>
@@ -167,7 +176,11 @@
         <div class="modal-tab" data-tab="splicing">Splicing</div>
         <div class="modal-tab" data-tab="history">History</div>
       </div>
-      <div class="modal-body">
+      <!-- ACCESSIBILITY (fixed): a fixed-height, overflow-y:auto region with
+           no focusable content path is unreachable by keyboard-only
+           scrolling (axe-core: scrollable-region-focusable). tabindex="0"
+           lets it receive focus so arrow/Page keys can scroll it directly. -->
+      <div class="modal-body" tabindex="0">
         <div class="tab-panel active" id="tab-overview">
           <div class="detail-section">
             <div class="detail-section-title">Document</div>

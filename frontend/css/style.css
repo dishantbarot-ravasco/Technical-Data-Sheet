@@ -17,6 +17,15 @@
    outside this :root block (page-specific one-off accents in individual
    <style> blocks are the documented exception, not the rule).
 
+   ACCESSIBILITY (fixed): every label/badge/nav-link-style rule that used to
+   read font-size: 9px or 10px (nav links, stat labels, badges, table headers,
+   form hints, buttons) is now 11px/12px — the smaller sizes were confirmed,
+   by actually loading the app and measuring computed font sizes across the
+   dashboard and generate-TDS pages, to be uncomfortably small body/label
+   text (not a hard WCAG failure — there's no numeric minimum — but a real
+   legibility issue at normal viewing distance). Uppercase + letter-spacing
+   styling on this text made it read even smaller than the px value implies.
+
    Reading guide — section banners below, in order: TOPNAV, LAYOUT
    (.page-wrap and friends), CARDS, BUTTONS, FORM (inputs/selects/labels),
    BADGES, TABLE, ALERTS (toasts), LOADING (spinners), MODAL, WIZARD
@@ -57,8 +66,18 @@
   --bg-nav:        #FFFFFF;
   --text:          #1A202C;
   --text-dim:      #4A5568;
-  --text-muted:    #718096;
-  --text-light:    #A0AEC0;
+  /* ACCESSIBILITY (fixed): both used to be light enough to fail WCAG AA's
+     4.5:1 minimum contrast for normal text — an axe-core scan of the admin
+     and generate-TDS pages found --text-muted (#718096) at 4.01:1 on white
+     (43 failing nodes: labels, table cells, muted badges) and --text-light
+     (#A0AEC0) at 2.25:1 (breadcrumb separators, dropdown role text).
+     #5B6472 / #5F6B78 clear 4.5:1 on every background these are actually
+     used on here (white, --bg-page, --bg-section), while keeping
+     --text-light very close to --text-muted rather than lighter — AA's
+     4.5:1 floor leaves little room for two visually distinct "muted" grays
+     on a near-white background. */
+  --text-muted:    #5B6472;
+  --text-light:    #5F6B78;
   --border:        #E2E8F0;
   --border-mid:    #CBD5E0;
   --border-dark:   #A0AEC0;
@@ -129,12 +148,12 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   font-family: var(--font-head); font-size: 16px; font-weight: 900;
   color: var(--navy); letter-spacing: .03em; line-height: 1.1;
 }
-.nav-brand-text p { font-size: 9px; color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase; }
+.nav-brand-text p { font-size: 11px; color: var(--text-muted); letter-spacing: .12em; text-transform: uppercase; }
 .nav-spacer { flex: 1; }
 .nav-links { display: flex; align-items: center; gap: 2px; }
 .nav-link {
   padding: 8px 14px;
-  font-family: var(--font-head); font-size: 10px; font-weight: 700;
+  font-family: var(--font-head); font-size: 12px; font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase;
   color: var(--text-dim); text-decoration: none;
   border-radius: var(--radius); transition: all .18s; border: 1px solid transparent;
@@ -150,7 +169,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   flex-shrink: 0;
 }
 .nav-user-name { font-size: 12px; font-weight: 600; color: var(--text); }
-.nav-user-role { font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+.nav-user-role { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
 .nav-toggle {
   display: none; background: none; border: 1px solid var(--border-mid);
   border-radius: var(--radius); width: 38px; height: 38px;
@@ -160,14 +179,14 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .nav-toggle:hover { background: var(--bg-section); border-color: var(--gold-border); }
 .btn-logout {
   padding: 7px 14px; background: none; border: 1px solid var(--border-mid);
-  color: var(--text-muted); font-size: 10px; font-family: var(--font-head); font-weight: 700;
+  color: var(--text-muted); font-size: 12px; font-family: var(--font-head); font-weight: 700;
   letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
   border-radius: var(--radius); transition: all .18s;
 }
 .btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-pale); }
 .iso-badge {
   padding: 5px 10px; background: var(--green-pale); border: 1px solid var(--green-border);
-  color: var(--green); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+  color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: .1em;
   border-radius: var(--radius); font-family: var(--font-head); white-space: nowrap;
 }
 
@@ -218,10 +237,17 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; pointer-events: none; }
 .btn-primary {
-  background: var(--gold-light); border-color: var(--gold-light); color: #fff;
+  /* ACCESSIBILITY (fixed): white text on --gold-light is only 2.61:1 —
+     the exact same pair of colors (just swapped fg/bg) already documented
+     above as failing WCAG AA's 4.5:1 minimum for normal text. --navy text
+     on --gold-light is 5.91:1 (AA), and still 4.64:1 on the --gold hover
+     background below — comfortably passing both button states without
+     touching the gold background itself (kept unchanged, as backgrounds
+     aren't subject to the text-contrast rule on their own). */
+  background: var(--gold-light); border-color: var(--gold-light); color: var(--navy);
   box-shadow: 0 2px 6px rgba(193,127,10,.25);
 }
-.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: #fff; }
+.btn-primary:hover { background: var(--gold); border-color: var(--gold); color: var(--navy); }
 .btn-navy   { background: var(--navy); border-color: var(--navy); color: #fff; }
 .btn-navy:hover { background: var(--navy-mid); color: #fff; }
 .btn-outline { background: transparent; border-color: var(--border-mid); color: var(--text-dim); }
@@ -232,7 +258,7 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
 .btn-danger:hover { background: var(--red-pale); border-color: var(--red); color: var(--red); }
 .btn-success { background: var(--green-light); border-color: var(--green-light); color: #fff; }
 .btn-success:hover { background: var(--green); color: #fff; }
-.btn-sm  { padding: 7px 13px; font-size: 10px; }
+.btn-sm  { padding: 7px 13px; font-size: 12px; }
 .btn-lg  { padding: 13px 26px; font-size: 12px; }
 
 /* ── FORM ────────────────────────────────────────────────── */
@@ -257,8 +283,8 @@ select.form-control {
   background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
 }
 select.form-control option { background: #fff; color: var(--text); }
-.form-hint  { font-size: 10px; color: var(--text-muted); }
-.form-error { font-size: 10px; color: var(--red); }
+.form-hint  { font-size: 12px; color: var(--text-muted); }
+.form-error { font-size: 12px; color: var(--red); }
 .form-row { display: grid; gap: 16px; }
 .form-row.cols-2 { grid-template-columns: 1fr 1fr; }
 .form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
@@ -289,7 +315,7 @@ select.form-control option { background: #fff; color: var(--text); }
 /* ── BADGES ─────────────────────────────────────────────── */
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 20px; font-size: 10px; font-weight: 700;
+  padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 700;
   letter-spacing: .06em; text-transform: uppercase; border: 1px solid transparent;
 }
 .badge-gold   { background: var(--gold-pale);   border-color: var(--gold-border);  color: var(--gold-text); }
@@ -308,7 +334,7 @@ select.form-control option { background: #fff; color: var(--text); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead tr { background: var(--navy); border-bottom: 2px solid var(--gold-light); }
 thead th {
-  padding: 12px 16px; text-align: left; font-family: var(--font-head); font-size: 10px;
+  padding: 12px 16px; text-align: left; font-family: var(--font-head); font-size: 12px;
   font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold-bright); white-space: nowrap;
 }
 tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
@@ -397,10 +423,12 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
   font-family: var(--font-head); font-size: 12px; font-weight: 700; color: var(--text-light);
   flex-shrink: 0; transition: all .25s; box-shadow: var(--shadow-sm);
 }
-.step-circle.active { border-color: var(--gold-light); background: var(--gold-light); color: #fff; box-shadow: 0 0 0 4px var(--gold-dim); }
+/* ACCESSIBILITY (fixed): white text on --gold-light is 2.61:1 — same WCAG
+   AA failure as .btn-primary above; --navy is the same fix (5.91:1). */
+.step-circle.active { border-color: var(--gold-light); background: var(--gold-light); color: var(--navy); box-shadow: 0 0 0 4px var(--gold-dim); }
 .step-circle.done   { border-color: var(--green-light); background: var(--green-pale); color: var(--green); }
 .step-info { margin-left: 9px; white-space: nowrap; }
-.step-num   { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; }
+.step-num   { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; }
 .step-label { font-size: 11px; font-weight: 600; color: var(--text-dim); transition: color .2s; }
 .step-item.active .step-label { color: var(--gold-text); }
 .step-item.done   .step-label { color: var(--green); }
@@ -414,9 +442,9 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
   border-radius: var(--radius); margin-top: 8px;
 }
 .computed-val { display: flex; flex-direction: column; gap: 2px; }
-.computed-val label { font-size: 9px; color: var(--text-muted); letter-spacing: .07em; text-transform: uppercase; }
+.computed-val label { font-size: 11px; color: var(--text-muted); letter-spacing: .07em; text-transform: uppercase; }
 .computed-val .num { font-family: var(--font-head); font-size: 20px; font-weight: 900; color: var(--navy); }
-.computed-val .unit { font-size: 10px; color: var(--text-muted); }
+.computed-val .unit { font-size: 12px; color: var(--text-muted); }
 .computed-sep { width: 1px; height: 36px; background: var(--gold-border); }
 
 /* ── STAT CARDS ─────────────────────────────────────────── */
@@ -434,7 +462,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 .stat-icon.green  { background: var(--green-pale);  border-color: var(--green-border); }
 .stat-icon.orange { background: var(--amber-pale);  border-color: var(--amber-border); }
 .stat-icon.blue   { background: var(--blue-pale);   border-color: var(--blue-border); }
-.stat-label { font-size: 10px; color: var(--text-muted); letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
+.stat-label { font-size: 12px; color: var(--text-muted); letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
 .stat-value { font-family: var(--font-head); font-size: 28px; font-weight: 900; color: var(--navy); line-height: 1; margin-top: 4px; }
 .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
@@ -463,11 +491,12 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 .action-card-desc  { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 22px; }
 .action-card-cta {
   display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-head); font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  font-family: var(--font-head); font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
   color: var(--gold-text); padding: 8px 16px; border: 1px solid var(--gold-border);
   border-radius: var(--radius); background: var(--gold-pale); transition: all .18s;
 }
-.action-card:hover .action-card-cta { background: var(--gold-light); color: #fff; border-color: var(--gold-light); }
+/* ACCESSIBILITY (fixed): same white-on-gold-light failure as .btn-primary. */
+.action-card:hover .action-card-cta { background: var(--gold-light); color: var(--navy); border-color: var(--gold-light); }
 
 /* ── FILTER BAR ─────────────────────────────────────────── */
 .filter-bar {
@@ -476,7 +505,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
   border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); margin-bottom: 20px;
 }
 .filter-group { display: flex; flex-direction: column; gap: 5px; }
-.filter-label { font-size: 10px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--navy); }
+.filter-label { font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--navy); }
 .filter-control {
   padding: 8px 11px; background: var(--bg-input); border: 1px solid var(--border-mid);
   border-radius: var(--radius); color: var(--text); font-size: 12px;
@@ -488,7 +517,7 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 /* ── DETAIL ROWS ────────────────────────────────────────── */
 .detail-section { margin-bottom: 18px; }
 .detail-section-title {
-  font-family: var(--font-head); font-size: 10px; font-weight: 700;
+  font-family: var(--font-head); font-size: 12px; font-weight: 700;
   letter-spacing: .12em; text-transform: uppercase; color: var(--gold-text);
   margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border);
 }

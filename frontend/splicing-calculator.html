@@ -45,10 +45,12 @@
       padding: 28px;
       box-shadow: var(--shadow-sm);
     }
+    /* ACCESSIBILITY (fixed): --gold as text is 3.32:1 on white — fails
+       WCAG AA (needs 4.5:1); --gold-text passes (5.49:1). */
     .calc-card-head {
       font-family: var(--font-head);
-      font-size: 10px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
-      color: var(--gold); margin-bottom: 22px;
+      font-size:12px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+      color: var(--gold-text); margin-bottom: 22px;
       display: flex; align-items: center; gap: 8px;
     }
     .calc-card-head::after {
@@ -56,7 +58,7 @@
     }
 
     .flbl {
-      display: block; font-size: 10px; font-weight: 600; letter-spacing: .05em;
+      display: block; font-size:12px; font-weight: 600; letter-spacing: .05em;
       text-transform: uppercase; color: var(--navy); margin-bottom: 4px;
     }
     .flbl .req { color: #905F07; margin-left: 2px; } /* AA-safe (2.03:1 -> 5.49:1 on white); see css/style.css --gold-text */
@@ -69,7 +71,7 @@
     }
     .finp:focus { border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
     .frow { margin-bottom: 14px; }
-    .fhint { font-size: 10px; color: var(--text-muted); margin-top: 3px; }
+    .fhint { font-size:12px; color: var(--text-muted); margin-top: 3px; }
     .frc-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
     /* Method toggle */
@@ -89,7 +91,7 @@
     }
     .result-highlight-label { font-size: 11px; color: var(--gold); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
     .result-highlight-val { font-family: var(--font-head); font-size: 28px; font-weight: 900; color: var(--gold); line-height: 1; }
-    .result-highlight-sub { font-size: 10px; color: var(--gold); opacity: .7; margin-top: 2px; }
+    .result-highlight-sub { font-size:12px; color: var(--gold); opacity: .7; margin-top: 2px; }
 
     .res-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -98,7 +100,7 @@
     .res-row:last-child { border-bottom: none; }
     .res-label { color: var(--text-muted); font-size: 11px; }
     .res-val { font-family: var(--font-head); font-weight: 700; color: var(--navy); }
-    .res-unit { font-size: 10px; color: var(--text-muted); margin-left: 3px; }
+    .res-unit { font-size:12px; color: var(--text-muted); margin-left: 3px; }
 
     .empty-state {
       text-align: center; padding: 50px 20px; color: var(--text-muted); font-size: 13px;
@@ -106,7 +108,7 @@
     .empty-state .empty-icon { font-size: 42px; margin-bottom: 12px; opacity: .4; }
 
     .res-section-label {
-      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      font-family: var(--font-head); font-size:11px; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--text-muted); padding: 8px 0 4px;
       border-bottom: 1px solid var(--border); margin-top: 4px;
     }
@@ -121,11 +123,11 @@
     /* Step table reference */
     .step-table-wrap { margin-top: 18px; }
     .step-table-title {
-      font-family: var(--font-head); font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      font-family: var(--font-head); font-size:11px; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
     }
     .step-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .step-table th { background: var(--navy); color: #fff; padding: 5px 8px; text-align: left; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+    .step-table th { background: var(--navy); color: #fff; padding: 5px 8px; text-align: left; font-size:11px; letter-spacing: .06em; text-transform: uppercase; }
     .step-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); }
     .step-table tr.active-row td { background: var(--gold-pale); font-weight: 700; color: var(--navy); }
   </style>
@@ -175,12 +177,12 @@
 
           <div class="frc-2">
             <div class="frow">
-              <label class="flbl">Belt Rating <span class="req">*</span></label>
+              <label class="flbl" for="s-rating">Belt Rating <span class="req">*</span></label>
               <input type="number" id="s-rating" class="finp" placeholder="e.g. 800" min="50" step="25" />
               <div class="fhint">kN/m (e.g. 800 for EP 800/4)</div>
             </div>
             <div class="frow">
-              <label class="flbl">Number of Plies <span class="req">*</span></label>
+              <label class="flbl" for="s-plies">Number of Plies <span class="req">*</span></label>
               <input type="number" id="s-plies" class="finp" placeholder="e.g. 4" min="1" max="8" step="1" />
               <div class="fhint">e.g. 4 for EP 800/4</div>
             </div>
@@ -188,12 +190,12 @@
 
           <div class="frc-2">
             <div class="frow">
-              <label class="flbl">Belt Width <span class="req">*</span></label>
+              <label class="flbl" for="s-width">Belt Width <span class="req">*</span></label>
               <input type="number" id="s-width" class="finp" placeholder="e.g. 1000" min="100" max="2400" step="50" />
               <div class="fhint">mm</div>
             </div>
             <div class="frow">
-              <label class="flbl">Number of Joints</label>
+              <label class="flbl" for="s-joints">Number of Joints</label>
               <input type="number" id="s-joints" class="finp" placeholder="e.g. 2" min="0" max="20" step="1" value="1" />
               <div class="fhint">for total extra length</div>
             </div>

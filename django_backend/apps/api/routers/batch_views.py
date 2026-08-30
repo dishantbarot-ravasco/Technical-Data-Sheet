@@ -133,17 +133,25 @@ def _fetch_carcass_eav(belt_rating_id: int):
     return carcass, interply
 
 
-def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge, belt_type_name):
+def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge,
+                       belt_type_name, construction_type='Open-End'):
     """
     Canonical belt description shown on the TDS PDF header.
 
     Both cover thicknesses carry an explicit 'mm' suffix (top used to be a
     bare number, e.g. "...X 6.0 X 3.0mm X..." - inconsistent with every other
     dimension in the string, which always states its unit).
+
+    End type mirrors the single-belt form's updateBeltDescription() in
+    js/generate-tds.js: Open-End belts show just the belt type name, Endless
+    belts get an "Endless " prefix (e.g. "Endless Flat Belt") - without this,
+    a batch-created Endless belt's description was indistinguishable from an
+    Open-End one on the QAP/TDS PDF.
     """
+    belt_type_label = f"Endless {belt_type_name}" if construction_type == 'Endless' else belt_type_name
     return (
         f"{width}mm X {fabric_code} X {rating_name} X "
-        f"{top}mm X {bottom}mm X {grade_code} X {edge} X {belt_type_name}"
+        f"{top}mm X {bottom}mm X {grade_code} X {edge} X {belt_type_label}"
     )
 
 
@@ -430,14 +438,15 @@ def create_batch(request):
 
             # Belt description string
             description = _belt_description(
-                width          = b['belt_width_mm'],
-                fabric_code    = fabric_type.fabric_code,
-                rating_name    = rating.rating_name,
-                top            = top_cover_mm,
-                bottom         = bottom_cover_mm,
-                grade_code     = cover_grade.grade_code,
-                edge           = b.get('edge_construction', 'Moulded'),
-                belt_type_name = belt_type.belt_type,
+                width              = b['belt_width_mm'],
+                fabric_code        = fabric_type.fabric_code,
+                rating_name        = rating.rating_name,
+                top                = top_cover_mm,
+                bottom             = bottom_cover_mm,
+                grade_code         = cover_grade.grade_code,
+                edge               = b.get('edge_construction', 'Moulded'),
+                belt_type_name     = belt_type.belt_type,
+                construction_type  = b.get('construction_type', 'Open-End'),
             )
 
             # Packing: compute per belt using shared reel/packing config
@@ -1422,14 +1431,15 @@ def text_import_batch(request):
             bob_plies = b.get('breaker_bottom_plies')
 
             description = _belt_description(
-                width          = b['belt_width_mm'],
-                fabric_code    = fabric_type.fabric_code,
-                rating_name    = rating.rating_name,
-                top            = top_cover_mm,
-                bottom         = bottom_cover_mm,
-                grade_code     = cover_grade.grade_code,
-                edge           = b.get('edge_construction', 'Moulded'),
-                belt_type_name = belt_type.belt_type,
+                width              = b['belt_width_mm'],
+                fabric_code        = fabric_type.fabric_code,
+                rating_name        = rating.rating_name,
+                top                = top_cover_mm,
+                bottom             = bottom_cover_mm,
+                grade_code         = cover_grade.grade_code,
+                edge               = b.get('edge_construction', 'Moulded'),
+                belt_type_name     = belt_type.belt_type,
+                construction_type  = b.get('construction_type', 'Open-End'),
             )
 
             # Packing

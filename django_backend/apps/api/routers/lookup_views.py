@@ -9,10 +9,18 @@ Endpoints:
 """
 import logging
 
+from django.views.decorators.cache import cache_page
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
+
+# PERFORMANCE: dimensional_specs is a GET over DimensionalParameterSpec, a
+# pure reference table (tolerance bands per standard) that changes only via
+# occasional admin edits — same caching rationale as master_views.py's
+# reference endpoints. tds_lookup below is POST-only, so cache_page
+# wouldn't apply to it anyway (Django's page cache only ever caches GET/HEAD).
+CACHE_TTL_SECONDS = 60 * 60
 
 from apps.core.models import (
     Standard, CoverGrade, BeltRating, FabricType, FabricStyle,
@@ -204,6 +212,7 @@ def tds_lookup(request):
     })
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def dimensional_specs(request):

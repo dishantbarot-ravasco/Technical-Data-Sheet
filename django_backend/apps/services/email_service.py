@@ -19,19 +19,19 @@ def render_email(
     highlight_label: str = "One-Time Password",
     after_highlight_paragraphs: list = None,
     closing: str = "Regards,",
-    signature: str = "Ravasco TDS System",
+    signature: str = "Ravasco Transmission and Packing Pvt Ltd.",
 ) -> tuple:
     """
     Build (html_body, text_body) for a formal, consistently-branded email.
 
-    greeting                    — e.g. "Hi Dishant," or "Hello," / "Hi,"
-    body_paragraphs             — paragraphs rendered before the highlight box
-    highlight_value             — optional value shown in a highlighted box (an OTP code)
-    highlight_label             — label above the highlighted value
-    after_highlight_paragraphs  — paragraphs rendered after the highlight box
+    greeting                    - e.g. "Hi Dishant," or "Hello," / "Hi,"
+    body_paragraphs             - paragraphs rendered before the highlight box
+    highlight_value             - optional value shown in a highlighted box (an OTP code)
+    highlight_label             - label above the highlighted value
+    after_highlight_paragraphs  - paragraphs rendered after the highlight box
                                    (e.g. "if you didn't request this..." guidance)
-    closing                     — closing line before the signature (e.g. "Regards,")
-    signature                   — signed name (e.g. "Ravasco TDS System")
+    closing                     - closing line before the signature (e.g. "Regards,")
+    signature                   - signed name (e.g. "Ravasco Transmission and Packing Pvt Ltd.")
     """
     after_highlight_paragraphs = after_highlight_paragraphs or []
 
@@ -47,56 +47,26 @@ def render_email(
 
     highlight_html = ""
     if highlight_value:
-        highlight_html = f"""
-            <div style="background:#FEF3C7;border:2px dashed #D4940A;border-radius:8px;
-                        padding:20px;text-align:center;margin:0 0 24px;">
-              <p style="margin:0 0 4px;font-size:10px;font-weight:700;letter-spacing:.15em;
-                        text-transform:uppercase;color:#C17F0A;">{highlight_label}</p>
-              <p style="margin:0;font-family:'Courier New',monospace;font-size:36px;
-                        font-weight:900;letter-spacing:.25em;color:#1A2535;">{highlight_value}</p>
-            </div>"""
+        highlight_html = (
+            f'<p style="margin:0 0 20px;font-size:13px;color:#1A202C;">'
+            f'{highlight_label}: '
+            f'<span style="font-weight:700;letter-spacing:.05em;">{highlight_value}</span></p>'
+        )
 
     html_body = f"""<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8" /></head>
-<body style="margin:0;padding:0;background:#F0F2F5;font-family:Inter,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0"
-             style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;">
-        <tr>
-          <td style="background:#1A2535;padding:24px 32px;border-bottom:3px solid #D4940A;">
-            <p style="margin:0;font-family:Montserrat,Arial,sans-serif;font-size:18px;
-                      font-weight:900;letter-spacing:.04em;color:#fff;">
-              INDUS <span style="color:#F0B429;">TDS</span> SYSTEM
-            </p>
-            <p style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.6);
-                      letter-spacing:.08em;text-transform:uppercase;">
-              Ravasco Transmission &amp; Packing
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px;">
-            <p style="margin:0 0 16px;font-size:14px;color:#1A202C;">{greeting}</p>
-            {paragraphs_html}
-            {highlight_html}
-            {after_highlight_html}
-            <p style="margin:16px 0 0;font-size:13px;color:#1A202C;line-height:1.6;">
-              {closing}<br />{signature}
-            </p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#F7F8FA;padding:16px 32px;border-top:1px solid #E2E8F0;">
-            <p style="margin:0;font-size:10px;color:#A0AEC0;text-align:center;">
-              ISO 9001:2015 Certified. Internal Use Only.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
+<body style="margin:0;padding:16px;background:#FFFFFF;font-family:Arial,Helvetica,sans-serif;">
+  <p style="margin:0 0 20px;font-size:13px;color:#1A202C;">{greeting}</p>
+  {paragraphs_html}
+  {highlight_html}
+  {after_highlight_html}
+  <p style="margin:20px 0 0;font-size:13px;color:#1A202C;line-height:1.6;">
+    {closing}<br />{signature}
+  </p>
+  <p style="margin:24px 0 0;font-size:11px;color:#718096;">
+    This is a system generated email. Please do not reply.
+  </p>
 </body>
 </html>"""
 
@@ -111,6 +81,8 @@ def render_email(
     text_lines.append("")
     text_lines.append(closing)
     text_lines.append(signature)
+    text_lines.append("")
+    text_lines.append("This is a system generated email. Please do not reply.")
     text_body = "\n".join(text_lines) + "\n"
 
     return html_body, text_body

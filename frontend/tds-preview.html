@@ -62,7 +62,7 @@
     }
     .sidebar-card-header h3 {
       font-family: var(--font-head);
-      font-size: 10px; font-weight: 700;
+      font-size:12px; font-weight: 700;
       letter-spacing: .1em; text-transform: uppercase;
       color: var(--text-muted); margin: 0;
     }
@@ -73,8 +73,10 @@
       font-size: 12px; cursor: pointer; padding: 3px 0;
     }
 
+    /* ACCESSIBILITY (fixed): white text on this gold background is ~2:1 —
+       fails WCAG AA (needs 4.5:1); navy passes comfortably (7.62:1). */
     .btn-refresh {
-      background: var(--gold, #F5A623); color: #fff; border: none;
+      background: var(--gold, #F5A623); color: #1A2535; border: none;
       border-radius: var(--radius); padding: 9px 14px;
       font-family: var(--font-head); font-size: 11px; font-weight: 700;
       letter-spacing: .05em; text-transform: uppercase;
@@ -117,7 +119,7 @@
     .btn-download-qap:disabled { opacity: .5; cursor: not-allowed; }
 
     .sidebar-hint {
-      font-size: 10px; color: var(--text-muted); line-height: 1.5;
+      font-size:12px; color: var(--text-muted); line-height: 1.5;
       padding: 0 1px;
     }
 
@@ -144,7 +146,7 @@
     .preview-wrapper-header {
       background: var(--bg-section); border-bottom: 1px solid var(--border);
       padding: 9px 16px; display: flex; align-items: center; gap: 8px;
-      font-family: var(--font-head); font-size: 10px; font-weight: 700;
+      font-family: var(--font-head); font-size:12px; font-weight: 700;
       letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted);
     }
 

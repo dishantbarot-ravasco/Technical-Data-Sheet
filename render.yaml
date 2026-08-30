@@ -42,6 +42,12 @@ services:
         sync: false      # set manually in Render dashboard
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false      # e.g. https://your-app-name.onrender.com/api/auth/google/callback/
+      # ── Error monitoring (optional) ─────────────────────────────────────────
+      # Create a free project at sentry.io and paste its DSN here to start
+      # getting alerted on production errors instead of them going silent.
+      # Leave unset to keep error monitoring disabled (the default today).
+      - key: SENTRY_DSN
+        sync: false
       # ── Email / SMTP — fill these in Render dashboard ──────────────────────
       - key: SMTP_HOST
         value: smtp.gmail.com

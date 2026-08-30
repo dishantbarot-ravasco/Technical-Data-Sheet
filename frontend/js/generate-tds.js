@@ -128,6 +128,14 @@ let lookupData    = null; // result of last /api/tds/lookup call
 let createdTdsId  = null; // tds_id returned after a successful createTDS call
 let allParameters = {};   // { groupName: [{parameter_id, parameter_name}] } for PDF options
 let beltQueue     = [];   // array of captured belt-spec objects waiting to be submitted
+// True once the user has typed their own text directly into #belt-description.
+// While true, updateBeltDescription() stops overwriting the field - the field
+// itself is never readonly/locked, so the user can always type into it; this
+// flag just decides whether the live auto-fill is allowed to keep overwriting
+// what's there. Clearing the field (or matching what auto-fill would produce)
+// resets it back to false so auto-fill resumes. See wireEvents()'s 'input'
+// listener on #belt-description and _setBeltDescMode() below.
+let beltDescDirty = false;
 // Set from ?edit=<tds_id> in the URL (see init()). Non-null means this page
 // is editing an existing TDS in place — submitTDS() calls updateTDS()
 // instead of createTDS(), and the record is never re-numbered/re-created.
@@ -285,7 +293,7 @@ function _enterEditModeUI(record) {
   banner.className   = 'edit-mode-banner';
   banner.style.cssText = 'background:#FEF3C7;color:#92400E;border:1px solid #F0B429;' +
     'border-radius:6px;padding:10px 16px;margin-bottom:16px;font-size:13px;font-weight:600;';
-  banner.textContent  = `✏ Editing TDS-${record.tds_number} — saving will update this existing record, not create a new one.`;
+  banner.textContent  = `✏ Editing TDS-${record.tds_number} - saving will update this existing record, not create a new one.`;
   (heading?.parentNode || document.body).insertBefore(banner, heading?.nextSibling || document.body.firstChild);
 
   const previewBtn  = document.getElementById('btn-preview-pdf');
@@ -376,10 +384,13 @@ async function prefillFormFromRecord(record) {
   _enforceEndlessMax();
 
   // Belt description: only restore the stored text if it differs from what
-  // auto-assembly would now produce — belt-description is user-editable, so
+  // auto-assembly would now produce - belt-description is user-editable, so
   // a manually-customised description should survive re-editing the record.
+  beltDescDirty = false;
   updateBeltDescription();
   if (record.belt_description && val('belt-description') !== record.belt_description) {
+    beltDescDirty = true;
+    _setBeltDescMode(true);
     set('belt-description', record.belt_description);
   }
 
@@ -689,6 +700,31 @@ function autoSelectFabricStyle() {
    BELT DESCRIPTION - auto-assembled from spec fields
 ══════════════════════════════════════════════════════════ */
 /**
+ * Flip the Belt Description field's badge/hint/highlight between AUTO and
+ * MANUAL. The field itself is always editable - this only controls whether
+ * it currently looks like a computed field (yellow highlight, AUTO badge)
+ * or a field the user has taken over (plain white, MANUAL badge).
+ * @param {boolean} isManual
+ */
+function _setBeltDescMode(isManual) {
+  const field = document.getElementById('belt-description');
+  const hint  = document.getElementById('belt-desc-hint');
+  const badge = document.getElementById('belt-desc-auto-badge');
+  if (!field || !hint || !badge) return;
+  if (isManual) {
+    field.classList.remove('auto-field');
+    badge.textContent = 'MANUAL';
+    hint.textContent = 'Manually entered · clear the field to resume auto-fill';
+    hint.style.color = 'var(--gold-light)';
+  } else {
+    field.classList.add('auto-field');
+    badge.textContent = 'AUTO';
+    hint.textContent = 'Auto-fills live · type here to enter your own';
+    hint.style.color = '';
+  }
+}
+
+/**
  * Auto-assemble the belt description string from the current form values.
  * Format: {width}mm X {fabric} X {rating} X {top}mm X {bottom}mm X {grade} X {edge} X {construction} {belt type}
  * Example: "600mm X EP X EP 1000/5 X 5mm X 2mm X H X Cut Edge X Open End Flat Belt"
@@ -698,6 +734,10 @@ function autoSelectFabricStyle() {
  * Called on every relevant field change so the field stays up to date.
  */
 function updateBeltDescription() {
+  // User has typed their own text directly into the field - leave it alone.
+  if (beltDescDirty) return;
+  _setBeltDescMode(false);
+
   const w  = val('belt-width-mm')     || '';
   const ft = selectedText('fabric-type-id');   // 'EP', 'NN', 'EE'
   const br = selectedText('belt-rating-id');   // 'EP 1000/5'
@@ -1414,6 +1454,15 @@ function makeSearchable(selectId) {
   inp.spellcheck = false;
   const phOpt = nativeSel.options[0];
   if (phOpt && !phOpt.value) inp.placeholder = phOpt.text;
+  // ACCESSIBILITY (fixed): the page's <label for="${selectId}"> still points
+  // at the now-hidden native <select> — the actual visible, interactive
+  // control (this input) had no accessible name at all (axe-core flagged
+  // this as a critical "missing label" failure on every field this wraps).
+  // Copying the existing label's text into aria-label gives the input the
+  // same name a sighted user already reads next to it, with no visual or
+  // behavioral change.
+  const existingLabel = document.querySelector(`label[for="${selectId}"]`);
+  if (existingLabel) inp.setAttribute('aria-label', existingLabel.textContent.trim());
   wrap.appendChild(inp);
 
   // ── Dropdown list - appended to <body> to escape overflow:hidden ──────
@@ -1651,6 +1700,20 @@ function wireEvents() {
       if (carcass != null) { set('carcass-thickness-mm', carcass); recalcTotal(); }
     }
   });
+
+  // Belt description: always editable. Typing directly into it marks it
+  // dirty (MANUAL) so live auto-fill stops overwriting it; clearing it (or
+  // it happening to match what auto-fill would've produced anyway) hands
+  // control back to auto-fill. See updateBeltDescription() / _setBeltDescMode().
+  document.getElementById('belt-description').addEventListener('input', (e) => {
+    beltDescDirty = e.target.value.trim() !== '';
+    if (beltDescDirty) {
+      _setBeltDescMode(true);
+    } else {
+      updateBeltDescription();
+    }
+  });
+
   document.getElementById('carcass-thickness-mm').addEventListener('input', () => {
     recalcTotal();
     fetchDimensionalSpecs();
@@ -1765,6 +1828,8 @@ function resetLookupState() {
   set('total-thickness-mm',   '');
   set('cv-plies-field',  '');
   set('cv-skim-field',   '');
+  beltDescDirty = false;
+  _setBeltDescMode(false);
   set('belt-description', '');
   const panels = ['weight-calc-panel', 'packing-calc-panel'];
   panels.forEach(id => {
@@ -1966,7 +2031,7 @@ function renderBeltQueue() {
               </span>
             </div>
             <button type="button" onclick="removeBeltFromQueue(${i})"
-                    style="flex-shrink:0;padding:2px 8px;font-size:10px;background:transparent;
+                    style="flex-shrink:0;padding:2px 8px;font-size:12px;background:transparent;
                            border:1px solid #dc2626;border-radius:3px;color:#dc2626;
                            cursor:pointer;font-weight:600;">× Remove</button>
           </div>

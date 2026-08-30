@@ -28,6 +28,12 @@ weasyprint>=62.0              # requires system packages in packages.txt
 jinja2>=3.1
 pypdf>=4.0                    # merges per-belt PDFs for batch "Print All" (batch_views.print_all_batch)
 
+# ── Error monitoring ───────────────────────────────────────────────────────────
+# Inert until SENTRY_DSN is set in the environment — see config/settings.py.
+# Pinned below the latest release per this project's dependency-cooldown policy
+# (renovate.json: minimumReleaseAge 7 days) rather than floating to newest.
+sentry-sdk>=2.60.0,<3.0
+
 # ── Production server ─────────────────────────────────────────────────────────
 gunicorn>=22.0
 

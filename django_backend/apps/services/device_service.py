@@ -324,8 +324,6 @@ def notify_admins_new_device_login(user, request) -> None:
             "This device has been trusted for future logins on that account. If this "
             "looks suspicious, contact the user directly or revoke the device from the admin panel.",
         ],
-        closing="",
-        signature="This is a system-generated email from the Ravasco TDS System.",
     )
 
     try:

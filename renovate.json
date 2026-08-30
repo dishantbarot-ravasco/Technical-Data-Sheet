@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "matchDatasources": ["pypi"],
+      "minimumReleaseAge": "7 days"
+    }
+  ],
+  "description": "Dependency policy: never adopt a new release of an open-source library until it has been out for at least 7 days. This gives the community time to surface malicious or broken releases (supply-chain risk) before this project pulls them in. Applies to every dependency update Renovate proposes."
+}

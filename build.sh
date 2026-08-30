@@ -13,4 +13,7 @@ python manage.py collectstatic --noinput
 echo "==> Running database migrations..."
 python manage.py migrate
 
+echo "==> Ensuring cache table exists..."
+python manage.py createcachetable
+
 echo "==> Build complete."

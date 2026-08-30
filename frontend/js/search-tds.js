@@ -216,7 +216,7 @@ function renderTable() {
             <td class="td-mono">${escapeHtml(t.tds_number)}</td>
             <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
             <td>${t.customer?.customer_name ? escapeHtml(t.customer.customer_name) : '<span class="td-muted">-</span>'}</td>
-            <td><span class="badge badge-muted" style="font-size:9px;">${escapeHtml(stdShort(t.standard?.standard_name))}</span></td>
+            <td><span class="badge badge-muted" style="font-size:11px;">${escapeHtml(stdShort(t.standard?.standard_name))}</span></td>
             <td class="td-muted" style="font-size:11px;">${escapeHtml(t.belt_rating?.rating_name) || '-'}</td>
             <td class="td-muted" style="font-size:12px;">${t.belt_width_mm} mm × ${parseFloat(t.belt_length_m).toFixed(0)} m</td>
             <td>

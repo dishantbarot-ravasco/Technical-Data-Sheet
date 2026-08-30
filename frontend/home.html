@@ -41,7 +41,7 @@
     .hero-tag {
       display:inline-flex;align-items:center;gap:8px;padding:5px 14px;margin-bottom:14px;
       background:rgba(240,180,41,.15);border:1px solid rgba(240,180,41,.4);border-radius:20px;
-      width:fit-content;font-family:var(--font-head);font-size:9px;font-weight:700;
+      width:fit-content;font-family:var(--font-head);font-size:11px;font-weight:700;
       letter-spacing:.16em;text-transform:uppercase;color:var(--gold-bright);
     }
     .hero-tag::before { content:'●';font-size:7px; }
@@ -61,7 +61,7 @@
 
     /* Section title */
     .section-title {
-      font-family:var(--font-head);font-size:10px;font-weight:700;letter-spacing:.14em;
+      font-family:var(--font-head);font-size:12px;font-weight:700;letter-spacing:.14em;
       text-transform:uppercase;color:var(--muted);margin-bottom:14px;
       display:flex;align-items:center;gap:10px;
     }
@@ -77,8 +77,10 @@
                    border-radius:var(--radius-lg);overflow:hidden; }
     .recent-header { padding:14px 20px;border-bottom:1px solid var(--border);
                      display:flex;align-items:center;justify-content:space-between; }
+    /* ACCESSIBILITY (fixed): --gold-light as text fails WCAG AA on this
+       card's white background — same recurring issue fixed elsewhere. */
     .recent-header h3 { font-family:var(--font-head);font-size:11px;font-weight:700;
-                        letter-spacing:.08em;text-transform:uppercase;color:var(--gold-light); }
+                        letter-spacing:.08em;text-transform:uppercase;color:var(--gold-text); }
   </style>
 </head>
 <body>
@@ -305,7 +307,7 @@
               <td class="td-mono">${t.tds_number}</td>
               <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
               <td>${t.customer?.customer_name||'<span class="td-muted">-</span>'}</td>
-              <td><span class="badge badge-muted" style="font-size:9px;">
+              <td><span class="badge badge-muted" style="font-size:11px;">
                 ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
               <td class="td-muted" style="font-size:11px;">
                 ${t.belt_width_mm} mm × ${parseFloat(t.belt_length_m).toFixed(0)} m · ${t.construction_type}</td>

@@ -384,13 +384,13 @@ function _injectChangePasswordModal() {
             font-size:13px;outline:none;box-sizing:border-box;"
             onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
         </div>
-        <p style="font-size:11px;color:#718096;margin:0 0 20px;line-height:1.5;">
+        <p style="font-size:11px;color:#5B6472;margin:0 0 20px;line-height:1.5;">
           We'll send a 6-digit code to this address. Valid for 10 minutes.</p>
         <div id="cpw-err1" style="display:none;padding:10px 12px;background:#FFF5F5;
              border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
         <button id="cpw-btn-send" style="width:100%;padding:12px;background:#C17F0A;border:none;
           border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-          letter-spacing:.1em;text-transform:uppercase;color:#fff;cursor:pointer;">Send OTP Code</button>
+          letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Send OTP Code</button>
       </div>
       <!-- Step 2: Enter OTP + new password -->
       <div id="cpw-step2" style="display:none;padding:28px 24px;">
@@ -417,7 +417,7 @@ function _injectChangePasswordModal() {
               onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
             <button type="button" id="cpw-toggle-pw1" aria-label="Toggle password visibility" style="
               position:absolute;right:10px;top:50%;transform:translateY(-50%);
-              background:none;border:none;color:#718096;cursor:pointer;font-size:14px;
+              background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;
               padding:2px;line-height:1;">👁</button>
           </div>
         </div>
@@ -431,7 +431,7 @@ function _injectChangePasswordModal() {
               onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
             <button type="button" id="cpw-toggle-pw2" aria-label="Toggle password visibility" style="
               position:absolute;right:10px;top:50%;transform:translateY(-50%);
-              background:none;border:none;color:#718096;cursor:pointer;font-size:14px;
+              background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;
               padding:2px;line-height:1;">👁</button>
           </div>
         </div>
@@ -443,7 +443,7 @@ function _injectChangePasswordModal() {
             color:#4A5568;cursor:pointer;">← Back</button>
           <button id="cpw-btn-verify" style="flex:1;padding:12px;background:#C17F0A;border:none;
             border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-            letter-spacing:.1em;text-transform:uppercase;color:#fff;cursor:pointer;">Change Password</button>
+            letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Change Password</button>
         </div>
         <div style="text-align:center;margin-top:12px;">
           <button id="cpw-btn-resend" style="background:none;border:none;font-size:11px;
@@ -608,7 +608,7 @@ function _injectAuthChangePasswordModal() {
               onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
             <button type="button" id="auth-cpw-toggle-current" aria-label="Toggle visibility"
               style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
           </div>
         </div>
         <div style="margin-bottom:16px;">
@@ -621,7 +621,7 @@ function _injectAuthChangePasswordModal() {
               onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
             <button type="button" id="auth-cpw-toggle-new" aria-label="Toggle visibility"
               style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
           </div>
         </div>
         <div style="margin-bottom:16px;">
@@ -634,14 +634,14 @@ function _injectAuthChangePasswordModal() {
               onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
             <button type="button" id="auth-cpw-toggle-confirm" aria-label="Toggle visibility"
               style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#718096;cursor:pointer;font-size:14px;">👁</button>
+                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
           </div>
         </div>
         <div id="auth-cpw-err" style="display:none;padding:10px 12px;background:#FFF5F5;
              border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
         <button id="auth-cpw-btn-submit" style="width:100%;padding:12px;background:#C17F0A;border:none;
           border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-          letter-spacing:.1em;text-transform:uppercase;color:#fff;cursor:pointer;">Update Password</button>
+          letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Update Password</button>
       </div>
     </div>
   </div>`;
@@ -747,7 +747,7 @@ function _buildDropdown(user) {
         <div style="font-size:12px;font-weight:600;color:#1A202C;white-space:nowrap;
                     max-width:130px;overflow:hidden;text-overflow:ellipsis;">
           ${user.full_name||user.email.split('@')[0]}</div>
-        <div style="font-size:10px;color:#A0AEC0;text-transform:capitalize;letter-spacing:.04em;">${roleLabel}</div>
+        <div style="font-size:12px;color:#5F6B78;text-transform:capitalize;letter-spacing:.04em;">${roleLabel}</div>
       </div>
       <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style="opacity:.45;flex-shrink:0;">
         <path d="M2 4l4 4 4-4" stroke="#718096" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -761,9 +761,9 @@ function _buildDropdown(user) {
       <div style="padding:14px 16px;background:linear-gradient(135deg,#F7F8FA,#fff);
                   border-bottom:1px solid #E2E8F0;">
         <div style="font-size:12px;font-weight:600;color:#1A202C;">${user.full_name||'-'}</div>
-        <div style="font-size:11px;color:#718096;margin-top:1px;">${user.email}</div>
+        <div style="font-size:11px;color:#5B6472;margin-top:1px;">${user.email}</div>
         <div style="margin-top:8px;">
-          <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:9px;
+          <span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;
                        font-weight:700;letter-spacing:.1em;text-transform:uppercase;
                        background:${roleBg};color:${roleColor};border:1px solid ${roleBdr};">
             ${roleLabel}</span>

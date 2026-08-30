@@ -29,11 +29,26 @@ Endpoints:
 import logging
 import re
 
+from django.views.decorators.cache import cache_page
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
+
+# PERFORMANCE: every endpoint below reads from tables that change rarely
+# (reference/lookup data seeded once, or edited only occasionally through
+# Django Admin) but are read on nearly every generate-TDS page load and
+# every dropdown open. cache_page caches the full rendered response per
+# distinct URL (path + querystring), so parameterized endpoints like
+# list_cover_grades/<standard_id> still get one cache entry per id.
+#
+# 1 hour is long enough to meaningfully cut DB load, short enough that an
+# admin edit to a reference table (cover grade, reel type, etc.) shows up
+# without needing a manual cache-bust. cache_page must be the OUTERMOST
+# decorator — it caches the already-rendered HttpResponse, so placing it
+# under @api_view would try to cache DRF's un-rendered Response and error.
+CACHE_TTL_SECONDS = 60 * 60
 
 from apps.core.models import (
     BeltRating, BeltRatingValue, BrandParameter, CoverGrade, CoverGradeValue,
@@ -205,7 +220,16 @@ def _build_splicing_config():
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def bootstrap(request):
-    """Return all static dropdown data in a single DB round-trip."""
+    """
+    Return all static dropdown data in a single DB round-trip.
+
+    NOT cache_page'd (unlike the other endpoints in this file): this bundles
+    in `customers`, which changes whenever a user types a new one into the
+    generate-TDS form (POST /api/customers) — caching the whole response
+    would hide a just-created customer from the autocomplete for up to
+    CACHE_TTL_SECONDS. Every other list here is served from the individually
+    cached endpoints below anyway when called directly.
+    """
     standards     = list(Standard.objects.order_by('standard_id'))
     purposes      = list(Purpose.objects.order_by('purpose_id'))
     belt_types    = list(BeltType.objects.order_by('belt_id'))
@@ -230,6 +254,7 @@ def bootstrap(request):
     })
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_purposes(request):
@@ -237,6 +262,7 @@ def list_purposes(request):
     return Response([_purpose(p) for p in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_belt_types(request):
@@ -244,6 +270,7 @@ def list_belt_types(request):
     return Response([_belt_type(b) for b in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_brands(request):
@@ -251,6 +278,7 @@ def list_brands(request):
     return Response([_brand(b) for b in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_standards(request):
@@ -258,6 +286,7 @@ def list_standards(request):
     return Response([_standard(s) for s in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_standard(request, standard_id):
@@ -267,6 +296,7 @@ def get_standard(request, standard_id):
     return Response(_standard(obj))
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_cover_grades(request, standard_id):
@@ -276,6 +306,7 @@ def list_cover_grades(request, standard_id):
     return Response([_cover_grade_brief(g) for g in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_cover_grade(request, grade_id):
@@ -285,6 +316,7 @@ def get_cover_grade(request, grade_id):
     return Response(_cover_grade_full(grade))
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_fabric_types(request):
@@ -292,6 +324,7 @@ def list_fabric_types(request):
     return Response([_fabric_type(f) for f in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_fabric_styles(request, fabric_type_id):
@@ -314,6 +347,7 @@ def _rating_sort_key(rating_name):
     return (float(m.group(1)), int(m.group(2)), rating_name or '')
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_belt_ratings(request, fabric_type_id):
@@ -324,6 +358,7 @@ def list_belt_ratings(request, fabric_type_id):
     return Response([_belt_rating_brief(r) for r in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_belt_rating(request, rating_id):
@@ -409,6 +444,7 @@ def update_customer(request, customer_id):
     return Response(_customer_brief(obj))
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_reel_types(request):
@@ -416,6 +452,7 @@ def list_reel_types(request):
     return Response([_reel_type(r) for r in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_packing_types(request):
@@ -427,6 +464,7 @@ def list_packing_types(request):
     return Response([_packing_type(p) for p in qs.order_by('id')])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_container_types(request):
@@ -434,6 +472,7 @@ def list_container_types(request):
     return Response([_container_type(c) for c in objs])
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def shipping_constraints(request):
@@ -466,6 +505,7 @@ def shipping_constraints(request):
     })
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_splicing_config(request):
@@ -486,6 +526,7 @@ def get_splicing_config(request):
     return Response(_build_splicing_config())
 
 
+@cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_parameters(request):
