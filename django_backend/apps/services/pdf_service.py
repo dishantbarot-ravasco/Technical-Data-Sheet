@@ -133,6 +133,9 @@ class TDSDocData:
     # ── Footer ────────────────────────────────────────────────────────────
     prepared_by_name: str = "—"
     prepared_by_designation: str = ""
+    # Set only when this doc was built from a past TDSRevision snapshot
+    # (see `overrides` on build_tds_doc_data) — shown as a header notice.
+    revision_banner: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,6 +243,47 @@ TDS_NOTES: list[str] = [
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Historical-revision overlay
+# ─────────────────────────────────────────────────────────────────────────────
+
+# FK id-column → relation-accessor name, for every relation build_tds_doc_data
+# reads off `tds.<relation>` rather than the raw `tds.<relation>_id` column.
+# When a revision snapshot overrides one of these id columns, the cached
+# related object select_related() already fetched (for the CURRENT id) must
+# be dropped too, or `tds.<relation>` below would keep returning the current
+# record's related row instead of re-querying for the snapshotted id.
+_OVERRIDE_RELATION_MAP: dict[str, str] = {
+    'customer_id':        'customer',
+    'brand_id':            'brand',
+    'standard_id':          'standard',
+    'cover_grade_id':        'cover_grade',
+    'fabric_type_id':         'fabric_type',
+    'fabric_style_id':         'fabric_style',
+    'belt_rating_id':           'belt_rating',
+    'reel_type_id':               'reel_type',
+    'packing_type_id':             'packing_type',
+    'container_type_id':            'container_type',
+}
+
+
+def _apply_revision_overrides(tds: TDSInput, overrides: dict) -> None:
+    """
+    Overlay a TDSRevision.snapshot dict onto an in-memory (unsaved) TDSInput
+    instance, so the rest of build_tds_doc_data resolves every direct field
+    AND every EAV/spec lookup (which key off the FK id columns, e.g.
+    cover_grade_id) against the values that were live at that revision,
+    without ever writing back to the database.
+    """
+    for field_name, value in overrides.items():
+        if not hasattr(tds, field_name):
+            continue
+        setattr(tds, field_name, value)
+        rel_name = _OVERRIDE_RELATION_MAP.get(field_name)
+        if rel_name:
+            tds._state.fields_cache.pop(rel_name, None)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main assembly function
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -250,6 +294,8 @@ def build_tds_doc_data(
     show_section: bool = True,
     show_test_method: bool = True,
     show_reference: bool = True,
+    overrides: dict | None = None,
+    revision_banner: str | None = None,
 ) -> TDSDocData:
     """
     Assembles all data for TDS {tds_id} from the database.
@@ -261,6 +307,12 @@ def build_tds_doc_data(
         show_section:    Include Section column in output rows.
         show_test_method: Include Test Method column in output rows.
         show_reference:  Include Reference column in output rows.
+        overrides:       Optional field->value dict (typically a
+                         TDSRevision.snapshot) overlaid onto the live record
+                         before assembly, to render a past revision instead
+                         of the current state. See _apply_revision_overrides.
+        revision_banner: Optional header notice text, set on the returned
+                         doc when `overrides` is used.
 
     Returns:
         TDSDocData ready for the renderer.
@@ -287,6 +339,9 @@ def build_tds_doc_data(
     )
     if tds is None:
         raise ValueError(f"TDS {tds_id} not found")
+
+    if overrides:
+        _apply_revision_overrides(tds, overrides)
 
     # ── Build EAV lookup: parameter_id → {spec, indus} ────────────────────────
     eav: dict[int, dict[str, str | None]] = {}
@@ -461,6 +516,7 @@ def build_tds_doc_data(
         construction_type=tds.construction_type,
         status=tds.status,
         gi_rows=gi_rows,
+        revision_banner=revision_banner,
     )
 
     # ── Footer: populate from the user who created this TDS ──────────────────

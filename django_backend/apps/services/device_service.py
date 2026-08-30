@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import threading
 
 from django.conf import settings
 from django.core.mail import send_mail
@@ -194,8 +195,23 @@ def register_device(response, user_id: int, request) -> str:
 def send_device_otp(user) -> str:
     """
     Generate a 6-digit OTP, store its hash in otp_codes, and email the plaintext
-    code to the user. Returns the plaintext code (which has already been sent —
-    never log this value).
+    code to the user. Returns the plaintext code (which has already been queued
+    for sending — never log this value).
+
+    The OTP is generated and committed to the DB synchronously (it must be
+    checkable the instant this call returns — see the reliability comment in
+    auth_serializers.py), but the actual send_mail() call runs on a background
+    thread. Talking to Gmail's SMTP server routinely takes several seconds
+    (observed ~4s in testing), and there is no correctness reason for the
+    login request to sit blocked on that round-trip: the frontend only needs
+    {status: 'device_verify'} to show the code-entry screen, not delivery
+    confirmation. Previously the whole request waited on the send, which made
+    the "Sign In" button appear frozen long enough that a user would
+    reasonably refresh or re-click before the response ever arrived — losing
+    the in-flight JS that was about to show the OTP screen, even though the
+    email had already gone out. Caller-visible behavior on a send failure is
+    unchanged: it was already swallowed by the caller either way (see
+    auth_serializers.py's TDSTokenObtainPairSerializer.validate()).
     """
     otp  = generate_otp(user.email)        # from otp_service — handles bcrypt + DB
     name = user.full_name or user.email.split('@')[0]
@@ -215,31 +231,25 @@ def send_device_otp(user) -> str:
         ],
     )
 
-    try:
-        send_mail(
-            subject        = subject,
-            message        = body,
-            from_email     = settings.DEFAULT_FROM_EMAIL,
-            recipient_list = [user.email],
-            fail_silently  = False,
-        )
-        log.info("send_device_otp: verification email sent to %s", user.email)
-    except Exception as exc:
-        log.error("send_device_otp: email send failed for %s: %s", user.email, exc)
-        # DEV CONVENIENCE (fixed): apps/services/otp_service.py's password-reset
-        # OTP already falls back to printing the code to the console when SMTP
-        # isn't configured/working in DEBUG, specifically so local development
-        # doesn't require a real mail server. This login/new-device-verification
-        # OTP is the SAME kind of code sent the SAME way, but had no such
-        # fallback -- meaning a dev environment with no working SMTP could not
-        # log in at all (every login needs device verification), even though
-        # the very same situation on the password-reset flow degrades cleanly.
-        # Mirror that behavior here for consistency; still raise afterward so
-        # production (DEBUG=False) behaves exactly as before -- a hard failure,
-        # never a silently-degraded delivery.
-        if settings.DEBUG:
-            print(f"\n{'='*50}\nLogin OTP for {user.email}: {otp}\n{'='*50}\n")
-        raise   # caller (serializer) catches this and returns a user-friendly 400
+    def _send():
+        try:
+            send_mail(
+                subject        = subject,
+                message        = body,
+                from_email     = settings.DEFAULT_FROM_EMAIL,
+                recipient_list = [user.email],
+                fail_silently  = False,
+            )
+            log.info("send_device_otp: verification email sent to %s", user.email)
+        except Exception as exc:
+            log.error("send_device_otp: email send failed for %s: %s", user.email, exc)
+            # DEV CONVENIENCE: mirrors otp_service.py's password-reset OTP,
+            # which already falls back to printing the code to the console
+            # when SMTP isn't configured/working in DEBUG.
+            if settings.DEBUG:
+                print(f"\n{'='*50}\nLogin OTP for {user.email}: {otp}\n{'='*50}\n")
+
+    threading.Thread(target=_send, daemon=True).start()
 
     return otp
 
@@ -269,17 +279,24 @@ def send_new_device_notification(user, request) -> None:
         ],
     )
 
-    try:
-        send_mail(
-            subject        = subject,
-            message        = body,
-            from_email     = settings.DEFAULT_FROM_EMAIL,
-            recipient_list = [user.email],
-            fail_silently  = True,   # informational — never block login on this
-        )
-        log.info("send_new_device_notification: sent to %s", user.email)
-    except Exception as exc:
-        log.warning("send_new_device_notification: failed for %s: %s", user.email, exc)
+    def _send():
+        try:
+            send_mail(
+                subject        = subject,
+                message        = body,
+                from_email     = settings.DEFAULT_FROM_EMAIL,
+                recipient_list = [user.email],
+                fail_silently  = True,   # informational — never block login on this
+            )
+            log.info("send_new_device_notification: sent to %s", user.email)
+        except Exception as exc:
+            log.warning("send_new_device_notification: failed for %s: %s", user.email, exc)
+
+    # Backgrounded for the same reason as send_device_otp(): this fires during
+    # /api/auth/device-verify, and an SMTP round-trip (~4s observed) has no
+    # business making that request — and the "Verify & Sign In" button — sit
+    # blocked when the caller never even looks at the result.
+    threading.Thread(target=_send, daemon=True).start()
 
 
 def notify_admins_new_device_login(user, request) -> None:
@@ -326,14 +343,17 @@ def notify_admins_new_device_login(user, request) -> None:
         ],
     )
 
-    try:
-        send_mail(
-            subject        = subject,
-            message        = body,
-            from_email     = settings.DEFAULT_FROM_EMAIL,
-            recipient_list = admin_emails,
-            fail_silently  = True,   # informational — never block login on this
-        )
-        log.info("notify_admins_new_device_login: sent to %s admin(s) re: %s", len(admin_emails), user.email)
-    except Exception as exc:
-        log.warning("notify_admins_new_device_login: failed re: %s: %s", user.email, exc)
+    def _send():
+        try:
+            send_mail(
+                subject        = subject,
+                message        = body,
+                from_email     = settings.DEFAULT_FROM_EMAIL,
+                recipient_list = admin_emails,
+                fail_silently  = True,   # informational — never block login on this
+            )
+            log.info("notify_admins_new_device_login: sent to %s admin(s) re: %s", len(admin_emails), user.email)
+        except Exception as exc:
+            log.warning("notify_admins_new_device_login: failed re: %s: %s", user.email, exc)
+
+    threading.Thread(target=_send, daemon=True).start()

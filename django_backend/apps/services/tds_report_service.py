@@ -11,6 +11,7 @@ Single source of truth for building + sending the daily admin report, used by:
 
 What the report includes, per day:
   - Total number of TDS documents created that day
+  - A breakdown of how many used each brand
   - A breakdown of how many used each cover grade
   - A breakdown of how many were for each customer
   - A breakdown of how many were created by each user
@@ -40,7 +41,7 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
     qs = (
         TDSInput.objects
         .filter(created_at__date=report_date)
-        .select_related('cover_grade', 'cover_grade__standard', 'customer', 'created_by')
+        .select_related('cover_grade', 'cover_grade__standard', 'customer', 'created_by', 'brand')
     )
     total = qs.count()
 
@@ -57,10 +58,14 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
             body_paragraphs=["No TDS documents were created today."],
         )
     else:
+        by_brand = {}
         by_grade = {}
         by_customer = {}
         by_creator = {}
         for rec in qs:
+            brand_label = rec.brand.brand_name if rec.brand_id else "Unknown"
+            by_brand[brand_label] = by_brand.get(brand_label, 0) + 1
+
             grade_label = (
                 f"{rec.cover_grade.grade_code} ({rec.cover_grade.standard.standard_name})"
                 if rec.cover_grade_id else "Unknown"
@@ -76,6 +81,7 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
             )
             by_creator[creator_label] = by_creator.get(creator_label, 0) + 1
 
+        brand_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_brand.items(), key=lambda x: -x[1]))
         grade_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_grade.items(), key=lambda x: -x[1]))
         customer_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_customer.items(), key=lambda x: -x[1]))
         creator_lines = "\n".join(f"    {name}: {count}" for name, count in sorted(by_creator.items(), key=lambda x: -x[1]))
@@ -84,6 +90,7 @@ def send_daily_tds_report(report_date: datetime.date | None = None) -> dict:
             greeting=f"Daily TDS Report: {report_date.isoformat()}",
             body_paragraphs=[
                 f"Total TDS created today: {total}.",
+                f"By brand:\n{brand_lines}",
                 f"By cover grade:\n{grade_lines}",
                 f"By customer:\n{customer_lines}",
                 f"Created by:\n{creator_lines}",

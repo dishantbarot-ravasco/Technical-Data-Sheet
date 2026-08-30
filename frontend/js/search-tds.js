@@ -16,7 +16,7 @@
  *   listTDS, getTDS, deleteTDS, downloadPdf, getStandards (from api.js)
  */
 import { requireAuth, populateNavUser, showToast } from './auth.js';
-import { listTDS, getTDS, deleteTDS, downloadPdf, downloadQapPdf, getStandards, getTdsRevisions, getTdsRevisionDetail } from './api.js';
+import { listTDS, getTDS, deleteTDS, downloadPdf, downloadQapPdf, getStandards, getTdsRevisions, getTdsRevisionDetail, downloadRevisionPdf } from './api.js';
 
 /**
  * Escape a value for safe insertion into an innerHTML template string.
@@ -228,6 +228,8 @@ function renderTable() {
                         data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}" title="Download QAP">📋 QAP</button>
                 <button class="btn btn-outline btn-sm" data-action="pdf"
                         data-id="${t.tds_id}" data-num="${escapeHtml(t.tds_number)}" title="Download PDF">⬇ PDF</button>
+                <button class="btn btn-outline btn-sm" data-action="history"
+                        data-id="${t.tds_id}" title="Version History">🕐</button>
                 ${canEdit ? `<button class="btn btn-danger btn-sm" data-action="delete"
                         data-id="${t.tds_id}" title="Delete">🗑</button>` : ''}
               </div>
@@ -281,11 +283,12 @@ function getSelectedExcludeGroups() {
  */
 async function handleRowAction(e) {
   const { action, id, num } = e.currentTarget.dataset;
-  if (action === 'view')   openModal(+id);
-  if (action === 'edit')   window.location.href = `generate-tds.html?edit=${id}`;
-  if (action === 'pdf')    handleDownloadPdf(+id, num);
-  if (action === 'qap')    openQapRefModal(+id, num);
-  if (action === 'delete') openConfirmDelete(+id);
+  if (action === 'view')    openModal(+id);
+  if (action === 'edit')    window.location.href = `generate-tds.html?edit=${id}`;
+  if (action === 'pdf')     handleDownloadPdf(+id, num);
+  if (action === 'qap')     openQapRefModal(+id, num);
+  if (action === 'history') openModal(+id, 'history');
+  if (action === 'delete')  openConfirmDelete(+id);
 }
 
 /**
@@ -404,13 +407,17 @@ function wireModal() {
  * Falls back to a GET /api/tds/{id} fetch if the record is not cached.
  *
  * @param {number} id - tds_id of the record to display
+ * @param {string} [openTab='overview'] - Tab to activate on open (e.g. 'history',
+ *   used by the Actions column's 🕐 history-shortcut button).
  */
-async function openModal(id) {
+async function openModal(id, openTab = 'overview') {
   activeModalId = id;
   const modal = document.getElementById('detail-modal');
   modal.classList.add('open');
-  document.querySelectorAll('.modal-tab').forEach((t,i) => t.classList.toggle('active', i===0));
-  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===0));
+  const tabs  = [...document.querySelectorAll('.modal-tab')];
+  const idx   = Math.max(0, tabs.findIndex(t => t.dataset.tab === openTab));
+  document.querySelectorAll('.modal-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
   // Always fetch the full TDSOut - the list cache only holds TDSBriefOut which
   // is missing purpose, fabric_type, cover_grade, packing, splicing fields, etc.
   try {
@@ -419,6 +426,7 @@ async function openModal(id) {
   } catch (err) {
     showToast('Failed to load details: ' + err.message, 'error');
   }
+  if (openTab === 'history') populateHistoryTab(id);
 }
 
 /** Close the detail modal and clear the active record reference. */
@@ -508,12 +516,35 @@ async function populateHistoryTab(tdsId) {
       const rev    = String(r.revision_number).padStart(2, '0');
       return `
         <div class="history-row" data-rev="${r.revision_number}" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
-          <div style="font-weight:600;color:var(--text);">Rev ${rev} &mdash; edited by ${escapeHtml(editor)}</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div style="font-weight:600;color:var(--text);">Rev ${rev} - edited by ${escapeHtml(editor)}</div>
+            <button class="btn btn-outline btn-sm history-download" data-rev="${r.revision_number}"
+                    title="Download this revision's spec sheet as a PDF" style="flex-shrink:0;">⬇ Download</button>
+          </div>
           <div style="color:var(--text-muted);font-size:11px;margin-top:2px;">${escapeHtml(when)}</div>
           <div style="color:var(--text-muted);font-size:11px;margin-top:4px;">${escapeHtml(r.change_summary || '')}</div>
           <div class="history-snapshot" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-family:monospace;font-size:11px;"></div>
         </div>`;
     }).join('');
+
+    list.querySelectorAll('.history-download').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // don't trigger the parent row's expand/collapse
+        const revNum = btn.dataset.rev;
+        const rec = allRecords.find(r => r.tds_id === tdsId);
+        const tdsNumber = rec?.tds_number || tdsId;
+        btn.disabled = true;
+        try {
+          showToast('Preparing revision PDF…', 'info', 2000);
+          await downloadRevisionPdf(tdsId, revNum, tdsNumber, { excludeGroups: getSelectedExcludeGroups() });
+          showToast('Revision PDF downloaded.', 'success');
+        } catch (err) {
+          showToast('PDF error: ' + err.message, 'error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
 
     list.querySelectorAll('.history-row').forEach(row => {
       row.addEventListener('click', async () => {

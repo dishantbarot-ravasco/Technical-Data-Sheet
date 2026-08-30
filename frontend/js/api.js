@@ -314,6 +314,42 @@ export const getTdsRevisions = (id) => apiFetch(`/tds/${id}/revisions`);
 export const getTdsRevisionDetail = (id, rev) => apiFetch(`/tds/${id}/revisions/${rev}`);
 
 /**
+ * Download the spec-sheet PDF for one past revision of a TDS.
+ * Mirrors downloadPdf() above but hits the revision-specific endpoint,
+ * which overlays that revision's snapshot onto the current record before
+ * rendering (see revisions_views.generate_revision_pdf) - the resulting
+ * PDF carries a "HISTORICAL REVISION" header banner.
+ *
+ * @param {number} id           - The TDS database ID (tds_id)
+ * @param {number} revisionNum  - The revision number to download
+ * @param {string} tdsNumber    - Used for the downloaded filename
+ * @param {Object} [opts={}]    - { excludeGroups?: string[] }
+ * @returns {Promise<void>}
+ * @throws {Error} If the server returns a non-2xx status
+ */
+export async function downloadRevisionPdf(id, revisionNum, tdsNumber, opts = {}) {
+  const qs = new URLSearchParams();
+  if (opts.excludeGroups?.length) {
+    opts.excludeGroups.forEach(g => qs.append('exclude_groups', g));
+  }
+  const query = qs.toString();
+  const res = await fetch(`${API_BASE}/tds/${id}/revisions/${revisionNum}/pdf${query ? '?' + query : ''}`, { headers: getAuthHeaders() });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Revision PDF export failed: HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `TDS-${tdsNumber}-rev${String(revisionNum).padStart(2, '0')}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/**
  * Create a new TDS record from the form payload.
  * The server also computes derived values (total_thickness, splice lengths, etc.)
  * and assigns a sequential TDS number (e.g. "TDS-2024-0042").

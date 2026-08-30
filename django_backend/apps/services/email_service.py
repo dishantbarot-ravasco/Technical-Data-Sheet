@@ -71,7 +71,10 @@ def render_email(
 </html>"""
 
     text_lines = [greeting, ""]
-    text_lines.extend(p for p in body_paragraphs)
+    for i, p in enumerate(body_paragraphs):
+        if i > 0:
+            text_lines.append("")
+        text_lines.append(p)
     if highlight_value:
         text_lines.append("")
         text_lines.append(f"{highlight_label}: {highlight_value}")

@@ -176,7 +176,13 @@
     .month-bar { height: 100%; border-radius: 2px; background: var(--gold); }
 
     /* ── Users grid ───────────────────────────────────── */
-    .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    /* BUG FIX: 320px wasn't enough room for the footer's status pill + up to
+       three buttons (View TDS / Edit / Deactivate) on one row — the row's
+       flex-shrink squeezed "Deactivate" below its own text width, and
+       .user-card's overflow:hidden clipped it to "DEACTI…". 380px plus the
+       footer wrap fix below means every combination of buttons fits without
+       clipping regardless of viewport width. */
+    .users-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; }
     .user-card {
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius-lg); overflow: hidden;
@@ -209,9 +215,14 @@
     .ucs-label { font-size:11px; font-weight: 600; letter-spacing: .07em;
                  text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
     .user-card-foot {
-      padding: 10px 16px; display: flex; align-items: center;
-      justify-content: space-between; gap: 8px;
+      /* BUG FIX: wrap instead of squeezing buttons below their text width —
+         paired with .user-card-foot button's flex-shrink:0 below, this is
+         what actually stops "Deactivate" from clipping to "DEACTI…" on any
+         viewport width, not just the common ones tested by eye. */
+      padding: 10px 16px; display: flex; align-items: center; flex-wrap: wrap;
+      justify-content: space-between; gap: 8px 10px; row-gap: 8px;
     }
+    .user-card-foot .btn { flex-shrink: 0; }
     .status-pill {
       display: inline-flex; align-items: center; gap: 5px;
       font-size:12px; font-weight: 600; padding: 3px 10px;
@@ -819,7 +830,7 @@
           <!-- Footer actions -->
           <div class="user-card-foot">
             <span class="status-pill ${u.is_active?'active':'inactive'}">${u.is_active?'Active':'Inactive'}</span>
-            <div style="display:flex;gap:6px;align-items:center;">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               ${count>0 ? `
               <button class="btn btn-ghost btn-sm"
                       onclick="toggleDrawer(${u.user_id})"

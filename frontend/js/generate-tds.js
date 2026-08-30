@@ -306,6 +306,14 @@ function _enterEditModeUI(record) {
   const previewSpan = previewBtn?.querySelector('#submit-text');
   if (previewSpan) previewSpan.textContent = 'Save Changes & Preview PDF';
   if (draftBtn) draftBtn.textContent = 'Save Changes';
+
+  // Editing a single existing record has no multi-belt concept - hide the
+  // "add another belt" control so beltQueue can never gain entries here.
+  // (submitTDS() checks beltQueue.length before editingTdsId, so a queued
+  // belt in edit mode would otherwise get bundled into a brand-new batch
+  // instead of updating this record - see submitTDS() for the guard too.)
+  const addBeltBtn = document.getElementById('btn-add-belt');
+  if (addBeltBtn) addBeltBtn.style.display = 'none';
 }
 
 /**
@@ -578,13 +586,19 @@ function autoSelect(id) {
 async function loadCoverGrades(standardId) {
   const sel = document.getElementById('cover-grade-id');
   sel.innerHTML = '<option value="">Loading…</option>';
+  refreshSearchableDisplay('cover-grade-id');
   document.getElementById('grade-hint').textContent = '';
-  if (!standardId) { sel.innerHTML = '<option value="">Select standard first</option>'; return; }
+  if (!standardId) {
+    sel.innerHTML = '<option value="">Select standard first</option>';
+    refreshSearchableDisplay('cover-grade-id');
+    return;
+  }
   try {
     const grades = await getCoverGrades(standardId);
     sel.innerHTML = '<option value="">- Select Cover Grade -</option>' +
       grades.map(g => `<option value="${g.id}">${g.grade_code}</option>`).join('');
   } catch { sel.innerHTML = '<option value="">Failed to load</option>'; }
+  refreshSearchableDisplay('cover-grade-id');
 }
 
 /* ── Dependent: belt ratings + fabric styles ────────────── */
@@ -605,6 +619,8 @@ async function loadBeltRatings(fabricTypeId) {
   if (!fabricTypeId) {
     ratingSel.innerHTML = '<option value="">Select fabric type first</option>';
     styleSel.innerHTML  = '<option value="">Select fabric type first</option>';
+    refreshSearchableDisplay('belt-rating-id');
+    refreshSearchableDisplay('fabric-style-id');
     return;
   }
   try {
@@ -620,6 +636,8 @@ async function loadBeltRatings(fabricTypeId) {
     ratingSel.innerHTML = '<option value="">Failed to load</option>';
     styleSel.innerHTML  = '<option value="">Failed to load</option>';
   }
+  refreshSearchableDisplay('belt-rating-id');
+  refreshSearchableDisplay('fabric-style-id');
 }
 
 /* ── EAV lookup ─────────────────────────────────────────── */
@@ -719,7 +737,7 @@ function _setBeltDescMode(isManual) {
   } else {
     field.classList.add('auto-field');
     badge.textContent = 'AUTO';
-    hint.textContent = 'Auto-fills live · type here to enter your own';
+    hint.textContent = 'Auto-fills live · type here to enter your own — same format as the Multiple Belts paste box, and the rest of the form fills in live as you type';
     hint.style.color = '';
   }
 }
@@ -792,6 +810,157 @@ function updateBeltDescription() {
   }
 
   set('belt-description', parts.join(' X '));
+}
+
+/**
+ * Find the value of the <select id="selectId"> option whose visible text
+ * exactly matches `text` (case-insensitive, trimmed). Returns null if none
+ * of its real (non-placeholder) options match.
+ */
+function _findOptionValueByText(selectId, text) {
+  const sel = document.getElementById(selectId);
+  if (!sel || !text) return null;
+  const needle = text.trim().toLowerCase();
+  const opt = Array.from(sel.options).find(o => o.value && o.text.trim().toLowerCase() === needle);
+  return opt ? opt.value : null;
+}
+
+// Bumped on every liveParseBeltDescription() call so an in-flight call whose
+// await (loadBeltRatings' API fetch) resolves after a newer keystroke has
+// already started a fresher call can detect it's stale and stop, instead of
+// applying an out-of-date Fabric Type's belt ratings over a newer selection.
+let _liveParseGen = 0;
+// Avoids re-fetching belt ratings on every keystroke once Fabric Type has
+// already resolved to the same value — only the fabric TOKEN changing
+// (not the surrounding text) should trigger a new /belt-ratings request.
+let _liveParseFabricType = null;
+
+/**
+ * Reverse of updateBeltDescription() — and using the SAME field order as the
+ * Multiple Belts paste box's line format (see the inline
+ * `_parseBeltText()` in this file, and its backend counterpart
+ * django_backend/apps/api/routers/batch_views.py's text_import_batch), so a
+ * user who already knows that format for pasting many belts doesn't have to
+ * learn a second one for a single belt:
+ *
+ *   width X fabric X rating X top X bottom X grade X edge X end X type X length
+ *     [X bot_plies X bob_plies [X carcass_mm]]
+ *
+ * Example: 1200 X EP X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300
+ *
+ * Unlike the batch importer (which only parses once a full line is pasted),
+ * this runs on every keystroke (see the 'input' listener in wireEvents) and
+ * fills in whichever fields are already resolvable from the tokens typed so
+ * far — it never clears a field just because the current text doesn't (yet)
+ * match anything, so a field already filled correctly stays filled while the
+ * rest of the line is still being typed.
+ *
+ * Fields that depend on another (Belt Rating needs Fabric Type's options
+ * loaded first; Cover Grade needs Applicable Standard already selected) are
+ * only matched once their dependency has actually resolved.
+ */
+async function liveParseBeltDescription() {
+  const myGen = ++_liveParseGen;
+  const raw = val('belt-description');
+  if (!raw.trim()) return;
+
+  // Same delimiter as _parseBeltText(): " X " with real spaces on both
+  // sides, so an "X" that's part of a word (e.g. a customer name) never
+  // splits a field in half.
+  const tokens = raw.split(/\s+X\s+/i).map(t => t.trim());
+  const [
+    width, fabric, rating, top, bottom, grade, edge, endType, beltType,
+    length, botPlies, bobPlies, carcassMm,
+  ] = tokens;
+
+  const isNum = (s) => s != null && s !== '' && !isNaN(parseFloat(s));
+
+  // ── Width / Top / Bottom / Length — plain numbers, safe to fill live ────
+  if (isNum(width))  set('belt-width-mm',  width);
+  if (isNum(top))    set('top-cover-mm',   top);
+  if (isNum(bottom)) set('bottom-cover-mm', bottom);
+  if (isNum(length)) set('belt-length-m',  length);
+
+  // ── Fabric Type — must resolve before Belt Rating (ratings are per-fabric) ─
+  if (fabric) {
+    const ftValue = _findOptionValueByText('fabric-type-id', fabric);
+    if (ftValue && ftValue !== _liveParseFabricType) {
+      _liveParseFabricType = ftValue;
+      set('fabric-type-id', ftValue);
+      await loadBeltRatings(ftValue);   // populates belt-rating-id + fabric-style-id
+      if (myGen !== _liveParseGen) return;   // a newer keystroke has since run its own parse
+    }
+  }
+
+  // ── Belt Rating (depends on Fabric Type's options, loaded just above) ────
+  if (rating) {
+    const brValue = _findOptionValueByText('belt-rating-id', rating);
+    if (brValue) set('belt-rating-id', brValue);
+  }
+
+  // ── Cover Grade (depends on Applicable Standard already being selected) ──
+  if (grade) {
+    const cgValue = _findOptionValueByText('cover-grade-id', grade);
+    if (cgValue) set('cover-grade-id', cgValue);
+  }
+
+  // ── Edge construction — same loose "contains cut/moulded" match the ─────
+  //    batch importer and its backend counterpart both use.
+  if (edge) {
+    if (/cut/i.test(edge))          set('edge-construction', 'Cut Edge');
+    else if (/mould/i.test(edge))   set('edge-construction', 'Moulded Edge');
+  }
+
+  // ── End type / construction — same loose "contains endless" match ───────
+  if (endType) {
+    set('construction-type', /endless/i.test(endType) ? 'Endless' : 'Open-End');
+    _enforceEndlessMax();
+  }
+
+  // ── Belt Type ─────────────────────────────────────────────────────────────
+  if (beltType) {
+    const btValue = _findOptionValueByText('belt-type-id', beltType);
+    if (btValue) set('belt-type-id', btValue);
+  }
+
+  // ── Breaker plies — 0/blank means that breaker is off, matching the ─────
+  //    batch importer's _int_ply()/backend convention.
+  if (botPlies != null && botPlies !== '') {
+    const n = parseInt(botPlies, 10);
+    if (n > 0) {
+      document.querySelector('input[name="brk-top"][value="yes"]').checked = true;
+      window._brkTop(true);
+      set('breaker-top-plies', n);
+    } else if (n === 0) {
+      document.querySelector('input[name="brk-top"][value="no"]').checked = true;
+      window._brkTop(false);
+    }
+  }
+  if (bobPlies != null && bobPlies !== '') {
+    const n = parseInt(bobPlies, 10);
+    if (n > 0) {
+      document.querySelector('input[name="brk-bot"][value="yes"]').checked = true;
+      window._brkBot(true);
+      set('breaker-bottom-plies', n);
+    } else if (n === 0) {
+      document.querySelector('input[name="brk-bot"][value="no"]').checked = true;
+      window._brkBot(false);
+    }
+  }
+
+  // ── Optional per-belt carcass override (field 13) ────────────────────────
+  if (isNum(carcassMm)) {
+    const toggle = document.getElementById('carcass-override-toggle');
+    if (toggle && !toggle.checked) { toggle.checked = true; toggle.dispatchEvent(new Event('change')); }
+    set('carcass-thickness-mm', carcassMm);
+  }
+
+  if (myGen !== _liveParseGen) return;
+
+  // ── Recompute everything downstream, same as picking each field by hand ──
+  recalcTotal();
+  fetchDimensionalSpecs();
+  if (val('cover-grade-id') && val('belt-rating-id')) await runLookup();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1422,6 +1591,30 @@ function wireCustomerAutocomplete() {
 }
 
 /**
+ * BUG FIX: loadCoverGrades()/loadBeltRatings() below replace a wrapped
+ * <select>'s options wholesale (e.g. "Select standard first" -> the real
+ * cover grade list) once its data arrives — but makeSearchable()'s visible
+ * text input only reads the select's first-option text ONCE, at wrap time,
+ * for its placeholder. Without this, the box keeps showing a stale
+ * "Select standard first" placeholder even after a standard IS selected and
+ * real cover grades HAVE loaded — the field looks broken/unpopulated (and
+ * looks like the fields "aren't wired together") even though clicking into
+ * it reveals the real, selectable options underneath the whole time.
+ * Call this right after reassigning a wrapped select's innerHTML.
+ *
+ * @param {string} selectId - HTML id of a <select> already wrapped by makeSearchable()
+ */
+function refreshSearchableDisplay(selectId) {
+  const sel = document.getElementById(selectId);
+  const inp = sel?.parentElement?.querySelector('.ss-input');
+  if (!sel || !inp) return;
+  const phOpt = sel.options[0];
+  inp.placeholder = (phOpt && !phOpt.value) ? phOpt.text : '';
+  const selectedOpt = sel.options[sel.selectedIndex];
+  inp.value = (selectedOpt && selectedOpt.value) ? selectedOpt.text : '';
+}
+
+/**
  * Wrap a native <select> with a live-search text input + filtered dropdown.
  *
  * The dropdown list is appended to <body> and positioned with
@@ -1702,13 +1895,17 @@ function wireEvents() {
   });
 
   // Belt description: always editable. Typing directly into it marks it
-  // dirty (MANUAL) so live auto-fill stops overwriting it; clearing it (or
+  // dirty (MANUAL) so live auto-fill stops overwriting it, and — the moment
+  // Applicable Standard is already selected — reads the line back into
+  // Cover Grade / Fabric Type / Belt Rating / dimensions / etc. live, on
+  // every keystroke (see liveParseBeltDescription()). Clearing the field (or
   // it happening to match what auto-fill would've produced anyway) hands
   // control back to auto-fill. See updateBeltDescription() / _setBeltDescMode().
   document.getElementById('belt-description').addEventListener('input', (e) => {
     beltDescDirty = e.target.value.trim() !== '';
     if (beltDescDirty) {
       _setBeltDescMode(true);
+      liveParseBeltDescription();
     } else {
       updateBeltDescription();
     }
@@ -1829,6 +2026,7 @@ function resetLookupState() {
   set('cv-plies-field',  '');
   set('cv-skim-field',   '');
   beltDescDirty = false;
+  _liveParseFabricType = null;   // force liveParseBeltDescription() to re-fetch next time
   _setBeltDescMode(false);
   set('belt-description', '');
   const panels = ['weight-calc-panel', 'packing-calc-panel'];
@@ -2590,7 +2788,7 @@ async function submitTDS(mode = 'preview') {
     // tds-multi-preview.html does not support — it only reads batch_id, so that
     // navigation always showed an error "No batch_id in the URL." Fixed by
     // switching to the batch endpoint and navigating with the returned batch_id.
-    if (beltQueue.length > 0) {
+    if (beltQueue.length > 0 && !editingTdsId) {
       const allBelts = [...beltQueue, captureBeltSpec()];
       const batchPayload = {
         shared: {
