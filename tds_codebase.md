@@ -98,8 +98,7 @@ tds_app/
 │   ├── tds-multi-preview.html        ← Batch preview (summary chips + all-belt table + ZIP/merge actions)
 │   ├── packing-calculator.html       ← Standalone packing calculator (no TDS creation)
 │   ├── splicing-calculator.html      ← Standalone splicing calculator (fully client-side, no API calls)
-│   ├── admin.html                    ← Admin panel (users/analytics/all-TDS/system info)
-│   └── tds-options.html              ← DEAD/orphaned — not linked anywhere, safe to delete
+│   └── admin.html                    ← Admin panel (users/analytics/all-TDS/system info)
 ├── start.py                          ← Render build runner (collectstatic + migrate + gunicorn)
 └── run_django.py                     ← Local dev runner
 ```
@@ -620,7 +619,6 @@ include(tds_urls)     # /api/tds/<int:tds_id> — would swallow "batch" and "loo
  
 | Issue | Details |
 |-------|---------|
-| `tds-options.html` | **Dead/orphaned** — no other file links to it. Superseded by inline checkbox injection in `tds-preview.html`. Safe to delete. |
 | "Remember me" security | Stores plaintext email+password in `localStorage` under `tds_saved_credentials` — flagged in `index.html` comments as known issue. |
 | TOTP enrollment not wired | TOTP backend fully implemented (verify + enroll-confirm in `totp_urls.py`); enrollment initiation endpoint (`totp/enroll`) implemented in `totp_views.py` but NOT registered in `totp_urls.py` — half-orphaned. |
 | `passlib` incompatibility | Passlib 1.7.4 incompatible with bcrypt ≥ 4.0; fixed by calling `bcrypt.checkpw()` directly in `auth_backend.py`. |
