@@ -117,10 +117,10 @@ def render_tds_pdf_bytes(tds_id: int, exclude_groups=None) -> bytes:
     """
     Return raw PDF bytes for one TDS record.
 
-    Called by batch_views.download_batch_zip and batch_views.print_all_batch
-    to generate per-belt PDFs for the batch ZIP bundle / merged "print all"
-    PDF. Uses the same pdf_service + pdf_renderer pipeline as the regular
-    generate_pdf endpoint.
+    Called by batch_export_views.py's export builders (_build_zip_export,
+    _build_merged_zip_export, _build_print_all_export) to generate per-belt
+    PDFs for the batch ZIP bundle / merged "print all" PDF. Uses the same
+    pdf_service + pdf_renderer pipeline as the regular generate_pdf endpoint.
 
     exclude_groups: None (default) → every section included ("Internal Copy").
                     A list of group names (see apps.services.sections) →

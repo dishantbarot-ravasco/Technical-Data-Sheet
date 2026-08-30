@@ -412,6 +412,17 @@ tbody td.td-mono { font-family: 'Courier New', monospace; font-size: 12px; font-
 }
 .modal-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 20px; cursor: pointer; padding: 2px; line-height: 1; border-radius: var(--radius); transition: color .15s; }
 .modal-close:hover { color: #fff; }
+.modal-subtitle { margin: 4px 0 0; font-size: 11px; color: rgba(255,255,255,.55); }
+/* Password-visibility toggle button positioned inside a .form-control —
+   used by auth.js's change-password modals. */
+.input-with-toggle { position: relative; }
+.input-with-toggle .form-control { padding-right: 40px; }
+.input-toggle-btn {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: 14px; padding: 2px; line-height: 1;
+}
+.otp-input { font-size: 22px; letter-spacing: .3em; font-family: 'Courier New', monospace; font-weight: 700; text-align: center; }
 
 /* ── WIZARD ─────────────────────────────────────────────── */
 .wizard-steps { display: flex; align-items: center; margin-bottom: 28px; }

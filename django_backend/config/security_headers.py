@@ -1,14 +1,15 @@
 """
 config/security_headers.py — Adds hardened HTTP security headers to every response.
 
-Wire into settings.py MIDDLEWARE list, AFTER WhiteNoise but BEFORE Django's
-common middleware:
+Wire into settings.py MIDDLEWARE list BEFORE WhiteNoise (this ordering was
+previously reversed — see the BUG FIX comment on MIDDLEWARE in settings.py
+for why "after WhiteNoise" silently meant "never runs for any static HTML
+page", which is most of this app's actual attack surface):
 
     MIDDLEWARE = [
         ...
+        'config.security_headers.SecurityHeadersMiddleware',   # ← before WhiteNoise
         'whitenoise.middleware.WhiteNoiseMiddleware',
-        'config.security_headers.SecurityHeadersMiddleware',   # ← add here
-        'django.middleware.common.CommonMiddleware',
         ...
     ]
 
@@ -22,11 +23,22 @@ Headers added:
 
 CSP notes:
   - 'self' covers all local assets (WhiteNoise-served JS/CSS/images).
-  - 'unsafe-inline' on style-src is required because the app uses inline
-    <style> blocks and style="..." attributes throughout.  Remove once the
-    CSS is moved to external files.
+  - 'unsafe-inline' on style-src AND script-src is required because the
+    frontend has no build step (see CLAUDE.md — static HTML+vanilla JS,
+    WhiteNoise-served, no bundler/templating): every page's substantial
+    logic lives in an inline <script type="module"> block or inline
+    style="..." attributes. A nonce-based CSP (the usual alternative to
+    'unsafe-inline') needs a per-request templating layer to stamp a fresh
+    nonce into each <script> tag, which this deployment doesn't have. This
+    is a real, honest trade-off, not an oversight: the CSP still blocks
+    loading any script/style from an untrusted remote origin, and still
+    restricts object-src/frame-ancestors/base-uri/form-action — it just
+    can't stop an already-injected inline script from running. Revisit if
+    the frontend ever gains a build step.
   - Google Fonts is explicitly allowed (fonts.googleapis.com, fonts.gstatic.com).
-  - No external script sources are allowed — all JS is served from 'self'.
+  - frame-src 'self' allows the app's own same-origin PDF-preview <iframe>s
+    (generate-tds.html's src="/api/tds/{id}/pdf", tds-preview.html's
+    srcdoc-based preview) — no external frame sources are allowed.
   - frame-ancestors 'none' blocks embedding in other pages (equivalent to
     X-Frame-Options: DENY but honoured by modern browsers).
   - object-src 'none' blocks Flash and other plugin objects entirely.
@@ -35,7 +47,6 @@ To customise the CSP in settings.py:
     CSP_EXTRA_DIRECTIVES = "connect-src 'self' https://api.example.com;"
 """
 
-import os
 
 from django.conf import settings
 
@@ -91,9 +102,12 @@ class SecurityHeadersMiddleware:
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
             "img-src 'self' data: blob:",          # data: URIs for logos/base64 images
-            "script-src 'self'",                   # NO inline scripts, NO eval
+            # 'unsafe-inline' required — see module docstring's CSP notes.
+            # eval() is still blocked (no 'unsafe-eval'); the codebase
+            # doesn't use eval()/new Function() anywhere.
+            "script-src 'self' 'unsafe-inline'",
             "connect-src 'self'",                  # fetch/XHR to same origin only
-            "frame-src 'none'",                    # no iframes loaded (TDS preview uses same origin)
+            "frame-src 'self'",                    # same-origin PDF preview iframes only
             "frame-ancestors 'none'",              # this page cannot be embedded anywhere
             "object-src 'none'",                   # no Flash / plugins
             "base-uri 'self'",                     # block base-tag injection

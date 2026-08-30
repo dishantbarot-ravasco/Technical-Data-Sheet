@@ -40,8 +40,6 @@ def _compute_and_save(tds_id, reel_type_id, packing_type_id):
     if not record:
         raise NotFound(f"TDS {tds_id} not found")
     if record.status not in ('draft',):
-        from rest_framework import status as drf_status
-        from rest_framework.response import Response
         raise ValidationError({'detail': f"TDS {tds_id} is '{record.status}' — only draft records can be updated"})
 
     reel = ReelType.objects.filter(pk=reel_type_id).first()

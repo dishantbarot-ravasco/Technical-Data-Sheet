@@ -20,7 +20,6 @@ settings.MIDDLEWARE) intercepts most static-file requests before they even
 reach this URLconf, so the catch-all `serve` view below is mainly a
 development-time fallback.
 """
-from pathlib import Path
 
 from django.conf import settings
 from django.contrib import admin

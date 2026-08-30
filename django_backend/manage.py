@@ -16,7 +16,6 @@ boilerplate and should stay that way.
 """
 import os
 import sys
-from pathlib import Path
 
 
 def main():

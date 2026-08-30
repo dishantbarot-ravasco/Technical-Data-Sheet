@@ -31,7 +31,6 @@ Design decisions
 """
 import logging
 import os
-from urllib.parse import quote
 
 import requests as http_requests
 from django.conf import settings

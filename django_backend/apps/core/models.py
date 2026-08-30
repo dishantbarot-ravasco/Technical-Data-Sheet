@@ -877,6 +877,70 @@ class TDSBatch(models.Model):
         return f"TDSBatch #{self.batch_id} ({self.created_at.date() if self.created_at else '—'})"
 
 
+class BatchExportJob(models.Model):
+    """
+    Tracks one async batch PDF export (ZIP / merged ZIP / print-all) run on a
+    background thread instead of inline in the request.
+
+    Measured WeasyPrint render cost is ~2s per PDF on dev hardware (likely
+    2-4x slower on Render's free-tier shared CPU), and a ZIP export renders
+    up to 2 PDFs (TDS + QAP) per belt — a ~15-belt batch can already exceed
+    gunicorn's 120s request timeout. There is no task queue / broker
+    (Celery, Redis) provisioned on the current Render free-tier deployment,
+    so this deliberately uses a plain Python thread (apps/api/routers/
+    batch_export_views.py's _run_export_job) plus this DB row as the shared
+    job-status/result store, the same reasoning CLAUDE.md documents for using
+    DatabaseCache over LocMemCache: gunicorn runs multiple worker *processes*,
+    so an in-memory dict wouldn't be visible across the request that starts
+    the job and the request that later polls/downloads it.
+
+    file_bytes holds the finished export in Postgres (bytea) rather than on
+    local disk — Render's disk is not guaranteed to persist or be shared
+    across worker processes/restarts, whereas the DB already is the shared
+    state store for this deployment. Rows are swept on a TTL (see
+    start_export()) rather than via a scheduled task, since no cron
+    infrastructure beyond the existing daily-report endpoint exists yet.
+    """
+    EXPORT_TYPES = (
+        ('zip',        'ZIP (per-belt + merged)'),
+        ('merged_zip', 'Merged ZIP'),
+        ('print_all',  'Print-all merged PDF'),
+    )
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('done',    'Done'),
+        ('failed',  'Failed'),
+    )
+
+    job_id        = models.AutoField(primary_key=True)
+    batch         = models.ForeignKey('TDSBatch', on_delete=models.CASCADE, related_name='export_jobs')
+    export_type   = models.CharField(max_length=20, choices=EXPORT_TYPES)
+    status        = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    # Per-belt progress, updated by the export builder as it renders each
+    # record — lets the frontend show "Generating... (3 / 12)" instead of
+    # just a spinner for the whole (potentially multi-minute) job. Both stay
+    # 0 until the job is running; progress_total is set once the builder
+    # knows the record count.
+    progress_current = models.PositiveIntegerField(default=0)
+    progress_total   = models.PositiveIntegerField(default=0)
+    params        = models.JSONField(default=dict, blank=True)
+    filename      = models.CharField(max_length=255, blank=True)
+    content_type  = models.CharField(max_length=100, blank=True)
+    file_bytes    = models.BinaryField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    created_by    = models.ForeignKey('TDSUser', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    completed_at  = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'batch_export_jobs'
+        managed  = True
+
+    def __str__(self):
+        return f"BatchExportJob #{self.job_id} ({self.export_type}, {self.status})"
+
+
 class TDSRevision(models.Model):
     """
     Version history for TDSInput. One row per edit that actually changed a

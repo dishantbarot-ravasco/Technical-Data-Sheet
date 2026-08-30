@@ -112,3 +112,68 @@ same applies to white text on a `--gold-light`/`#F5A623` background (use `--navy
 pattern recurs across `admin.html`, `generate-tds.html`, `search-tds.html`, `home.html`, and the
 calculator pages, so check both directions (color-as-text and text-on-that-background) when
 touching gold-family styling anywhere.
+
+## Known future work / deferred proposals (v2 candidates)
+
+These were discussed across past sessions but deliberately not built yet — either genuinely
+deferred, or blocking on something outside the codebase (a source file, a third-party account,
+factory data). Verify current status before assuming any of these is still open — some may have
+been resolved in a session not captured here.
+
+**PDF snapshot at approval time** — every TDS PDF (single download, batch ZIP/print-all, revision
+history) is currently rendered live from the DB on every request; nothing is ever stored. Over a
+2-5 year horizon this means a template/lookup-table edit silently changes how already-approved,
+"issued" documents look on next download — a real gap for an ISO 9001 document-control system.
+Full design (new `TDSPdfSnapshot` model storing PDF bytes in Postgres, captured once at
+`approve_tds()`/`update_status()`, consumed by `pdf_views.py`'s `generate_pdf`/
+`render_tds_pdf_bytes`) is written up at `C:\Users\Admin\.claude\plans\velvety-munching-honey.md`.
+
+**Point-in-time EAV snapshotting for revision PDFs** — `TDSRevision.snapshot` only captures
+directly-changed fields (e.g. belt width), not the *resolved* EAV spec values (cover grade specs,
+fabric parameters, test methods) the PDF renderer joins live from current master data. A later
+correction to a lookup table therefore changes how old revision PDFs render, same root cause as
+the approval-snapshot gap above. The "overlay" approach (`build_tds_doc_data`'s `overrides=`
+param in `revisions_views.py`) shipped as a stopgap; the deferred follow-up is expanding
+`_update_tds()` in `apps/api/routers/tds_views.py` to also snapshot resolved EAV values at edit
+time, for a true point-in-time reconstruction.
+
+**Revision number on the PDF itself** — adding "Revision" to the PDF's General Information
+section was scoped but deferred: GI rows are entirely DB-driven (not hardcoded), so this needs a
+data migration seeding a new `TDSParameter`/`BrandParameter` row per brand, which was judged a
+different/riskier risk class than the rest of the versioning work.
+
+**Dedicated `noreply@ravasco.com` mailbox** — Gmail SMTP silently overrides the `From` header
+unless the sending address is a verified Send-As alias on the account. Two options were proposed:
+register `noreply@ravasco.com` as a Send-As alias on the current Gmail account, or give it its own
+real Workspace mailbox + app password and repoint `SMTP_USER` in `.env`/`render.yaml`. Neither was
+chosen — pending a decision, then an `.env`/`render.yaml` update.
+
+**Security/testing roadmap leftovers** (from a 5-tier hardening pass — confirm each is still
+outstanding before treating as open):
+- A real external pentest / OWASP ZAP scan against a staging deployment (no staging environment
+  exists yet).
+- Activating Sentry: scaffolding is already in `settings.py` (inert until `SENTRY_DSN` is set) —
+  needs a Sentry project created and the DSN set in Render's env vars.
+- Deploying migration `0021_fix_chk_user_role` to production (was applied to local dev only as of
+  that session).
+- A manual screen-reader walkthrough of the generate-tds flow end-to-end — only automated
+  axe-core static scanning across pages was done, not the manual walkthrough originally scoped.
+
+**QAP template gaps**:
+- `SAMPLE_QAP.xlsx` (the QAP seed source, not in the repo) has a numeric `1.1` cell where the SN
+  should read text `"1.10"` — patched via a one-off DB migration, but re-running
+  `seed_qap_templates --replace` from that same spreadsheet will reintroduce the bug for all three
+  templates. Needs the source file corrected directly.
+- `OR` and `FR_CAN` QAP categories exist as placeholders in `qap_service.py`'s
+  `STANDARD_TO_QAP_CATEGORY` mapping with no seeded template data — awaiting factory-supplied
+  source data before `seed_qap_templates` can be extended to cover them.
+
+**Daily report trend context** — floated but never decided: showing month-to-date or
+week-over-week comparison (e.g. "23 today vs. 15/day average this month") in the daily TDS admin
+email, for context beyond a raw daily count.
+
+**Task queue infrastructure (Celery/RQ)** — considered and explicitly deemed unnecessary at
+current volume (a handful of emails/day, one daily report); the background-thread fix applied to
+login/device-verify emails (`apps/services/device_service.py`) is the proportional tool for now.
+Revisit only if job volume grows enough to need retries/guaranteed delivery, or async work beyond
+simple emails (e.g. bulk PDF generation) is added.

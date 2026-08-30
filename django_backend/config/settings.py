@@ -62,8 +62,21 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',          # must be first
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', 
-    'config.security_headers.SecurityHeadersMiddleware',    
+    # BUG FIX: SecurityHeadersMiddleware used to be listed AFTER WhiteNoise.
+    # Django's middleware list is outermost-first for the request phase, so a
+    # LATER entry is more INNER — meaning WhiteNoiseMiddleware, being earlier
+    # (outer), short-circuits static-file requests (every frontend HTML/CSS/
+    # JS/image response) by returning directly without ever calling further
+    # down the chain into SecurityHeadersMiddleware. Verified live: every
+    # /api/* JSON response carried the CSP/X-Frame-Options/Permissions-Policy
+    # headers, but every static HTML page (index.html, home.html, ...) —
+    # i.e. every page an actual browser renders and executes — carried none
+    # of them, so the CSP was providing zero real protection. Moving this
+    # middleware BEFORE WhiteNoise makes it outer, so it wraps and can add
+    # headers to WhiteNoise's response regardless of whether WhiteNoise
+    # short-circuited.
+    'config.security_headers.SecurityHeadersMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware', # serves frontend static files
     'django.middleware.common.CommonMiddleware',
     # Full CsrfViewMiddleware is intentionally NOT used app-wide:

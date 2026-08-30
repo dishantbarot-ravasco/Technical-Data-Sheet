@@ -30,7 +30,6 @@ a single grade_code vs. "w/HAR" under a DIN standard) — don't assume either
 guess is correct; read the printed rows.
 """
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 from apps.core.models import CoverGrade
 

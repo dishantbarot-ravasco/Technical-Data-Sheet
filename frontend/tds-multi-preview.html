@@ -701,7 +701,72 @@
       return '/api/tds/' + tdsId + '/pdf' + buildExcludeQS();
     }
 
-    /* ── ZIP download (authenticated fetch → blob) ────────── */
+    /* ── Async batch export (start job → poll → download blob) ──────────
+       Batch ZIP/merged-ZIP/print-all PDF generation runs on a background
+       thread server-side (see apps/api/routers/batch_export_views.py) —
+       WeasyPrint rendering for a whole batch can take longer than a single
+       request should block for. This starts the job, polls its status, then
+       fetches the finished file as a blob once done. Returns the blob (or
+       throws) so each caller can decide what to do with it (download vs.
+       open a print tab).
+       exportType: 'zip' | 'merged_zip' | 'print_all' */
+    async function runBatchExportJob(batchId, exportType, extraParams, btn) {
+      const groups = getExcludeGroups();
+      const body = Object.assign(
+        {
+          export_type: exportType,
+          ...(groups.length ? { exclude_groups: groups } : { copy: 'internal' }),
+        },
+        extraParams || {}
+      );
+
+      const startResp = await fetch('/api/tds/batch/' + batchId + '/export/', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthHeaders()),
+        body: JSON.stringify(body),
+      });
+      if (!startResp.ok) {
+        const err = await startResp.json().catch(() => ({}));
+        throw new Error(err.detail || startResp.statusText);
+      }
+      const { job_id } = await startResp.json();
+
+      /* Poll every 1.5s. No fixed cap on attempts — a large batch really can
+         take a while server-side; the user can always navigate away. */
+      let job;
+      while (true) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const statusResp = await fetch(
+          '/api/tds/batch/export/' + job_id + '/status/',
+          { credentials: 'same-origin', headers: getAuthHeaders() }
+        );
+        if (!statusResp.ok) throw new Error('Lost track of the export job (status check failed).');
+        job = await statusResp.json();
+        if (job.status === 'done' || job.status === 'failed') break;
+        if (btn) {
+          btn.textContent = (job.progress_total > 0)
+            ? 'Generating… (' + job.progress_current + ' / ' + job.progress_total + ')'
+            : 'Generating…';
+        }
+      }
+
+      if (job.status === 'failed') {
+        throw new Error(job.error_message || 'Export failed.');
+      }
+
+      const dlResp = await fetch(
+        '/api/tds/batch/export/' + job_id + '/download/',
+        { credentials: 'same-origin', headers: getAuthHeaders() }
+      );
+      if (!dlResp.ok) {
+        const err = await dlResp.json().catch(() => ({}));
+        throw new Error(err.detail || dlResp.statusText);
+      }
+      return { blob: await dlResp.blob(), filename: job.filename };
+    }
+
+    /* ── ZIP download (async job → poll → blob) ────────────── */
     /* splicingRequired: if true, also auto-downloads the splicing
        manual alongside the ZIP (not during print). */
     function wireZipButton(batchId, customerName, splicingRequired) {
@@ -712,25 +777,14 @@
           btn.disabled    = true;
           btn.textContent = 'Generating…';
           try {
-            const qs = new URLSearchParams(buildExcludeQS().slice(1));
-            qs.set('doc_type', docType);
-            qs.set('ref_no',   refNo);
-            qs.set('ref_date', refDate);
-            const resp = await fetch(
-              '/api/tds/batch/' + batchId + '/download-zip/?' + qs.toString(),
-              { credentials: 'same-origin', headers: getAuthHeaders() }
+            const { blob, filename } = await runBatchExportJob(
+              batchId, 'zip', { doc_type: docType, ref_no: refNo, ref_date: refDate }, btn
             );
-            if (!resp.ok) {
-              const err = await resp.json().catch(() => ({}));
-              alert('Download failed: ' + (err.detail || resp.statusText));
-              return;
-            }
-            const blob = await resp.blob();
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
             const safeCustomer = (customerName || '').replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/^_+|_+$/g, '') || ('Batch_' + batchId);
-            a.download = safeCustomer + '_TDS.zip';
+            a.download = filename || (safeCustomer + '_TDS.zip');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -762,17 +816,7 @@
         btn.disabled    = true;
         btn.textContent = 'Preparing…';
         try {
-          const resp = await fetch(
-            '/api/tds/batch/' + batchId + '/print-all/' + buildExcludeQS(),
-            { credentials: 'same-origin', headers: getAuthHeaders() }
-          );
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            win.close();
-            alert('Print All failed: ' + (err.detail || resp.statusText));
-            return;
-          }
-          const blob    = await resp.blob();
+          const { blob } = await runBatchExportJob(batchId, 'print_all', {}, btn);
           const blobUrl = URL.createObjectURL(blob);
           win.location.href = blobUrl + '#toolbar=1';
         } catch (e) {
@@ -801,25 +845,14 @@
           btn.disabled    = true;
           btn.textContent = 'Generating…';
           try {
-            const qs = new URLSearchParams(buildExcludeQS().slice(1));
-            qs.set('doc_type', docType);
-            qs.set('ref_no',   refNo);
-            qs.set('ref_date', refDate);
-            const resp = await fetch(
-              '/api/tds/batch/' + batchId + '/download-merged-zip/?' + qs.toString(),
-              { credentials: 'same-origin', headers: getAuthHeaders() }
+            const { blob, filename } = await runBatchExportJob(
+              batchId, 'merged_zip', { doc_type: docType, ref_no: refNo, ref_date: refDate }, btn
             );
-            if (!resp.ok) {
-              const err = await resp.json().catch(() => ({}));
-              alert('Download failed: ' + (err.detail || resp.statusText));
-              return;
-            }
-            const blob = await resp.blob();
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
             const safeCustomer = (customerName || '').replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/^_+|_+$/g, '') || ('Batch_' + batchId);
-            a.download = safeCustomer + '_TDS_Merged.zip';
+            a.download = filename || (safeCustomer + '_TDS_Merged.zip');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

@@ -18,7 +18,6 @@ import logging
 from datetime import datetime, timezone, date
 from decimal import Decimal
 
-from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,9 +25,9 @@ from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError, PermissionDenied
 
 from apps.core.models import (
-    BeltRating, BeltRatingValue, CoverGrade, Customer, FabricType,
+    BeltRating, BeltRatingValue, CoverGrade, FabricType,
     IndusBrand, BeltType, PackingType, Purpose, ReelType,
-    Standard, TDSInput, TDSUser, TDSRevision,
+    Standard, TDSInput, TDSRevision,
 )
 from apps.api.permissions import IsEditor, IsCreator
 from apps.services.calculations import (
@@ -288,18 +287,24 @@ def _load_full(tds_id):
 
 # ── Views ─────────────────────────────────────────────────────────────────────
 
-@api_view(['POST'])
-@permission_classes([IsCreator])
-def create_tds(request):
+def _validate_and_compute_tds_fields(p):
     """
-    Create a new Technical Data Sheet record.
+    Shared by create_tds() and _update_tds(): validates FK references and
+    physical dimensions, then runs every server-side computation (fabric
+    style, interply skim, total thickness, belt weight, packing, splicing)
+    that both endpoints must apply identically.
 
-    Validates FK references, runs server-side computations (thickness, weight,
-    packing, splicing), assigns a TDS number atomically, then saves.
+    Extracted from what used to be two independently-maintained ~280-line
+    copies of this exact pipeline in create_tds() and _update_tds() — any
+    business-rule change (e.g. a splicing tolerance fix) previously had to be
+    applied in both places by hand, with nothing enforcing that it was. A
+    single shared function makes that class of drift impossible: create and
+    edit can now never disagree about how a given input computes.
+
+    Returns a dict of the computed/derived values the caller needs to build
+    (create_tds) or apply (update_tds) the TDSInput fields. Raises
+    ValidationError / NotFound the same way the two callers already did.
     """
-    p = request.data
-    current_user = request.user
-
     # ── Validate FK references ────────────────────────────────────────────────
     _require_obj(Standard,  p.get('standard_id'),   "Standard")
     _require_obj(BeltType,  p.get('belt_type_id'),  "Belt type")
@@ -489,6 +494,56 @@ def create_tds(request):
             step_len  = sr.step_length_mm
             spl_len   = sr.splice_length_mm
             extra_len = sr.total_extra_length_m
+
+    return {
+        'fabric_style_id':               fabric_style_id,
+        'interply_skim_mm':              interply_skim_mm,
+        'total_thickness_mm':            total_thickness_mm,
+        'weight_per_m':                  weight_per_m,
+        'reel_type_id':                  reel_type_id,
+        'packing_type_id':               packing_type_id,
+        'packing_num_rolls':             packing_num_rolls,
+        'packing_len_per_roll':          packing_len_per_roll,
+        'roll_lengths_m':                roll_lengths_m,
+        'packing_roll_dims':             packing_roll_dims,
+        'packing_net_weight':            packing_net_weight,
+        'packing_gross_weight':          packing_gross_weight,
+        'packing_gross_weight_per_roll': packing_gross_weight_per_roll,
+        'step_len':                      step_len,
+        'spl_len':                       spl_len,
+        'extra_len':                     extra_len,
+    }
+
+
+@api_view(['POST'])
+@permission_classes([IsCreator])
+def create_tds(request):
+    """
+    Create a new Technical Data Sheet record.
+
+    Validates FK references, runs server-side computations (thickness, weight,
+    packing, splicing), assigns a TDS number atomically, then saves.
+    """
+    p = request.data
+    current_user = request.user
+
+    computed = _validate_and_compute_tds_fields(p)
+    fabric_style_id               = computed['fabric_style_id']
+    interply_skim_mm              = computed['interply_skim_mm']
+    total_thickness_mm            = computed['total_thickness_mm']
+    weight_per_m                  = computed['weight_per_m']
+    reel_type_id                  = computed['reel_type_id']
+    packing_type_id               = computed['packing_type_id']
+    packing_num_rolls             = computed['packing_num_rolls']
+    packing_len_per_roll          = computed['packing_len_per_roll']
+    roll_lengths_m                = computed['roll_lengths_m']
+    packing_roll_dims             = computed['packing_roll_dims']
+    packing_net_weight            = computed['packing_net_weight']
+    packing_gross_weight          = computed['packing_gross_weight']
+    packing_gross_weight_per_roll = computed['packing_gross_weight_per_roll']
+    step_len                      = computed['step_len']
+    spl_len                       = computed['spl_len']
+    extra_len                     = computed['extra_len']
 
     # ── Assign TDS number atomically (has its own transaction.atomic() inside) ─
     tds_number = next_tds_number()
@@ -603,12 +658,10 @@ def _update_tds(request, tds_id):
     """
     Edit an existing TDS record in place.
 
-    Deliberately a near-duplicate of create_tds()'s validation/computation
-    pipeline rather than a shared extracted helper: create_tds is a single
-    long, carefully-ordered function, and refactoring it to share code here
-    risked subtly changing behavior on the already-working create path for
-    the sake of this new one. A parallel, independent copy is the safer
-    trade-off for touching a live, working endpoint.
+    Shares its validation/computation pipeline with create_tds() via
+    _validate_and_compute_tds_fields() — previously a ~280-line hand-kept-in-
+    sync duplicate of create_tds()'s body, which risked business-rule changes
+    being applied to only one of the two endpoints.
 
     tds_number, tds_date, status, and created_by are intentionally left
     untouched — editing a TDS never renumbers it, backdates it, changes who
@@ -622,195 +675,23 @@ def _update_tds(request, tds_id):
 
     p = request.data
 
-    # ── Validate FK references ────────────────────────────────────────────────
-    _require_obj(Standard,  p.get('standard_id'),   "Standard")
-    _require_obj(BeltType,  p.get('belt_type_id'),  "Belt type")
-    _require_obj(IndusBrand, p.get('brand_id'),     "Brand")
-    purpose = _require_obj(Purpose, p.get('purpose_id'), "Purpose")
-
-    cover_grade = _require_obj(CoverGrade, p.get('cover_grade_id'), "Cover grade")
-    if cover_grade.standard_id != p.get('standard_id'):
-        raise ValidationError({'detail': f"Cover grade belongs to standard_id={cover_grade.standard_id}, not {p.get('standard_id')}."})
-
-    belt_rating = _require_obj(BeltRating, p.get('belt_rating_id'), "Belt rating")
-    _require_obj(FabricType, p.get('fabric_type_id'), "Fabric type")
-    if belt_rating.fabric_type_id != p.get('fabric_type_id'):
-        raise ValidationError({'detail': f"Belt rating belongs to fabric_type_id={belt_rating.fabric_type_id}, not {p.get('fabric_type_id')}."})
-
-    # ── Reject physically nonsensical dimensions (zero/negative width,
-    #    length, plies, or negative thickness) before they reach the weight
-    #    and packing calculations below.
-    _validate_positive_dimensions(p)
-
-    # ── Endless belts are a closed loop and must fit within a fixed max length —
-    #    the frontend clamps this in the UI, but that's advisory only (a plain
-    #    number input's `max` attribute doesn't block typed values), so it must
-    #    also be enforced here, server-side, using the same shared constant the
-    #    frontend and the batch-import paths use.
-    try:
-        validate_endless_belt_length(p.get('construction_type'), p.get('belt_length_m'))
-    except ValueError as exc:
-        raise ValidationError({'belt_length_m': str(exc)})
-
-    # ── International orders require shipping_region + container_type_id —
-    #    same "UI-only enforcement is advisory, not a real guarantee" gap as
-    #    the Endless-length check above: generate-tds.js's submitTDS() marks
-    #    these fields required when Purpose = International, but a direct API
-    #    call could skip that and silently create/save an international TDS
-    #    with no shipping data. See validate_international_shipping_fields().
-    try:
-        validate_international_shipping_fields(
-            purpose.purpose_type, p.get('shipping_region'), p.get('container_type_id')
-        )
-    except ValueError as exc:
-        raise ValidationError({'detail': str(exc)})
-
-    # ── Parse kN/plies from the rating name ONCE, reused below for both the
-    #    fabric-style auto-selection and the splicing calculation. This is the
-    #    single shared parser (apps.services.calculations.parse_belt_rating) —
-    #    it used to be implemented separately here (with a `num_plies * 100`
-    #    guess as a fallback when parsing failed) and again in batch_views.py
-    #    with a different regex. Both now call the same function, so a
-    #    single-belt TDS and a bulk-imported one can never disagree, and a
-    #    genuinely unparseable rating_name is now a clear 400 instead of a
-    #    silently wrong splice length.
-    try:
-        belt_kn, belt_plies = parse_belt_rating(belt_rating.rating_name)
-    except ValueError as exc:
-        raise ValidationError({'detail': str(exc)})
-
-    # ── Fabric style: always server-computed from the belt rating, the same
-    #    way batch import already does it — never trust a client-supplied
-    #    fabric_style_id, so the two entry points can't drift apart.
-    fabric_style_id = auto_select_fabric_style(belt_rating.fabric_type_id, belt_kn, belt_plies)
-
-    # ── Interply skim: always from belt_rating_values ─────────────────────────
-    interply_skim_row = BeltRatingValue.objects.filter(
-        belt_rating_id=p.get('belt_rating_id'),
-        parameter_id=PARAM_INTERPLY_SKIM,
-    ).first()
-
-    # ROBUSTNESS (fixed): all the numeric fields below used to be cast with a
-    # bare float()/int(), so a malformed value (e.g. belt_width_mm: "abc")
-    # crashed with an unhandled ValueError -> generic 500 instead of a clean,
-    # attributable 400 — same fix pattern as validate_endless_belt_length above.
-    try:
-        interply_skim_mm = (
-            float(interply_skim_row.indus_value)
-            if interply_skim_row and interply_skim_row.indus_value not in (None, "Not Specified", "—")
-            else None
-        )
-
-        # ── Server-computed total thickness ───────────────────────────────────
-        total_thickness_mm = (
-            float(p.get('top_cover_mm', 0))
-            + float(p.get('bottom_cover_mm', 0))
-            + float(p.get('carcass_thickness_mm', 0))
-        )
-
-        # ── Belt weight per metre ──────────────────────────────────────────────
-        weight_per_m = p.get('belt_weight_per_m_kg')
-        if weight_per_m is not None:
-            weight_per_m = float(weight_per_m)
-        else:
-            weight_per_m = belt_weight_per_metre(
-                specific_gravity=float(cover_grade.specific_gravity),
-                width_mm=int(p.get('belt_width_mm', 0)),
-                total_thickness_mm=total_thickness_mm,
-            )
-    except (TypeError, ValueError):
-        raise ValidationError({'detail': 'top_cover_mm, bottom_cover_mm, carcass_thickness_mm, belt_width_mm, and belt_weight_per_m_kg must all be numeric.'})
-
-    # ── Auto-compute packing if reel/packing type supplied but num_rolls absent
-    reel_type_id    = p.get('reel_type_id')
-    packing_type_id = p.get('packing_type_id')
-    num_rolls       = p.get('num_rolls')
-
-    packing_num_rolls             = num_rolls
-    packing_len_per_roll          = p.get('length_per_roll_m')
-    packing_roll_dims             = p.get('roll_dimensions')
-    packing_net_weight            = p.get('net_weight_kg')
-    packing_gross_weight          = p.get('gross_weight_kg')
-    packing_gross_weight_per_roll = None
-
-    if reel_type_id and packing_type_id and num_rolls is None:
-        reel = ReelType.objects.filter(pk=reel_type_id).first()
-        if not reel:
-            raise NotFound(f"reel_type_id={reel_type_id} not found")
-        ptype = PackingType.objects.filter(pk=packing_type_id).first()
-        if not ptype:
-            raise NotFound(f"packing_type_id={packing_type_id} not found")
-        if not ptype.is_available:
-            raise ValidationError({'detail': f"Packing type '{ptype.packing_name}' is not yet available"})
-
-        try:
-            pr = compute_packing(
-                reel_type_id=reel_type_id,
-                packing_type_id=packing_type_id,
-                purpose_id=p.get('purpose_id'),
-                total_thickness_mm=total_thickness_mm,
-                belt_length_m=float(p.get('belt_length_m', 0)),
-                belt_width_mm=int(p.get('belt_width_mm', 0)),
-                belt_weight_per_m_kg=float(weight_per_m),
-            )
-        except (TypeError, ValueError) as exc:
-            # compute_packing raises ValueError for bad/missing reel config or
-            # non-numeric input (see packing_service.py) — surface it as a
-            # clean 400 instead of letting it fall through as a generic 500.
-            raise ValidationError({'detail': str(exc)})
-        packing_num_rolls             = pr.num_rolls
-        packing_len_per_roll          = pr.length_per_roll_m
-        packing_roll_dims             = pr.roll_dimensions
-        packing_net_weight            = pr.net_weight_kg
-        packing_gross_weight          = pr.gross_weight_kg
-        packing_gross_weight_per_roll = pr.gross_weight_per_roll_kg
-
-    # ── Manual override: unequal roll lengths ─────────────────────────────────
-    # A custom, non-uniform split (e.g. [200, 100] instead of an even 150/150)
-    # takes priority over whatever the block above just computed.
-    roll_lengths_m = p.get('roll_lengths_m')
-    if roll_lengths_m:
-        if not reel_type_id:
-            raise ValidationError({'detail': 'reel_type_id is required when specifying custom roll lengths.'})
-        try:
-            rv = validate_custom_roll_lengths(
-                reel_type_id=reel_type_id,
-                total_thickness_mm=total_thickness_mm,
-                belt_length_m=float(p.get('belt_length_m', 0)),
-                belt_width_mm=int(p.get('belt_width_mm', 0)),
-                roll_lengths_m=roll_lengths_m,
-            )
-        except (TypeError, ValueError) as exc:
-            raise ValidationError({'detail': str(exc)})
-        packing_num_rolls    = len(roll_lengths_m)
-        packing_len_per_roll = round(sum(map(float, roll_lengths_m)) / len(roll_lengths_m), 2)
-        packing_roll_dims    = rv.roll_dimensions
-
-    # Fallback: derive gross_weight_per_roll when num_rolls was sent directly
-    if packing_gross_weight_per_roll is None and packing_gross_weight and packing_num_rolls:
-        packing_gross_weight_per_roll = math.ceil(
-            float(packing_gross_weight) / int(packing_num_rolls) * 2
-        ) / 2
-
-    # ── Auto-compute splicing ─────────────────────────────────────────────────
-    step_len  = p.get('step_length_mm')
-    spl_len   = p.get('splice_length_mm')
-    extra_len = p.get('total_extra_length_m')
-
-    if p.get('splicing_required') and p.get('num_joints') and p.get('vulcanization_method'):
-        if spl_len is None:
-            # Reuse the belt_kn/belt_plies already parsed above (single shared
-            # parser — no more separate ad-hoc split()/guess fallback here).
-            sr = compute_splicing(
-                belt_rating_kn_m=belt_kn,
-                num_plies=belt_plies,
-                belt_width_mm=int(p.get('belt_width_mm', 0)),
-                num_joints=int(p.get('num_joints', 0)),
-                vulcanization_method=p.get('vulcanization_method'),
-            )
-            step_len  = sr.step_length_mm
-            spl_len   = sr.splice_length_mm
-            extra_len = sr.total_extra_length_m
+    computed = _validate_and_compute_tds_fields(p)
+    fabric_style_id               = computed['fabric_style_id']
+    interply_skim_mm              = computed['interply_skim_mm']
+    total_thickness_mm            = computed['total_thickness_mm']
+    weight_per_m                  = computed['weight_per_m']
+    reel_type_id                  = computed['reel_type_id']
+    packing_type_id               = computed['packing_type_id']
+    packing_num_rolls             = computed['packing_num_rolls']
+    packing_len_per_roll          = computed['packing_len_per_roll']
+    roll_lengths_m                = computed['roll_lengths_m']
+    packing_roll_dims             = computed['packing_roll_dims']
+    packing_net_weight            = computed['packing_net_weight']
+    packing_gross_weight          = computed['packing_gross_weight']
+    packing_gross_weight_per_roll = computed['packing_gross_weight_per_roll']
+    step_len                      = computed['step_len']
+    spl_len                       = computed['spl_len']
+    extra_len                     = computed['extra_len']
 
     # ── Apply the new values, tracking what actually changed for the audit log ─
     new_values = {

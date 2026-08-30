@@ -55,6 +55,16 @@ jobs:
           pip install pip-audit
           pip-audit -r requirements.txt
 
+      # Deliberately narrow ruleset (see ruff.toml) — catches real bugs
+      # (syntax errors, undefined names, unused imports/variables), not
+      # style preferences. This repo has an established formatting style
+      # (hand-aligned kwargs, intentional broad except blocks) that a
+      # default/opinionated linter or black would fight rather than help.
+      - name: Lint (ruff)
+        run: |
+          pip install ruff
+          ruff check django_backend --config ruff.toml
+
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
         working-directory: django_backend
@@ -74,3 +84,32 @@ jobs:
       - name: Run test suite
         run: python manage.py test
         working-directory: django_backend
+
+  frontend-lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Zero-config, dependency-free syntax gate — node's own parser, no
+      # ESLint install involved. Blocking: a real syntax error here means
+      # the page's <script> tag fails to load in the browser at all.
+      - name: Syntax-check frontend JS modules
+        run: |
+          for f in frontend/js/*.js; do
+            echo "Checking $f"
+            node --check "$f"
+          done
+
+      # Non-blocking: this config could not be verified against a real
+      # Node/ESLint install while authoring it (no Node available in that
+      # environment), so it's advisory only until a first real CI run
+      # confirms it behaves as expected — see eslint.config.js.
+      - name: Lint frontend JS (ESLint, advisory)
+        continue-on-error: true
+        run: |
+          npm install --no-save eslint @eslint/js
+          npx eslint frontend/js

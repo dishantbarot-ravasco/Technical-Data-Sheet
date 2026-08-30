@@ -33,7 +33,7 @@ Tolerance data source: patch_dimensional_specs_width_standard.sql
 
 import logging
 from django.core.management.base import BaseCommand
-from django.db import transaction, connection
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,6 @@ class Command(BaseCommand):
 
         with connection.cursor() as cur:
             cur.executemany(sql, rows_to_upsert)
-            affected = cur.rowcount   # -1 on executemany in psycopg2; best-effort
 
         self.stdout.write(
             self.style.SUCCESS(

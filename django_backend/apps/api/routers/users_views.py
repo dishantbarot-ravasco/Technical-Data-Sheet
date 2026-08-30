@@ -17,7 +17,6 @@ Endpoints:
   PATCH /api/users/{id}
 """
 import logging
-from datetime import datetime, timezone
 
 import bcrypt
 from django.db import transaction, connection

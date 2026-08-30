@@ -147,7 +147,6 @@ def _parse_sheet(ws):
         sn_lower = sn_raw.lower()
         if any(phrase in sn_lower for phrase in SKIP_PHRASES):
             continue
-        comp_lower = _val(row, 1).lower()
         if len(sn_raw) > 80:   # long notes text in SN column
             continue
 

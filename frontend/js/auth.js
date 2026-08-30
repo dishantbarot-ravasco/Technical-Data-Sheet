@@ -357,97 +357,56 @@ function _injectChangePasswordModal() {
 
   const div = document.createElement('div');
   div.innerHTML = `
-  <div id="change-pw-modal" style="display:none;position:fixed;inset:0;z-index:9000;
-       background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
-       align-items:center;justify-content:center;">
-    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;
-                width:420px;max-width:95vw;overflow:hidden;
-                box-shadow:0 24px 64px rgba(0,0,0,.18);">
-      <div style="background:#1A2535;padding:20px 24px;border-bottom:3px solid #D4940A;
-                  display:flex;align-items:center;justify-content:space-between;">
+  <div id="change-pw-modal" class="modal-backdrop">
+    <div class="modal" style="width:420px;max-width:95vw;">
+      <div class="modal-header">
         <div>
-          <h3 style="margin:0;font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;
-                     letter-spacing:.06em;color:#fff;">Change Password</h3>
-          <p id="cpw-subtitle" style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.55);">
-            A one-time code will be sent to your email</p>
+          <h3>Change Password</h3>
+          <p id="cpw-subtitle" class="modal-subtitle">A one-time code will be sent to your email</p>
         </div>
-        <button id="cpw-close" style="background:none;border:none;color:rgba(255,255,255,.6);
-                font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px;">✕</button>
+        <button id="cpw-close" class="modal-close">✕</button>
       </div>
       <!-- Step 1: Enter email to receive OTP -->
-      <div id="cpw-step1" style="padding:28px 24px;">
-        <div style="margin-bottom:18px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Your Account Email</label>
-          <input id="cpw-email" type="email" placeholder="you@company.com" style="
-            width:100%;padding:10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-            font-size:13px;outline:none;box-sizing:border-box;"
-            onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
+      <div id="cpw-step1" class="modal-body">
+        <div class="form-group" style="margin-bottom:18px;">
+          <label class="form-label">Your Account Email</label>
+          <input id="cpw-email" type="email" class="form-control" placeholder="you@company.com" />
         </div>
-        <p style="font-size:11px;color:#5B6472;margin:0 0 20px;line-height:1.5;">
+        <p class="form-hint" style="margin:0 0 20px;line-height:1.5;">
           We'll send a 6-digit code to this address. Valid for 10 minutes.</p>
-        <div id="cpw-err1" style="display:none;padding:10px 12px;background:#FFF5F5;
-             border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
-        <button id="cpw-btn-send" style="width:100%;padding:12px;background:#C17F0A;border:none;
-          border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-          letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Send OTP Code</button>
+        <div id="cpw-err1" class="alert alert-error" style="display:none;margin-bottom:16px;"></div>
+        <button id="cpw-btn-send" class="btn btn-primary" style="width:100%;">Send OTP Code</button>
       </div>
       <!-- Step 2: Enter OTP + new password -->
-      <div id="cpw-step2" style="display:none;padding:28px 24px;">
-        <div style="background:#F0FFF4;border:1px solid #C6F6D5;border-radius:6px;
-                    padding:10px 14px;margin-bottom:20px;font-size:12px;color:#1A7A4A;">
+      <div id="cpw-step2" class="modal-body" style="display:none;">
+        <div class="alert alert-success" style="margin-bottom:20px;">
           ✓ OTP sent to <strong id="cpw-sent-to"></strong>
         </div>
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">OTP Code</label>
-          <input id="cpw-otp" type="text" placeholder="123456" maxlength="6" style="
-            width:100%;padding:10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-            font-size:22px;letter-spacing:.3em;font-family:Courier New,monospace;font-weight:700;
-            text-align:center;outline:none;box-sizing:border-box;"
-            onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">OTP Code</label>
+          <input id="cpw-otp" type="text" class="form-control otp-input" placeholder="123456" maxlength="6" />
         </div>
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">New Password</label>
-          <div style="position:relative;">
-            <input id="cpw-pw1" type="password" placeholder="Min. 8 characters" style="
-              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-              font-size:13px;outline:none;box-sizing:border-box;"
-              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
-            <button type="button" id="cpw-toggle-pw1" aria-label="Toggle password visibility" style="
-              position:absolute;right:10px;top:50%;transform:translateY(-50%);
-              background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;
-              padding:2px;line-height:1;">👁</button>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">New Password</label>
+          <div class="input-with-toggle">
+            <input id="cpw-pw1" type="password" class="form-control" placeholder="Min. 8 characters" />
+            <button type="button" id="cpw-toggle-pw1" class="input-toggle-btn" aria-label="Toggle password visibility">👁</button>
           </div>
         </div>
-        <div style="margin-bottom:20px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Confirm Password</label>
-          <div style="position:relative;">
-            <input id="cpw-pw2" type="password" placeholder="Repeat password" style="
-              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-              font-size:13px;outline:none;box-sizing:border-box;"
-              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
-            <button type="button" id="cpw-toggle-pw2" aria-label="Toggle password visibility" style="
-              position:absolute;right:10px;top:50%;transform:translateY(-50%);
-              background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;
-              padding:2px;line-height:1;">👁</button>
+        <div class="form-group" style="margin-bottom:20px;">
+          <label class="form-label">Confirm Password</label>
+          <div class="input-with-toggle">
+            <input id="cpw-pw2" type="password" class="form-control" placeholder="Repeat password" />
+            <button type="button" id="cpw-toggle-pw2" class="input-toggle-btn" aria-label="Toggle password visibility">👁</button>
           </div>
         </div>
-        <div id="cpw-err2" style="display:none;padding:10px 12px;background:#FFF5F5;
-             border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
+        <div id="cpw-err2" class="alert alert-error" style="display:none;margin-bottom:16px;"></div>
         <div style="display:flex;gap:10px;">
-          <button id="cpw-btn-back" style="flex:0;padding:12px 16px;background:transparent;
-            border:1px solid #CBD5E0;border-radius:6px;font-size:11px;font-weight:700;
-            color:#4A5568;cursor:pointer;">← Back</button>
-          <button id="cpw-btn-verify" style="flex:1;padding:12px;background:#C17F0A;border:none;
-            border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-            letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Change Password</button>
+          <button id="cpw-btn-back" class="btn btn-outline" style="flex:0;">← Back</button>
+          <button id="cpw-btn-verify" class="btn btn-primary" style="flex:1;">Change Password</button>
         </div>
         <div style="text-align:center;margin-top:12px;">
-          <button id="cpw-btn-resend" style="background:none;border:none;font-size:11px;
-            color:#C17F0A;cursor:pointer;text-decoration:underline;">Resend OTP</button>
+          <button id="cpw-btn-resend" class="btn btn-ghost" style="text-decoration:underline;">Resend OTP</button>
         </div>
       </div>
     </div>
@@ -460,11 +419,11 @@ function _injectChangePasswordModal() {
 
   const show  = (id) => { document.getElementById(id).style.display='block'; };
   const hide  = (id) => { document.getElementById(id).style.display='none'; };
-  const setErr = (id,msg) => { const e=document.getElementById(id); e.textContent=msg; e.style.display='block'; };
+  const setErr = (id,msg) => { const e=document.getElementById(id); e.textContent=msg; e.style.display='flex'; };
   const clrErr = (id) => { document.getElementById(id).style.display='none'; };
 
-  document.getElementById('cpw-close').addEventListener('click', () => { modal.style.display='none'; });
-  modal.addEventListener('click', (e) => { if(e.target===modal) modal.style.display='none'; });
+  document.getElementById('cpw-close').addEventListener('click', () => { modal.classList.remove('open'); });
+  modal.addEventListener('click', (e) => { if(e.target===modal) modal.classList.remove('open'); });
 
   // ── Show/hide toggles for the New Password / Confirm Password fields ──────
   ['cpw-pw1', 'cpw-pw2'].forEach((inputId) => {
@@ -530,7 +489,7 @@ function _injectChangePasswordModal() {
       // modal can be opened from any page, not just index.html.
       try { localStorage.removeItem('tds_saved_credentials'); } catch (_) {}
 
-      modal.style.display='none';
+      modal.classList.remove('open');
       showToast('Password changed. Please sign in again.','success',5000);
       setTimeout(logout, 2500);
     } catch(err) { setErr('cpw-err2', err.message); }
@@ -565,7 +524,7 @@ export function openChangePasswordModal(prefillEmail='') {
   document.getElementById('cpw-subtitle').textContent='A one-time code will be sent to your email';
 
   if (prefillEmail) document.getElementById('cpw-email').value=prefillEmail;
-  modal.style.display='flex';
+  modal.classList.add('open');
   document.getElementById('cpw-email').focus();
 }
 
@@ -580,79 +539,51 @@ function _injectAuthChangePasswordModal() {
 
   const div = document.createElement('div');
   div.innerHTML = `
-  <div id="auth-cpw-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);
-       z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;width:100%;max-width:400px;
-                margin:16px;box-shadow:0 24px 64px rgba(0,0,0,.18);overflow:hidden;">
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,#1A2535,#2D3A50);padding:20px 24px;
-                  display:flex;align-items:center;justify-content:space-between;">
+  <div id="auth-cpw-modal" class="modal-backdrop">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header">
         <div>
-          <h3 style="margin:0;font-family:Montserrat,sans-serif;font-size:14px;font-weight:800;
-                     letter-spacing:.06em;color:#fff;">Change Password</h3>
-          <p style="margin:4px 0 0;font-size:11px;color:rgba(255,255,255,.55);">
-            Enter your current password then choose a new one</p>
+          <h3>Change Password</h3>
+          <p class="modal-subtitle">Enter your current password then choose a new one</p>
         </div>
-        <button id="auth-cpw-close" style="background:none;border:none;color:rgba(255,255,255,.6);
-                font-size:18px;cursor:pointer;padding:4px 8px;border-radius:4px;">✕</button>
+        <button id="auth-cpw-close" class="modal-close">✕</button>
       </div>
       <!-- Form -->
-      <div style="padding:28px 24px;">
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Current Password</label>
-          <div style="position:relative;">
-            <input id="auth-cpw-current" type="password" placeholder="Your current password" style="
-              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-              font-size:13px;outline:none;box-sizing:border-box;"
-              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
-            <button type="button" id="auth-cpw-toggle-current" aria-label="Toggle visibility"
-              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Current Password</label>
+          <div class="input-with-toggle">
+            <input id="auth-cpw-current" type="password" class="form-control" placeholder="Your current password" />
+            <button type="button" id="auth-cpw-toggle-current" class="input-toggle-btn" aria-label="Toggle visibility">👁</button>
           </div>
         </div>
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">New Password</label>
-          <div style="position:relative;">
-            <input id="auth-cpw-new" type="password" placeholder="Min. 8 characters" style="
-              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-              font-size:13px;outline:none;box-sizing:border-box;"
-              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
-            <button type="button" id="auth-cpw-toggle-new" aria-label="Toggle visibility"
-              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">New Password</label>
+          <div class="input-with-toggle">
+            <input id="auth-cpw-new" type="password" class="form-control" placeholder="Min. 8 characters" />
+            <button type="button" id="auth-cpw-toggle-new" class="input-toggle-btn" aria-label="Toggle visibility">👁</button>
           </div>
         </div>
-        <div style="margin-bottom:16px;">
-          <label style="display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
-                        text-transform:uppercase;color:#4A5568;margin-bottom:6px;">Confirm New Password</label>
-          <div style="position:relative;">
-            <input id="auth-cpw-confirm" type="password" placeholder="Repeat new password" style="
-              width:100%;padding:10px 40px 10px 13px;border:1px solid #CBD5E0;border-radius:6px;
-              font-size:13px;outline:none;box-sizing:border-box;"
-              onfocus="this.style.borderColor='#C17F0A'" onblur="this.style.borderColor='#CBD5E0'" />
-            <button type="button" id="auth-cpw-toggle-confirm" aria-label="Toggle visibility"
-              style="position:absolute;right:10px;top:50%;transform:translateY(-50%);
-                     background:none;border:none;color:#5B6472;cursor:pointer;font-size:14px;">👁</button>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label class="form-label">Confirm New Password</label>
+          <div class="input-with-toggle">
+            <input id="auth-cpw-confirm" type="password" class="form-control" placeholder="Repeat new password" />
+            <button type="button" id="auth-cpw-toggle-confirm" class="input-toggle-btn" aria-label="Toggle visibility">👁</button>
           </div>
         </div>
-        <div id="auth-cpw-err" style="display:none;padding:10px 12px;background:#FFF5F5;
-             border:1px solid #FED7D7;border-radius:6px;font-size:12px;color:#C53030;margin-bottom:16px;"></div>
-        <button id="auth-cpw-btn-submit" style="width:100%;padding:12px;background:#C17F0A;border:none;
-          border-radius:6px;font-family:Montserrat,sans-serif;font-size:11px;font-weight:800;
-          letter-spacing:.1em;text-transform:uppercase;color:#1A2535;cursor:pointer;">Update Password</button>
+        <div id="auth-cpw-err" class="alert alert-error" style="display:none;margin-bottom:16px;"></div>
+        <button id="auth-cpw-btn-submit" class="btn btn-primary" style="width:100%;">Update Password</button>
       </div>
     </div>
   </div>`;
   document.body.appendChild(div);
 
   const modal  = document.getElementById('auth-cpw-modal');
-  const setErr = (msg) => { const e=document.getElementById('auth-cpw-err'); e.textContent=msg; e.style.display='block'; };
+  const setErr = (msg) => { const e=document.getElementById('auth-cpw-err'); e.textContent=msg; e.style.display='flex'; };
   const clrErr = ()    => { document.getElementById('auth-cpw-err').style.display='none'; };
 
-  document.getElementById('auth-cpw-close').addEventListener('click', () => { modal.style.display='none'; });
-  modal.addEventListener('click', (e) => { if (e.target===modal) modal.style.display='none'; });
+  document.getElementById('auth-cpw-close').addEventListener('click', () => { modal.classList.remove('open'); });
+  modal.addEventListener('click', (e) => { if (e.target===modal) modal.classList.remove('open'); });
 
   // Toggle visibility buttons
   ['current','new','confirm'].forEach(key => {
@@ -683,7 +614,7 @@ function _injectAuthChangePasswordModal() {
       const data = await res.json().catch(()=>({}));
       if (!res.ok) throw new Error(data.detail || 'Failed to change password.');
 
-      modal.style.display='none';
+      modal.classList.remove('open');
       showToast('Password changed successfully.', 'success', 4000);
     } catch(err) { setErr(err.message); }
     finally { btn.disabled=false; btn.textContent='Update Password'; }
@@ -707,7 +638,7 @@ export function openAuthChangePasswordModal() {
     document.getElementById(id).type  = 'password';
   });
   document.getElementById('auth-cpw-err').style.display = 'none';
-  modal.style.display = 'flex';
+  modal.classList.add('open');
   document.getElementById('auth-cpw-current').focus();
 }
 

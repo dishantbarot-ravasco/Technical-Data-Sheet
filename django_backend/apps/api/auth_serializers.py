@@ -21,7 +21,6 @@ validate() implements the device-aware 2FA gate:
 import logging
 from django.contrib.auth import authenticate
 from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from apps.services.device_service import is_trusted_device, send_device_otp

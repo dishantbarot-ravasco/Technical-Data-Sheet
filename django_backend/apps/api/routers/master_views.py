@@ -51,8 +51,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 CACHE_TTL_SECONDS = 60 * 60
 
 from apps.core.models import (
-    BeltRating, BeltRatingValue, BrandParameter, CoverGrade, CoverGradeValue,
-    Customer, FabricStyle, FabricType, IndusBrand,
+    BeltRating, CoverGrade, Customer, FabricStyle, FabricType, IndusBrand,
     PackingType, Purpose, BeltType, ReelType, Standard, TDSParameter,
     ContainerType, SpliceStepLookup, SpliceMethodConfig,
 )

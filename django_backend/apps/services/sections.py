@@ -37,8 +37,8 @@ PARAMETER_GROUP_ORDER: tuple[str, ...] = (
 # This is the server-side twin of frontend/tds-preview.html's
 # DEFAULT_UNCHECKED_GROUPS constant (used to default the single-record
 # preview's checkboxes) — keep both lists in sync if either changes. This
-# tuple is what batch_views.py's ZIP download and print-all endpoints use to
-# build "Customer Copy" output; "Internal Copy" output passes no exclusions
+# tuple is what batch_export_views.py's ZIP/merged-ZIP/print-all export
+# builders use to build "Customer Copy" output; "Internal Copy" output passes no exclusions
 # at all, i.e. every group from PARAMETER_GROUP_ORDER above.
 CUSTOMER_COPY_EXCLUDE_GROUPS: tuple[str, ...] = (
     "Fabric Parameters",

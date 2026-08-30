@@ -1,0 +1,28 @@
+# ruff.toml — CI lint config for the Django backend.
+#
+# Deliberately narrow: this repo has an established style (e.g. hand-aligned
+# `=` in constructor kwargs throughout apps/api/routers/*.py, intentional
+# broad `except Exception:` blocks documented inline — see tds_views.py,
+# batch_export_views.py) that a default/opinionated ruleset (or black) would
+# fight rather than help. Scoped to rules that catch genuine bugs — syntax
+# errors, undefined names, unused imports/variables — not style preferences.
+# Verified clean against the full codebase before being wired into CI
+# (see .github/workflows/ci.yml's "Lint" step) so it fails builds only on
+# real new issues, never on pre-existing style choices.
+target-version = "py312"
+
+[lint]
+select = [
+    "E9",   # syntax errors
+    "F63",  # invalid comparisons (e.g. `is` on literals)
+    "F7",   # break/continue/return outside a loop/function, etc.
+    "F82",  # undefined names
+    "F401", # unused imports
+    "F811", # redefinition of unused name
+    "F841", # unused local variables
+]
+
+[lint.per-file-ignores]
+# Migrations often import symbols only for their side effects / historical
+# accuracy — not worth policing.
+"**/migrations/*.py" = ["F401"]

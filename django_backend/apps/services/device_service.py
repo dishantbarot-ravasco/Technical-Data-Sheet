@@ -249,7 +249,17 @@ def send_device_otp(user) -> str:
             if settings.DEBUG:
                 print(f"\n{'='*50}\nLogin OTP for {user.email}: {otp}\n{'='*50}\n")
 
-    threading.Thread(target=_send, daemon=True).start()
+    # RELIABILITY (fixed): daemon=True previously meant that if gunicorn sent
+    # SIGTERM to this worker mid-send (e.g. a Render redeploy landing right
+    # after a login), the interpreter could exit and abruptly kill this
+    # thread before the OTP email ever left — silently dropping a
+    # security-relevant notification with no retry and no log of what
+    # happened. A non-daemon thread makes gunicorn's graceful shutdown wait
+    # for it to finish (bounded by EMAIL_TIMEOUT=10s in settings.py) before
+    # the worker process actually exits, instead of racing it. This thread
+    # never touches the DB, so there's no connection-cleanup concern the way
+    # there is for batch_export_views.py's job-runner thread.
+    threading.Thread(target=_send, daemon=False).start()
 
     return otp
 
@@ -296,7 +306,10 @@ def send_new_device_notification(user, request) -> None:
     # /api/auth/device-verify, and an SMTP round-trip (~4s observed) has no
     # business making that request — and the "Verify & Sign In" button — sit
     # blocked when the caller never even looks at the result.
-    threading.Thread(target=_send, daemon=True).start()
+    # daemon=False so a worker restart mid-send doesn't silently kill this
+    # notification instead of letting it finish — see send_device_otp()'s
+    # comment above for the full reasoning.
+    threading.Thread(target=_send, daemon=False).start()
 
 
 def notify_admins_new_device_login(user, request) -> None:
@@ -356,4 +369,5 @@ def notify_admins_new_device_login(user, request) -> None:
         except Exception as exc:
             log.warning("notify_admins_new_device_login: failed re: %s: %s", user.email, exc)
 
-    threading.Thread(target=_send, daemon=True).start()
+    # daemon=False — see send_device_otp()'s comment for why.
+    threading.Thread(target=_send, daemon=False).start()

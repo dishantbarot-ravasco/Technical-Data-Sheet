@@ -73,7 +73,6 @@ from apps.core.models import (
     HotSpliceCuringLookup,
     StandardTestMethod,
     TDSInput,
-    TDSParameter,
 )
 from apps.services.sections import PARAMETER_GROUP_ORDER
 
