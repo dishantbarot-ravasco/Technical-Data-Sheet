@@ -106,10 +106,14 @@ def generate_pdf(request, tds_id):
         error_html = "<html><body><h2>PDF generation failed</h2><p>Please try again or contact support.</p></body></html>"
         return HttpResponse(error_html, content_type='text/html; charset=utf-8', status=500)
 
-    filename = f"TDS-{doc.tds_number}.pdf"
+    tds_record = TDSInput.objects.filter(pk=tds_id).first()
+    # Filename always carries the revision number (00 for a never-edited
+    # record) so a re-download after an edit doesn't silently overwrite an
+    # earlier download of the same tds_number under an identical filename.
+    rev_num  = tds_record.current_revision if tds_record else 0
+    filename = f"TDS-{doc.tds_number}_rev_{rev_num:02d}.pdf"
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
-    tds_record = TDSInput.objects.filter(pk=tds_id).first()
     # First real download closes out the "still drafting, not yet issued" window —
     # from here on, _update_tds() will snapshot edits into TDSRevision instead of
     # applying them silently (see TDSInput.first_downloaded_at docstring).

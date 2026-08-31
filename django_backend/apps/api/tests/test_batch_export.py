@@ -14,7 +14,9 @@ background thread with its own DB connection, and TestCase's per-test
 transaction rollback would make batch/job rows created in the test invisible
 to that connection (they're never actually committed).
 """
+import io
 import time
+import zipfile
 
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -163,6 +165,17 @@ class BatchExportJobRunTests(TransactionTestCase):
         self.assertEqual(dl.status_code, 200)
         self.assertEqual(dl['Content-Type'], 'application/zip')
         self.assertGreater(len(dl.content), 0)
+
+    def test_zip_export_names_tds_file_like_single_download(self):
+        # Same "TDS-<number>_rev_<NN>" convention as the single-belt download
+        # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf".
+        job_id, result = self._run_export('zip', {'copy': 'internal'})
+        self.assertEqual(result['status'], 'done', result)
+        dl = self.client.get(f'/api/tds/batch/export/{job_id}/download/')
+        names = zipfile.ZipFile(io.BytesIO(dl.content)).namelist()
+        tds_names = [n for n in names if n.startswith('TDS-') and n.endswith('.pdf')]
+        self.assertEqual(len(tds_names), 1, names)
+        self.assertRegex(tds_names[0], r'^TDS-\S+_rev_00\.pdf$')
 
     def test_merged_zip_export_completes_and_downloads(self):
         job_id, result = self._run_export('merged_zip', {'copy': 'internal'})

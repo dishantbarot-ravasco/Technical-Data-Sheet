@@ -222,3 +222,54 @@ class UpdateTdsRevisionGatingTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.current_revision, 1)
         self.assertTrue(TDSRevision.objects.filter(tds_id=self.tds_id).exists())
+
+
+class PdfDownloadFilenameTests(TestCase):
+    """
+    GET /api/tds/{id}/pdf?format=pdf should name the file
+    "TDS-<tds_number>_rev_<NN>.pdf" - always carrying the revision number (00
+    for a never-edited record) so a re-download after an edit doesn't
+    silently overwrite an earlier download of the same tds_number under an
+    identical filename.
+    """
+    def setUp(self):
+        self.lookups = make_tds_lookup_set()
+        self.creator = make_user(email='creator4@ravasco.com', role='tds_creator')
+        self.client = auth_client(self.creator)
+
+        create_response = self.client.post(TDS_CREATE_URL, self.lookups['payload'], format='json')
+        assert create_response.status_code == 201, create_response.data
+        self.tds_id = create_response.data['tds_id']
+        self.tds_number = create_response.data['tds_number']
+
+    def _pdf_url(self):
+        return f'/api/tds/{self.tds_id}/pdf'
+
+    def _content_disposition_filename(self, response):
+        # e.g. 'inline; filename="TDS-0001_rev_00.pdf"'
+        return response['Content-Disposition'].split('filename="')[1].rstrip('"')
+
+    def test_filename_carries_rev_00_before_any_edit(self):
+        response = self.client.get(self._pdf_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            f'TDS-{self.tds_number}_rev_00.pdf',
+        )
+
+    def test_filename_rev_increments_after_a_post_download_edit(self):
+        # First download marks first_downloaded_at, opening the "issued"
+        # window (see TDSInput.first_downloaded_at) so the next edit below
+        # actually snapshots a TDSRevision and bumps current_revision.
+        self.client.get(self._pdf_url())
+
+        payload = dict(self.lookups['payload'])
+        payload['belt_width_mm'] = int(payload['belt_width_mm']) + 100
+        update_response = self.client.patch(f'/api/tds/{self.tds_id}', payload, format='json')
+        self.assertEqual(update_response.status_code, 200, update_response.data)
+
+        response = self.client.get(self._pdf_url())
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            f'TDS-{self.tds_number}_rev_01.pdf',
+        )
