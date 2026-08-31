@@ -91,7 +91,19 @@ databases:
     # UPGRADED (Ravasco Workspace/Render Pro): was 'free'. Render's free
     # Postgres plan is explicitly time-limited (expires ~90 days after
     # creation) and was never viable for real production data — this was the
-    # single most urgent pre-launch blocker. Verify the exact plan slug in
-    # the Render dashboard (Postgres plan names, e.g. 'pro-4gb', differ from
-    # web-service plan names like 'pro') before applying this blueprint.
-    plan: pro
+    # single most urgent pre-launch blocker.
+    #
+    # NOTE: bare 'pro' is REJECTED by Render for new databases ("Legacy
+    # Postgres plans ... no longer supported") — Postgres plan slugs are
+    # size-suffixed and namespaced separately from web-service plan slugs.
+    # basic-256mb chosen deliberately (not the cheapest-by-default choice):
+    # this app's actual data (reference catalog + growing TDS history) is a
+    # few thousand rows, well under this tier's storage, and a sibling app
+    # on the same Ravasco Render account already runs production traffic on
+    # this exact tier. Render's current pricing model bills storage
+    # separately from instance type and supports upgrading the instance type
+    # later from the dashboard (brief downtime during the switch, no
+    # migration needed) — so this is a safe, reversible starting point, not
+    # a permanent ceiling. Revisit only if Render's storage-used metric or
+    # query latency actually indicates a need.
+    plan: basic-256mb
