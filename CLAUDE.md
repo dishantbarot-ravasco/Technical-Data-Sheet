@@ -142,11 +142,11 @@ section was scoped but deferred: GI rows are entirely DB-driven (not hardcoded),
 data migration seeding a new `TDSParameter`/`BrandParameter` row per brand, which was judged a
 different/riskier risk class than the rest of the versioning work.
 
-**Dedicated `noreply@ravasco.com` mailbox** — Gmail SMTP silently overrides the `From` header
-unless the sending address is a verified Send-As alias on the account. Two options were proposed:
-register `noreply@ravasco.com` as a Send-As alias on the current Gmail account, or give it its own
-real Workspace mailbox + app password and repoint `SMTP_USER` in `.env`/`render.yaml`. Neither was
-chosen — pending a decision, then an `.env`/`render.yaml` update.
+**~~Dedicated `noreply@ravasco.com` mailbox~~ — resolved.** Decided against a separate alias/mailbox;
+all app email (OTP, notifications, daily report) sends from `dishant.barot@ravasco.com` directly —
+a real, already-verified Workspace mailbox — which sidesteps the Gmail From-header-override issue
+entirely since the authenticated SMTP account and the From address are the same. `SMTP_USER` /
+`SMTP_FROM` in `render.yaml` and `.env` are both set to that address.
 
 **Security/testing roadmap leftovers** (from a 5-tier hardening pass — confirm each is still
 outstanding before treating as open):

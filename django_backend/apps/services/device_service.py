@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import secrets
+import sys
 import threading
 
 from django.conf import settings
@@ -78,6 +79,31 @@ _get_client_ip = get_client_ip
 def _get_device_name(request) -> str:
     """Return the User-Agent string, truncated to 512 chars for storage."""
     return request.META.get('HTTP_USER_AGENT', 'Unknown device')[:512]
+
+
+def _dispatch_email(send_fn) -> None:
+    """
+    Run send_fn() (a closure that calls send_mail() and handles its own
+    errors) on a background thread in production, or inline under the test
+    runner.
+
+    Same 'test' in sys.argv check config/settings.py already uses to force
+    LocMemCache for the test DB — here it avoids a real race instead: every
+    caller backgrounds its email send so login/device-verify never blocks on
+    an SMTP round-trip (see send_device_otp()'s docstring), but that means
+    the send may not have happened yet by the time a test asserts against
+    mail.outbox right after the request returns. Running synchronously under
+    `manage.py test` sidesteps that race entirely rather than making tests
+    poll or sleep for a background thread to catch up -- Django's test email
+    backend (locmem) has no real network latency, so this costs nothing.
+    Production (gunicorn/runserver) never matches this check, so the
+    daemon=False backgrounding behavior described in send_device_otp() is
+    unchanged there.
+    """
+    if 'test' in sys.argv:
+        send_fn()
+    else:
+        threading.Thread(target=send_fn, daemon=False).start()
 
 
 def set_access_cookie(response, access_token: str) -> None:
@@ -259,7 +285,7 @@ def send_device_otp(user) -> str:
     # the worker process actually exits, instead of racing it. This thread
     # never touches the DB, so there's no connection-cleanup concern the way
     # there is for batch_export_views.py's job-runner thread.
-    threading.Thread(target=_send, daemon=False).start()
+    _dispatch_email(_send)
 
     return otp
 
@@ -309,7 +335,7 @@ def send_new_device_notification(user, request) -> None:
     # daemon=False so a worker restart mid-send doesn't silently kill this
     # notification instead of letting it finish — see send_device_otp()'s
     # comment above for the full reasoning.
-    threading.Thread(target=_send, daemon=False).start()
+    _dispatch_email(_send)
 
 
 def notify_admins_new_device_login(user, request) -> None:
@@ -370,4 +396,4 @@ def notify_admins_new_device_login(user, request) -> None:
             log.warning("notify_admins_new_device_login: failed re: %s: %s", user.email, exc)
 
     # daemon=False — see send_device_otp()'s comment for why.
-    threading.Thread(target=_send, daemon=False).start()
+    _dispatch_email(_send)
