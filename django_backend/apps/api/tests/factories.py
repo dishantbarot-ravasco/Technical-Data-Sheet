@@ -21,7 +21,16 @@ PARAM_INTERPLY_SKIM = 5
 # verified against the live schema), so every INSERT must supply an explicit PK.
 # This counter just needs to be unique per test process, not stable across runs —
 # each Django TestCase wraps a test in a transaction that's rolled back after it.
-_next_legacy_pk = itertools.count(900_000)
+#
+# BUG FIX: this used to start at 900_000, which collided with real production
+# IDs once migrations/0025_seed_reference_catalog.py started seeding the real
+# reference catalog into every database, including the test DB — a prior test
+# run had in fact leaked exactly this counter's rows (purpose_id=900001,
+# brand_name='INDUS SUPER BRUTE 900000', etc.) into the local dev database,
+# which briefly made it into that seed migration's fixture as if it were real
+# catalog data. 90_000_000 is well outside the range any legacy business ID
+# in this catalog plausibly reaches.
+_next_legacy_pk = itertools.count(90_000_000)
 
 
 def make_user(email='creator@ravasco.com', password='Str0ngPassw0rd!', role='tds_creator', **extra):

@@ -196,6 +196,22 @@ class DbBackedLookupTests(TestCase):
     """Functions that read a DB table but fall back to a hardcoded value
     when that table is missing/empty rows for the given input."""
 
+    def setUp(self):
+        # migrations/0025_seed_reference_catalog.py seeds real rows into
+        # every database, including the test DB, for exactly the tables this
+        # class exercises (splice_method_config, sampling_plan_lookup,
+        # container_types) — unlike per-test factory rows, migration-seeded
+        # rows aren't rolled back between tests. Clear them here so both the
+        # "falls back when empty" and "DB row present" tests below start from
+        # a deterministic, collision-free slate (e.g. ContainerType.name='40ft'
+        # and SpliceMethodConfig.vulcanization_method='hot' both already exist
+        # in the real catalog). The delete rolls back with everything else
+        # (TestCase wraps each test in a transaction).
+        SpliceMethodConfig.objects.all().delete()
+        SamplingPlanLookup.objects.all().delete()
+        RegionContainerWeightLimit.objects.all().delete()
+        ContainerType.objects.all().delete()
+
     def test_get_splice_buffer_falls_back_when_table_empty(self):
         from apps.services.calculations import get_splice_buffer
         self.assertEqual(get_splice_buffer('hot'), 50)
@@ -234,7 +250,11 @@ class DbBackedLookupTests(TestCase):
         self.assertEqual(result.max_gross_weight_kg, 25000.0)
 
     def test_auto_select_fabric_style_picks_tightest_fit(self):
-        ft = FabricType.objects.create(fabric_code='EP')
+        # 'EP'/'NN' are real fabric_codes seeded by migrations/0025 — use a
+        # distinct test-only code so this doesn't collide (fabric_code's
+        # content is irrelevant to auto_select_fabric_style(), which is
+        # looked up by fabric_type_id, not by code).
+        ft = FabricType.objects.create(fabric_code='TEST_EP')
         FabricStyle.objects.create(fabric_type=ft, style_name='EP 150')
         style_201 = FabricStyle.objects.create(fabric_type=ft, style_name='EP 201')
         FabricStyle.objects.create(fabric_type=ft, style_name='EP 250')
@@ -243,11 +263,11 @@ class DbBackedLookupTests(TestCase):
         self.assertEqual(result, style_201.pk)
 
     def test_auto_select_fabric_style_no_qualifying_style_returns_none(self):
-        ft = FabricType.objects.create(fabric_code='NN')
+        ft = FabricType.objects.create(fabric_code='TEST_NN')
         FabricStyle.objects.create(fabric_type=ft, style_name='NN 100')
         result = auto_select_fabric_style(ft.pk, kn=1000, plies=2)  # per_ply=500
         self.assertIsNone(result)
 
     def test_auto_select_fabric_style_zero_plies_returns_none(self):
-        ft = FabricType.objects.create(fabric_code='EP')
+        ft = FabricType.objects.create(fabric_code='TEST_EP2')
         self.assertIsNone(auto_select_fabric_style(ft.pk, kn=100, plies=0))

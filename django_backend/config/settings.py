@@ -32,10 +32,19 @@ DEBUG      = os.environ.get('APP_ENV', 'production') == 'development'
 # RENDER_EXTERNAL_HOSTNAME (set automatically by Render at runtime) already
 # gives the exact host this deployment is actually served on, so the
 # wildcard was both redundant and unnecessarily broad.
+#
+# CUSTOM_DOMAIN: Render does NOT rewrite RENDER_EXTERNAL_HOSTNAME to a custom
+# domain attached in its dashboard (it stays the *.onrender.com value) -- so
+# a custom domain (e.g. tds.ravasco.com) needs to be listed explicitly here,
+# via this env var, or every request to it gets rejected with 400
+# DisallowedHost before the app runs at all. Comma-separated to allow more
+# than one (e.g. a www. alias) without another code change.
+_extra_hosts = [h.strip() for h in os.environ.get('CUSTOM_DOMAIN', '').split(',') if h.strip()]
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),          # specific Render host
+    *_extra_hosts,
 ]
 ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]             # remove empty strings
 

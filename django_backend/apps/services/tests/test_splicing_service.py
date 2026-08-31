@@ -15,6 +15,17 @@ from apps.services.splicing_service import compute_splicing
 class ComputeSplicingFallbackTests(TestCase):
     """No DB lookup rows exist -> falls back to calculations.py's hardcoded tables."""
 
+    def setUp(self):
+        # migrations/0025_seed_reference_catalog.py seeds real splice_step_lookup
+        # / splice_method_config rows into every database, including the test
+        # DB — unlike per-test factory rows, migration-seeded rows aren't
+        # rolled back between tests. This class specifically exercises the
+        # empty-table fallback path, so it must clear them first; the delete
+        # itself rolls back at the end of the test along with everything else
+        # (TestCase wraps each test in a transaction).
+        SpliceStepLookup.objects.all().delete()
+        SpliceMethodConfig.objects.all().delete()
+
     def test_falls_back_to_hardcoded_step_and_buffer(self):
         result = compute_splicing(
             belt_rating_kn_m=315, num_plies=3, belt_width_mm=1000,
@@ -48,6 +59,16 @@ class ComputeSplicingFallbackTests(TestCase):
 
 class ComputeSplicingDbLookupTests(TestCase):
     """DB lookup rows present -> DB values win over the hardcoded fallback tables."""
+
+    def setUp(self):
+        # Start from a clean slate rather than the real seeded catalog (see
+        # ComputeSplicingFallbackTests.setUp) so the rows each test creates
+        # here are the only ones compute_splicing() sees — both to avoid
+        # colliding with a real value (e.g. max_fabric_rating_kn_m=100 is a
+        # real seeded row) and so "overrides the hardcoded table" is actually
+        # testing this test's own row, not incidentally agreeing with reality.
+        SpliceStepLookup.objects.all().delete()
+        SpliceMethodConfig.objects.all().delete()
 
     def test_db_step_lookup_overrides_hardcoded_table(self):
         # fabric_rating = 315/3 = 105 -> would hit the (125,200) row hardcoded,
