@@ -384,6 +384,15 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD            = True
 
+if 'test' in sys.argv:
+    # BUG FIX: CI runs the test suite with APP_ENV=production (DEBUG=False,
+    # matching real deploys), which turns SECURE_SSL_REDIRECT on above.
+    # Django's test client talks over plain HTTP, so every single test
+    # request was getting redirected (301, empty body) before it ever
+    # reached a view — surfacing as dozens of unrelated test failures like
+    # `AssertionError: b''`. Same test-mode-override pattern as CACHES above.
+    SECURE_SSL_REDIRECT = False
+
 # ── Error monitoring (Sentry) ─────────────────────────────────────────────────
 # Right now a production error just happens — logged to app.log and otherwise
 # silent. This makes it visible: completely inert until SENTRY_DSN is set (no
