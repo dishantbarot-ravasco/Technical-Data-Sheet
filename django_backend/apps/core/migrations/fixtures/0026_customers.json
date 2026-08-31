@@ -1,0 +1,7372 @@
+[
+{
+  "model": "core.customer",
+  "pk": 5,
+  "fields": {
+    "customer_name": "ARCELORMITTAL NIPPON STEEL INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 6,
+  "fields": {
+    "customer_name": "MAHARASHTRA STATE POWER GENERATION COMPANY LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 7,
+  "fields": {
+    "customer_name": "MEJA URJA NIGAM PRIVATE LIMITED (A JOINT VENTURE OF NTPC LTD. & UPRVUNL)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 8,
+  "fields": {
+    "customer_name": "NTPC LIMITED ( A GOVERNMENT OF INDIA ENTERPRISE )",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 9,
+  "fields": {
+    "customer_name": "PRISM JOHNSON LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 10,
+  "fields": {
+    "customer_name": "STEEL AUTHORITY OF INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 11,
+  "fields": {
+    "customer_name": "U P RAJYA VIDYUT UTPADAN NIGAM LTD (U P GOVT UNDERTAKING)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 12,
+  "fields": {
+    "customer_name": "BGR ENERGY SYSTEMS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 13,
+  "fields": {
+    "customer_name": "RCCPL PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 14,
+  "fields": {
+    "customer_name": "BIRLA CORPORATION LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 15,
+  "fields": {
+    "customer_name": "GUJARAT STATE FERTILIZERS & CHEMICALS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 16,
+  "fields": {
+    "customer_name": "INDIAN FARMERS FERTILISER COOPERATIVE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 17,
+  "fields": {
+    "customer_name": "NATIONAL ALUMINIUM COMPANY LIMITED (A GOVERNMENT OF INDIA ENTERPRISE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 18,
+  "fields": {
+    "customer_name": "NMDC LIMITED (A GOVERNMENT OF INDIA ENTERPRISE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 19,
+  "fields": {
+    "customer_name": "NMDC STEEL LIMITED C/O NMDC IRON & STEEL PLANT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 20,
+  "fields": {
+    "customer_name": "URANIUM CORPORATION OF INDIA LIMITED (A GOVERNMENT OF INDIA ENTERPRISE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 21,
+  "fields": {
+    "customer_name": "RASHTRIYA ISPAT NIGAM LIMITED (A GOVERNMENT OF INDIA UNDERTAKING)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 22,
+  "fields": {
+    "customer_name": "ARAVALI POWER COMPANYPRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 23,
+  "fields": {
+    "customer_name": "NTPC TAMILNADU ENERGY COMPANY LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 24,
+  "fields": {
+    "customer_name": "NLC INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 25,
+  "fields": {
+    "customer_name": "KRISHAK BHARATI COOPERATIVE LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 26,
+  "fields": {
+    "customer_name": "AARTI INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 27,
+  "fields": {
+    "customer_name": "CHETTINAD CEMENT CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 28,
+  "fields": {
+    "customer_name": "DALMIA CEMENT(BHARAT) LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 29,
+  "fields": {
+    "customer_name": "DALMIA CEMENT(BHARAT) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 30,
+  "fields": {
+    "customer_name": "DALMIA CEMENT(BHARAT) LTD. PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 31,
+  "fields": {
+    "customer_name": "ELECTROSTEEL STEELS LIMITED PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 32,
+  "fields": {
+    "customer_name": "GODAVARI POWER & ISPAT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 33,
+  "fields": {
+    "customer_name": "HZL, C/O TVSSCS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 34,
+  "fields": {
+    "customer_name": "MOGLI LABS (INDIA) PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 35,
+  "fields": {
+    "customer_name": "JINDAL STEEL AND POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 36,
+  "fields": {
+    "customer_name": "PARADEEP PHOSPHATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 37,
+  "fields": {
+    "customer_name": "REAL ISPAT & POWER LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 38,
+  "fields": {
+    "customer_name": "SHREE CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 39,
+  "fields": {
+    "customer_name": "SHYAM SEL & POWER LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 40,
+  "fields": {
+    "customer_name": "SHYAM METALICS & ENERGY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 41,
+  "fields": {
+    "customer_name": "RAMSARUP INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 42,
+  "fields": {
+    "customer_name": "SRI VENKATESH IRON & ALLOYS (I) LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 43,
+  "fields": {
+    "customer_name": "ELECTROSTEEL STEELS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 44,
+  "fields": {
+    "customer_name": "TATA METALIKS LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 45,
+  "fields": {
+    "customer_name": "ZUARI CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 46,
+  "fields": {
+    "customer_name": "ACC LIMITED - AMETHA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 47,
+  "fields": {
+    "customer_name": "ACC LIMITED - BARGARH",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 48,
+  "fields": {
+    "customer_name": "ACC LIMITED - CHANDA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 49,
+  "fields": {
+    "customer_name": "ACC LIMITED - GAGAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 50,
+  "fields": {
+    "customer_name": "ACC LIMITED - JAMUL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 51,
+  "fields": {
+    "customer_name": "ACC LIMITED - KYMORE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 52,
+  "fields": {
+    "customer_name": "ACC LIMITED - WADI",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 53,
+  "fields": {
+    "customer_name": "ACC LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 54,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD. - AMBUJANAGAR",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 55,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD. - MARATHA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 56,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD. - MULDWARKA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 57,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD. - RABRIYAWAS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 58,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD. - RAURI",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 59,
+  "fields": {
+    "customer_name": "BMM ISPAT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 60,
+  "fields": {
+    "customer_name": "CENTURY RAYON",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 61,
+  "fields": {
+    "customer_name": "COBIT ENGINEERING PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 62,
+  "fields": {
+    "customer_name": "COROMONDEL INTERNATIONAL LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 63,
+  "fields": {
+    "customer_name": "ELECON ENGINEERING CO. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 64,
+  "fields": {
+    "customer_name": "EVONITH METALLICS LIMITED (FORMERLY KNOWN AS UTTAM GALVA)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 65,
+  "fields": {
+    "customer_name": "HOSPET STEELS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 66,
+  "fields": {
+    "customer_name": "PAWAN PUTRA BUILDCON PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 67,
+  "fields": {
+    "customer_name": "METHODS (INDIA) PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 68,
+  "fields": {
+    "customer_name": "THE INDIA CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 69,
+  "fields": {
+    "customer_name": "INDIAN CANE POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 70,
+  "fields": {
+    "customer_name": "JANKI CORP. LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 71,
+  "fields": {
+    "customer_name": "JSW JAIGARH PORT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 72,
+  "fields": {
+    "customer_name": "JSW STEEL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 73,
+  "fields": {
+    "customer_name": "KIRLOSKAR FERROUS INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 74,
+  "fields": {
+    "customer_name": "MANGAL SPONGE AND STEEL PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 75,
+  "fields": {
+    "customer_name": "MANGALORE CHEMICALS & FERTILIZERS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 76,
+  "fields": {
+    "customer_name": "ASHISH ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 77,
+  "fields": {
+    "customer_name": "ELEGANT TECHNOLOGIES INDIA PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 78,
+  "fields": {
+    "customer_name": "ELEKTROMAG DEVICES PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 79,
+  "fields": {
+    "customer_name": "EPIGRAL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 80,
+  "fields": {
+    "customer_name": "GRASIM INDUSTRIES LIMITED - RAYON PLANT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 81,
+  "fields": {
+    "customer_name": "KUTCH CHEMICAL INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 82,
+  "fields": {
+    "customer_name": "R.K.M POWERGEN PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 83,
+  "fields": {
+    "customer_name": "R.S.ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 84,
+  "fields": {
+    "customer_name": "ROLLWELL CONVEYOR PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 85,
+  "fields": {
+    "customer_name": "RAIN CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 86,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 87,
+  "fields": {
+    "customer_name": "SAGAR CEMENTS PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 88,
+  "fields": {
+    "customer_name": "SANVIRA INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 89,
+  "fields": {
+    "customer_name": "SEETA ENERGEN PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 90,
+  "fields": {
+    "customer_name": "SHRIRAM VINYL & CHEMICAL INDUSTRIES (A DIVISION OF DCM SHRIRAM LTD)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 91,
+  "fields": {
+    "customer_name": "BHUSHAN POWER & STEEL LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 92,
+  "fields": {
+    "customer_name": "ARUDRA ENGINEERS PRIVATE LIMITED.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 93,
+  "fields": {
+    "customer_name": "DECCAN CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 94,
+  "fields": {
+    "customer_name": "HINDALCO INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 95,
+  "fields": {
+    "customer_name": "MAA VINDHYAVASHINI &SONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 96,
+  "fields": {
+    "customer_name": "ARORA TRANSMISSION PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 97,
+  "fields": {
+    "customer_name": "TATA STEEL LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 98,
+  "fields": {
+    "customer_name": "BTL EPC LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 99,
+  "fields": {
+    "customer_name": "NMDC IRON & STEEL PLANT,",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 100,
+  "fields": {
+    "customer_name": "TAMILNADU GENERATION AND DISTRIBUTION CORP.LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 101,
+  "fields": {
+    "customer_name": "THE ASST DIVISIONAL ENGINEER (STORES)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 102,
+  "fields": {
+    "customer_name": "NTPC BHEL POWER PROJECT PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 103,
+  "fields": {
+    "customer_name": "SAGARDIGHI THERMAL POWER PROJECT DGM",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 104,
+  "fields": {
+    "customer_name": "M/S THDC INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 105,
+  "fields": {
+    "customer_name": "TKIL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 106,
+  "fields": {
+    "customer_name": "GHCL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 107,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED - KIRANDUL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 108,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED C/O NTPC LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 109,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED C/O NABHA POWER LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 110,
+  "fields": {
+    "customer_name": "GENERAL MANAGER (PROJECTS), NABHA POWER LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 111,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED - RAGHUNATHPUR",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 112,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED - THE CONTROLLER OF STORES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 113,
+  "fields": {
+    "customer_name": "3S MINERALS PROCESSORS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 114,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED - CHALIYAMA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 115,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED - KAMANDA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 116,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED - DHENKANAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 117,
+  "fields": {
+    "customer_name": "PATRATU VIDYUT UTPADAN NIGAM LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 118,
+  "fields": {
+    "customer_name": "TAKRAF INDIA PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 119,
+  "fields": {
+    "customer_name": "INDIANA CONVEYORS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 120,
+  "fields": {
+    "customer_name": "TATA PROJECTS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 121,
+  "fields": {
+    "customer_name": "UPRVUNL PANKI TPS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 122,
+  "fields": {
+    "customer_name": "TATA PROJECTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 123,
+  "fields": {
+    "customer_name": "JASATAMA MANDIRI SEMESTA INDIA PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 124,
+  "fields": {
+    "customer_name": "NLC TAMILNADU POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 125,
+  "fields": {
+    "customer_name": "NTPC LIMITED (A GOVERNMENT OF INDIA ENTERPRISE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 126,
+  "fields": {
+    "customer_name": "ANJANI STEELS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 127,
+  "fields": {
+    "customer_name": "C C S PROJECTS & EQUIPMENT PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 128,
+  "fields": {
+    "customer_name": "CHUNAR CEMENT FACTORY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 129,
+  "fields": {
+    "customer_name": "DCM SHRIRAM LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 130,
+  "fields": {
+    "customer_name": "FLSMIDTH PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 131,
+  "fields": {
+    "customer_name": "GLOBAL COAL & MINING PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 132,
+  "fields": {
+    "customer_name": "IDEA HOLDING LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 133,
+  "fields": {
+    "customer_name": "ISGEC HEAVY ENGINEERING LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 134,
+  "fields": {
+    "customer_name": "JK LAKSHMI CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 135,
+  "fields": {
+    "customer_name": "JAYPEE REWA PLANT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 136,
+  "fields": {
+    "customer_name": "JINDAL SAW LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 137,
+  "fields": {
+    "customer_name": "KEE PROJECTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 138,
+  "fields": {
+    "customer_name": "KWALITY CONVEYING SYSTEMS (P) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 139,
+  "fields": {
+    "customer_name": "LEPTON PROJECTS PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 140,
+  "fields": {
+    "customer_name": "MONNET DANIELS COAL WASHERIES PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 141,
+  "fields": {
+    "customer_name": "MAK MYO CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 142,
+  "fields": {
+    "customer_name": "MANGALAM CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 143,
+  "fields": {
+    "customer_name": "MASYC PROJECTS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 144,
+  "fields": {
+    "customer_name": "METSO OUTOTEC INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 145,
+  "fields": {
+    "customer_name": "MODTECH MATERIAL HANDLING PROJECTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 146,
+  "fields": {
+    "customer_name": "NASH TECH",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 147,
+  "fields": {
+    "customer_name": "PRAKASH INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 148,
+  "fields": {
+    "customer_name": "TATA STEEL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 149,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 150,
+  "fields": {
+    "customer_name": "N R G CONVEYORS & TRANSMISSION CO",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 151,
+  "fields": {
+    "customer_name": "HALSTON GLOBAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 152,
+  "fields": {
+    "customer_name": "VIFA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 153,
+  "fields": {
+    "customer_name": "SRG BELTINGS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 154,
+  "fields": {
+    "customer_name": "SHREE SAI ASSOCIATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 155,
+  "fields": {
+    "customer_name": "HINDUSTAN RUBBER CONVEYORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 156,
+  "fields": {
+    "customer_name": "SHIVANK CONVEYOR BELT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 157,
+  "fields": {
+    "customer_name": "VIKAS TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 158,
+  "fields": {
+    "customer_name": "PAWAN TRADING CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 159,
+  "fields": {
+    "customer_name": "SRI SAPTHAGIRI CONVEYORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 160,
+  "fields": {
+    "customer_name": "EDUCATE SOLUTIONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 161,
+  "fields": {
+    "customer_name": "SUNNY SALES CORPORATION MUMBAI",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 162,
+  "fields": {
+    "customer_name": "OCEAN CONVEYOR & RUBBER PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 163,
+  "fields": {
+    "customer_name": "SUPER ENGINEERING WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 164,
+  "fields": {
+    "customer_name": "SRI LAKSHMI DURGA INDUSTRIAL SUPPLIERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 165,
+  "fields": {
+    "customer_name": "SAI SHIVA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 166,
+  "fields": {
+    "customer_name": "BAGGA BEARING & ENGG, CO.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 167,
+  "fields": {
+    "customer_name": "DEV INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 168,
+  "fields": {
+    "customer_name": "JT RUBBERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 169,
+  "fields": {
+    "customer_name": "P.K. ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 170,
+  "fields": {
+    "customer_name": "SATGURU ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 171,
+  "fields": {
+    "customer_name": "LAKHOTIA (INDIA) PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 172,
+  "fields": {
+    "customer_name": "BALAJEE INFRATECH & CONSTRUCTIONS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 173,
+  "fields": {
+    "customer_name": "LTC NMDC PROJECT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 174,
+  "fields": {
+    "customer_name": "ARDEE ENGINEERING PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 175,
+  "fields": {
+    "customer_name": "BEVCON IIOT (OPC) PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 176,
+  "fields": {
+    "customer_name": "BEVCON WAYORS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 177,
+  "fields": {
+    "customer_name": "GE POWER INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 178,
+  "fields": {
+    "customer_name": "BGR ENERGY SYSTEMS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 179,
+  "fields": {
+    "customer_name": "CENTURY RAYON UNDER THE MANAGEMENT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 180,
+  "fields": {
+    "customer_name": "CHETTINAD CEMENT CORPORATION LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 181,
+  "fields": {
+    "customer_name": "ELECTROSTEEL CASTINGS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 182,
+  "fields": {
+    "customer_name": "GAYATRISHAKTI PAPER & BOARDS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 183,
+  "fields": {
+    "customer_name": "HI-TECH HYDRAULIC ENGINEERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 184,
+  "fields": {
+    "customer_name": "HYQUIP SYSTEMS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 185,
+  "fields": {
+    "customer_name": "INDIAN PHOSPAHTE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 186,
+  "fields": {
+    "customer_name": "JAI RAJ ISPAT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 187,
+  "fields": {
+    "customer_name": "MITSUBISHI POWER INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 188,
+  "fields": {
+    "customer_name": "N. R. AGARWAL INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 189,
+  "fields": {
+    "customer_name": "PENNA CEMENT INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 190,
+  "fields": {
+    "customer_name": "RAIN CEMENTS LIMITED PRODUCERS OF PRIYA CEMENT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 191,
+  "fields": {
+    "customer_name": "RAIN CII CARBON (VIZAG) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 192,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED CHALIYAMA STEEL PLANT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 193,
+  "fields": {
+    "customer_name": "RUNGTA MINES LIMITED SPONGE IRON DIVISION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 194,
+  "fields": {
+    "customer_name": "SOLCON ENGINEERS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 195,
+  "fields": {
+    "customer_name": "HEIDELBERG CEMENT INDIA LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 196,
+  "fields": {
+    "customer_name": "HINDUSTAN ZINC LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 197,
+  "fields": {
+    "customer_name": "AMBA RIVER COKE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 198,
+  "fields": {
+    "customer_name": "REAL ISPAT AND ENERGY PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 199,
+  "fields": {
+    "customer_name": "SRI VENKATESH IRON & ALLOYS (INDIA) LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 200,
+  "fields": {
+    "customer_name": "THE RAMCO CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 201,
+  "fields": {
+    "customer_name": "GUJARAT NARMADA VALLEY FERTILIZERS & CHEMICALS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 202,
+  "fields": {
+    "customer_name": "ODISHA POWER GENERATION CORPORATION LTD. (A GOVT. COMPANY OF THE STATE OF ODISHA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 203,
+  "fields": {
+    "customer_name": "AMBUJA CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 204,
+  "fields": {
+    "customer_name": "ARAVALI POWER COMPANY PRIVATE LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 205,
+  "fields": {
+    "customer_name": "TSUBAKI CONVEYOR SYSTEMS INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 206,
+  "fields": {
+    "customer_name": "TATA STEEL LIMITED METALIKS DIVISION KHARAGPUR",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 207,
+  "fields": {
+    "customer_name": "TATA STEEL LONG PRODUCTS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 208,
+  "fields": {
+    "customer_name": "PACIFIC IRON MANUFACTURING LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 209,
+  "fields": {
+    "customer_name": "MITSUBISHI POWER INDIA PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 210,
+  "fields": {
+    "customer_name": "MIDAS AUTOSOFT ENGINEERS PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 211,
+  "fields": {
+    "customer_name": "MECGALE PNEUMATICS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 212,
+  "fields": {
+    "customer_name": "ARUDRA ENGINEERS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 213,
+  "fields": {
+    "customer_name": "AVISHKAR INDUSTRIES PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 214,
+  "fields": {
+    "customer_name": "FL SMIDTH CEMENT INDIA LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 215,
+  "fields": {
+    "customer_name": "WONDER CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 216,
+  "fields": {
+    "customer_name": "MIVAAN STEELS LIMITED A WHOLLY OWNED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 217,
+  "fields": {
+    "customer_name": "K FLEX",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 218,
+  "fields": {
+    "customer_name": "GOLDEN BELL CREATIONS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 219,
+  "fields": {
+    "customer_name": "STAR POLYMERS INC. (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 220,
+  "fields": {
+    "customer_name": "DASHMESH RUBBER INDUSTRIES PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 221,
+  "fields": {
+    "customer_name": "OM JAI SAI ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 222,
+  "fields": {
+    "customer_name": "SANA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 223,
+  "fields": {
+    "customer_name": "SHAFA MOULDING WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 224,
+  "fields": {
+    "customer_name": "OM JAI SAI SERVICES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 225,
+  "fields": {
+    "customer_name": "NIPL ENGINEERING PVT LTD (P)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 226,
+  "fields": {
+    "customer_name": "N. R. ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 227,
+  "fields": {
+    "customer_name": "OZL FILLM FLOORING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 228,
+  "fields": {
+    "customer_name": "PARAM PACKAGING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 229,
+  "fields": {
+    "customer_name": "AVOCET INDUSTRIES PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 230,
+  "fields": {
+    "customer_name": "DEBLOK INDUSTRIES PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 231,
+  "fields": {
+    "customer_name": "SHRI MARUTI ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 232,
+  "fields": {
+    "customer_name": "FAIRTECH ENGINEERING CO.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 233,
+  "fields": {
+    "customer_name": "JAY VEER CHEMICALS (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 234,
+  "fields": {
+    "customer_name": "GOSTOL TST INDIA PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 235,
+  "fields": {
+    "customer_name": "MUKUND EXPORTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 236,
+  "fields": {
+    "customer_name": "GOURMET GENEX",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 237,
+  "fields": {
+    "customer_name": "GANESHMFG PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 238,
+  "fields": {
+    "customer_name": "FIRST POLYMER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 239,
+  "fields": {
+    "customer_name": "NARAYANI EXIM",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 240,
+  "fields": {
+    "customer_name": "M R TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 241,
+  "fields": {
+    "customer_name": "KRISHNA TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 242,
+  "fields": {
+    "customer_name": "URVI MARKETING CO.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 243,
+  "fields": {
+    "customer_name": "SHRI SHILA ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 244,
+  "fields": {
+    "customer_name": "DIAMOND ENGINEERING (CHENNAI) PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 245,
+  "fields": {
+    "customer_name": "CREATIVE POLYMER PRODUCTS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 246,
+  "fields": {
+    "customer_name": "APEX RUBBER PRODUCTS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 247,
+  "fields": {
+    "customer_name": "NOORAFSA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 248,
+  "fields": {
+    "customer_name": "BETHEL ENGINEERING WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 249,
+  "fields": {
+    "customer_name": "BALAJI CONVEYOR BELT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 250,
+  "fields": {
+    "customer_name": "SAI CONVEYOR ASSOCIATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 251,
+  "fields": {
+    "customer_name": "SAMIYA TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 252,
+  "fields": {
+    "customer_name": "ARCELORMITTAL NIPPON STEEL INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 253,
+  "fields": {
+    "customer_name": "VICO FORGE PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 254,
+  "fields": {
+    "customer_name": "JASMINO POLYMERTECH PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 255,
+  "fields": {
+    "customer_name": "NOVA INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 256,
+  "fields": {
+    "customer_name": "SHREE SADGURU TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 257,
+  "fields": {
+    "customer_name": "POLYMAX ELASTOMERS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 258,
+  "fields": {
+    "customer_name": "K. D. CEMENTS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 259,
+  "fields": {
+    "customer_name": "K. D. CEMENTS (GUWAHATI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 260,
+  "fields": {
+    "customer_name": "A. F. PLASTIC WASTE (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 261,
+  "fields": {
+    "customer_name": "RASHMI CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 262,
+  "fields": {
+    "customer_name": "SHREE SALES CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 263,
+  "fields": {
+    "customer_name": "DAMODAR ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 264,
+  "fields": {
+    "customer_name": "ALANG WORLD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 265,
+  "fields": {
+    "customer_name": "AL MIR RUBBER MALL PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 266,
+  "fields": {
+    "customer_name": "A. K. RUBBER (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 267,
+  "fields": {
+    "customer_name": "TULSYAN NEC LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 268,
+  "fields": {
+    "customer_name": "SOMNATH POLY PLAST",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 269,
+  "fields": {
+    "customer_name": "JYOTI WOODEN SCRAP TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 270,
+  "fields": {
+    "customer_name": "S K ENGINEERING WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 271,
+  "fields": {
+    "customer_name": "LUCKY TRADING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 272,
+  "fields": {
+    "customer_name": "2M ELASTOMERS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 273,
+  "fields": {
+    "customer_name": "SUBHLAXMI POLYMERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 274,
+  "fields": {
+    "customer_name": "APEX RUBBER PRODUCTS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 275,
+  "fields": {
+    "customer_name": "FAROOQ ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 276,
+  "fields": {
+    "customer_name": "HINDUSTAN RUBBERS INDUSTRIES PVT LTD (P)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 277,
+  "fields": {
+    "customer_name": "ECCO PAPER PRODUCTS (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 278,
+  "fields": {
+    "customer_name": "DASHMESH RUBBER PRODUCTS (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 279,
+  "fields": {
+    "customer_name": "CHANDRA TRADING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 280,
+  "fields": {
+    "customer_name": "DISA INDIA LIMITED - TUMKUR",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 281,
+  "fields": {
+    "customer_name": "GAJANAN RUBBERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 282,
+  "fields": {
+    "customer_name": "MAHESH LIFTERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 283,
+  "fields": {
+    "customer_name": "PATEL FURNACE & FORGING PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 284,
+  "fields": {
+    "customer_name": "POONAM ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 285,
+  "fields": {
+    "customer_name": "SHIV TRADING COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 286,
+  "fields": {
+    "customer_name": "AADESH TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 287,
+  "fields": {
+    "customer_name": "VAJRA RUBBER PRODUCTS (P) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 288,
+  "fields": {
+    "customer_name": "ASHAPURA PLASTIC WASTE & METAL CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 289,
+  "fields": {
+    "customer_name": "NOOR ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 290,
+  "fields": {
+    "customer_name": "PROPEL INDUSTRIES PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 291,
+  "fields": {
+    "customer_name": "MAA KALI STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 292,
+  "fields": {
+    "customer_name": "BEUMER INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 293,
+  "fields": {
+    "customer_name": "TS MINES & MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 294,
+  "fields": {
+    "customer_name": "PATEL SHOT BLASTING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 295,
+  "fields": {
+    "customer_name": "SAIRAJ BUILDING MATERIAL SUPPLIERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 296,
+  "fields": {
+    "customer_name": "RAMYA BUILDCON PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 297,
+  "fields": {
+    "customer_name": "EKTA CONSTRUCTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 298,
+  "fields": {
+    "customer_name": "K K ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 299,
+  "fields": {
+    "customer_name": "KOTESHWAR STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 300,
+  "fields": {
+    "customer_name": "KRANTI STONE METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 301,
+  "fields": {
+    "customer_name": "DECCAN MINES & MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 302,
+  "fields": {
+    "customer_name": "BLUK MRO INDUSTRIAL SUPPLY PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 303,
+  "fields": {
+    "customer_name": "ADISHAKTI STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 304,
+  "fields": {
+    "customer_name": "ROCKSAND MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 305,
+  "fields": {
+    "customer_name": "DARPAN INFRASTRUCTURE PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 306,
+  "fields": {
+    "customer_name": "LAKSHMI SRINIVASA CRUSHER PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 307,
+  "fields": {
+    "customer_name": "PALLAVA MINES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 308,
+  "fields": {
+    "customer_name": "DIAMOND ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 309,
+  "fields": {
+    "customer_name": "HAILSTONE INNOVATIONS PRIVATE LIMTED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 310,
+  "fields": {
+    "customer_name": "SHREE GANESH ASSOCIATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 311,
+  "fields": {
+    "customer_name": "SHAH PAPER MILLS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 312,
+  "fields": {
+    "customer_name": "MAA BHANDARGHARANI STONES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 313,
+  "fields": {
+    "customer_name": "GAYATRI STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 314,
+  "fields": {
+    "customer_name": "S B L CONSTRUCTIONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 315,
+  "fields": {
+    "customer_name": "DARPAN INFRASTRUCTUREPRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 316,
+  "fields": {
+    "customer_name": "S.H. PATEL CONSTRUCTION WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 317,
+  "fields": {
+    "customer_name": "NARMADA MINERALS PROP-ROBIN AGRAWAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 318,
+  "fields": {
+    "customer_name": "ROHAN ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 319,
+  "fields": {
+    "customer_name": "ARYAN PAPER MILLS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 320,
+  "fields": {
+    "customer_name": "MALDIVE INFRA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 321,
+  "fields": {
+    "customer_name": "VISION INFRA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 322,
+  "fields": {
+    "customer_name": "AIMS AGGREGATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 323,
+  "fields": {
+    "customer_name": "ANKITA CONSTRUCTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 324,
+  "fields": {
+    "customer_name": "R S KOTHIWALE STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 325,
+  "fields": {
+    "customer_name": "SHREE KRISHNA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 326,
+  "fields": {
+    "customer_name": "SHREE KRISHNA STONE QUARRY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 327,
+  "fields": {
+    "customer_name": "ANUSHA PROJECTS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 328,
+  "fields": {
+    "customer_name": "VIMAL CHORME-TECH PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 329,
+  "fields": {
+    "customer_name": "VENKATA SAI STONE CRUSHERS LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 330,
+  "fields": {
+    "customer_name": "KALPANA STONE CRUSHER INDUSTRY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 331,
+  "fields": {
+    "customer_name": "ANAWIL WIRE & ENGINEERING PRIVATE LIMTED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 332,
+  "fields": {
+    "customer_name": "DARPAN INFRASTRUCTURE PVT. LTD. (VAPI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 333,
+  "fields": {
+    "customer_name": "SANJAY STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 334,
+  "fields": {
+    "customer_name": "CALIBER MERCANTILE PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 335,
+  "fields": {
+    "customer_name": "SRI VINAYAKA BLUE METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 336,
+  "fields": {
+    "customer_name": "KUSHAL GURU CONSTRUCTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 337,
+  "fields": {
+    "customer_name": "MADURA TECHNICAL FABRICS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 338,
+  "fields": {
+    "customer_name": "ANJANEYA INFRA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 339,
+  "fields": {
+    "customer_name": "SATYA GRANITES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 340,
+  "fields": {
+    "customer_name": "SHIVA STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 341,
+  "fields": {
+    "customer_name": "ARCONS INFRASTRUCTURES & CONSTRUCTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 342,
+  "fields": {
+    "customer_name": "KSR SANDS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 343,
+  "fields": {
+    "customer_name": "SHIV SHAKTI STONE QUARRY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 344,
+  "fields": {
+    "customer_name": "NIKHIL CONSTRUCTIONGROUP PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 345,
+  "fields": {
+    "customer_name": "SHREE RAM METAL WORKS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 346,
+  "fields": {
+    "customer_name": "AG ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 347,
+  "fields": {
+    "customer_name": "S & S STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 348,
+  "fields": {
+    "customer_name": "SRI RAMAJAYAM BLUE METALS & M SAND",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 349,
+  "fields": {
+    "customer_name": "DALMIA POLYPRO INDUSTRIES PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 350,
+  "fields": {
+    "customer_name": "IDEA HOLDING LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 351,
+  "fields": {
+    "customer_name": "VESSELLA AGGREGATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 352,
+  "fields": {
+    "customer_name": "JAI MAA MANGALA STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 353,
+  "fields": {
+    "customer_name": "ARCONS INFRASTUCTURES & CONSTRUCTION PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 354,
+  "fields": {
+    "customer_name": "GIRJAI INFRASTRUCTURES PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 355,
+  "fields": {
+    "customer_name": "TULJABHAWANI STONE METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 356,
+  "fields": {
+    "customer_name": "SHRI VALLABH STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 357,
+  "fields": {
+    "customer_name": "SRI LAKSHMI SRINIVASA STONE CRUSHERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 358,
+  "fields": {
+    "customer_name": "SATAV STONE COMPANY PRIVATE LIMTED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 359,
+  "fields": {
+    "customer_name": "ROHAN ENTERPRISES (BHIWANDI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 360,
+  "fields": {
+    "customer_name": "SRI SURYA BLUE METALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 361,
+  "fields": {
+    "customer_name": "PARTH INFRASTRUCTURE PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 362,
+  "fields": {
+    "customer_name": "D . T. RAYAN BLUE METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 363,
+  "fields": {
+    "customer_name": "COURAGE INFRA 2014501528",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 364,
+  "fields": {
+    "customer_name": "RITHWIK PROJECTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 365,
+  "fields": {
+    "customer_name": "NIKHIL CONSTRUCTIONGROUP PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 366,
+  "fields": {
+    "customer_name": "BALAJI STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 367,
+  "fields": {
+    "customer_name": "SRMK AGGREGATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 368,
+  "fields": {
+    "customer_name": "B.R. STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 369,
+  "fields": {
+    "customer_name": "RATILAL MEGHAJI SORTHIYA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 370,
+  "fields": {
+    "customer_name": "NAVYA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 371,
+  "fields": {
+    "customer_name": "SHIVARAJ MATERIAL SUPPLIER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 372,
+  "fields": {
+    "customer_name": "KRISHNA LABEL (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 373,
+  "fields": {
+    "customer_name": "ALTIMA BLUE METALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 374,
+  "fields": {
+    "customer_name": "AYUSH SUPPLIERS / RAJYOG CERAMICS AND SANITARY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 375,
+  "fields": {
+    "customer_name": "KYB-CONMAT PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 376,
+  "fields": {
+    "customer_name": "SRI BALAJI BLUE METALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 377,
+  "fields": {
+    "customer_name": "MANISHA INFRACON PROJECTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 378,
+  "fields": {
+    "customer_name": "J J ASSOCIATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 379,
+  "fields": {
+    "customer_name": "VETRIVEL BLUE METALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 380,
+  "fields": {
+    "customer_name": "KRISHNA POLYPRO INDUSTRIES PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 381,
+  "fields": {
+    "customer_name": "M. D. MOVERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 382,
+  "fields": {
+    "customer_name": "HEM INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 383,
+  "fields": {
+    "customer_name": "MOHAMMED ASIF HABIB PATEL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 384,
+  "fields": {
+    "customer_name": "NARAYANI SONS INDIA PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 385,
+  "fields": {
+    "customer_name": "PRATHNA METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 386,
+  "fields": {
+    "customer_name": "VALLABHANENI CONSTRUCTIONS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 387,
+  "fields": {
+    "customer_name": "SRI SAIBABA STONES AND METAL INDUSTRIES LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 388,
+  "fields": {
+    "customer_name": "GANESH MARG",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 389,
+  "fields": {
+    "customer_name": "SHRI SAND PLANT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 390,
+  "fields": {
+    "customer_name": "SHARAN INTERNATIONAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 391,
+  "fields": {
+    "customer_name": "BHARAJ MACHINERIES PVT. LTD. (S)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 392,
+  "fields": {
+    "customer_name": "NANMA GRANITES PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 393,
+  "fields": {
+    "customer_name": "ASWANI INDUSTRIES PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 394,
+  "fields": {
+    "customer_name": "SRI GOPAL ROCKS & MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 395,
+  "fields": {
+    "customer_name": "BHAVANI STONE CRUSHERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 396,
+  "fields": {
+    "customer_name": "MANSI INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 397,
+  "fields": {
+    "customer_name": "SILICA FLOOR INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 398,
+  "fields": {
+    "customer_name": "SHREEJI INFRASTRUCTURE INDIA PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 399,
+  "fields": {
+    "customer_name": "MARYMATHA MINERALS LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 400,
+  "fields": {
+    "customer_name": "A K SHIVHARE INFRASTRUCTURE PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 401,
+  "fields": {
+    "customer_name": "SRC BLUE METAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 402,
+  "fields": {
+    "customer_name": "GANPATI GENERAL TRADING LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 403,
+  "fields": {
+    "customer_name": "OK STONES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 404,
+  "fields": {
+    "customer_name": "ROCKSAND MINERALS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 405,
+  "fields": {
+    "customer_name": "JASWANT MADHAVBHAI PATEL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 406,
+  "fields": {
+    "customer_name": "SRI REVANASIDDESHWARA STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 407,
+  "fields": {
+    "customer_name": "THIRUMALA STONE CRUSHER AND MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 408,
+  "fields": {
+    "customer_name": "SRI VENKATESHWARA STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 409,
+  "fields": {
+    "customer_name": "R S KAMTHE INFRASTRUCTURE DEVELOPERS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 410,
+  "fields": {
+    "customer_name": "MAHERA TRADERS TALPATRI HOUSE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 411,
+  "fields": {
+    "customer_name": "ANGEL ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 412,
+  "fields": {
+    "customer_name": "SUNITA STONE GRAVELS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 413,
+  "fields": {
+    "customer_name": "GRSS STONE PRODUCTS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 414,
+  "fields": {
+    "customer_name": "S. D DOUNDE INFRA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 415,
+  "fields": {
+    "customer_name": "BEST PAPER MILLS PVT. LTD. (UNIT-II)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 416,
+  "fields": {
+    "customer_name": "SILVER SAND AND STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 417,
+  "fields": {
+    "customer_name": "BHARATSINH RAGHUVIRSINH JADEJA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 418,
+  "fields": {
+    "customer_name": "GE POWER INDIA LTD (SOUTH SOLAPUR)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 419,
+  "fields": {
+    "customer_name": "SHREE BALAJI SAND AND AGGREGATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 420,
+  "fields": {
+    "customer_name": "ARJUN CONSTRUCTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 421,
+  "fields": {
+    "customer_name": "SAI CONSTRUCTION MUKHED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 422,
+  "fields": {
+    "customer_name": "VISION ASSOCIATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 423,
+  "fields": {
+    "customer_name": "IRSHAD TRADING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 424,
+  "fields": {
+    "customer_name": "ELSA CONCRETING MACHINERY INDIA PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 425,
+  "fields": {
+    "customer_name": "JIMMY SALES & RESEARCH",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 426,
+  "fields": {
+    "customer_name": "SHIV SAI STONE CRUSHER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 427,
+  "fields": {
+    "customer_name": "AJANTA AUTO INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 428,
+  "fields": {
+    "customer_name": "S.P.RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 429,
+  "fields": {
+    "customer_name": "ASIAN STEREOS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 430,
+  "fields": {
+    "customer_name": "VISCON RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 431,
+  "fields": {
+    "customer_name": "RAVASCO SWASTIK INDUSTRIES LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 432,
+  "fields": {
+    "customer_name": "NISHIGANDHA POLYMERS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 433,
+  "fields": {
+    "customer_name": "SUN EXIM",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 434,
+  "fields": {
+    "customer_name": "INDIAN HARVESTERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 435,
+  "fields": {
+    "customer_name": "S P RUBBER INDUSTRIES(VAPI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 436,
+  "fields": {
+    "customer_name": "DISA INDIA LIMITED-HOSAKOTE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 437,
+  "fields": {
+    "customer_name": "ALLIED ENGINEERING SOLUTIONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 438,
+  "fields": {
+    "customer_name": "SOFTEX POLYMER PRODUCTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 439,
+  "fields": {
+    "customer_name": "GREEN WOODS INC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 440,
+  "fields": {
+    "customer_name": "KUMAR DISTRIBUTORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 441,
+  "fields": {
+    "customer_name": "IRM OFFSHORE AND MARINE ENGINEERS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 442,
+  "fields": {
+    "customer_name": "KEMOULD CHEMICAL TECHNOLOGIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 443,
+  "fields": {
+    "customer_name": "KANTA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 444,
+  "fields": {
+    "customer_name": "PROJECTS & CONTRACT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 445,
+  "fields": {
+    "customer_name": "CONCEPT ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 446,
+  "fields": {
+    "customer_name": "SURFACE PREPARATION SOLUTIONS & TECH. PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 447,
+  "fields": {
+    "customer_name": "SMILEY MONROE RUBBER & ALLIED PRODUCTS (I) PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 448,
+  "fields": {
+    "customer_name": "UNIQUE RUBBER SHEET",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 449,
+  "fields": {
+    "customer_name": "CLASSIC MARBLE COMPANY PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 450,
+  "fields": {
+    "customer_name": "RAYCHEM RPG PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 451,
+  "fields": {
+    "customer_name": "OXFORD RUBBERS PRIVATE LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 452,
+  "fields": {
+    "customer_name": "SUPER RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 453,
+  "fields": {
+    "customer_name": "M. P. TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 454,
+  "fields": {
+    "customer_name": "PAWAN SALES CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 455,
+  "fields": {
+    "customer_name": "A D INDUSTRIES INDA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 456,
+  "fields": {
+    "customer_name": "BHARAT RUBBER COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 457,
+  "fields": {
+    "customer_name": "INDO RUBBER CORPORATION(SALE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 458,
+  "fields": {
+    "customer_name": "SHREE SHOT EQUIPMENT PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 459,
+  "fields": {
+    "customer_name": "ANAND I-POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 460,
+  "fields": {
+    "customer_name": "SOFTEX INDUSTRIAL PRODUCTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 461,
+  "fields": {
+    "customer_name": "HERITAGE MARBLE PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 462,
+  "fields": {
+    "customer_name": "VISCON RUBBER PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 463,
+  "fields": {
+    "customer_name": "MASYC PROJECTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 464,
+  "fields": {
+    "customer_name": "NISHIGANDHA RUBCHEM",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 465,
+  "fields": {
+    "customer_name": "JAYNIDHI RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 466,
+  "fields": {
+    "customer_name": "TEN ON TEN RUBTECH PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 467,
+  "fields": {
+    "customer_name": "METHODS (INDIA) PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 468,
+  "fields": {
+    "customer_name": "PUROHIT CONVEYOR BELTINGS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 469,
+  "fields": {
+    "customer_name": "ATUL LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 470,
+  "fields": {
+    "customer_name": "RAVASCO SWASTIK INDUSTRIES LLP (BHIWANDI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 471,
+  "fields": {
+    "customer_name": "RASHMI METALIKS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 472,
+  "fields": {
+    "customer_name": "ADVEN TYRE TUBE INDIA PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 473,
+  "fields": {
+    "customer_name": "LAVA CAST PVT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 474,
+  "fields": {
+    "customer_name": "MAX TRANSMISSION AND ENGINEERING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 475,
+  "fields": {
+    "customer_name": "A ONE RUBBER PRODUCTS (AHMEDABAD)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 476,
+  "fields": {
+    "customer_name": "BRAHANS RUBBER PRODUCTS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 477,
+  "fields": {
+    "customer_name": "HEMANT RUBBER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 478,
+  "fields": {
+    "customer_name": "VIKRANT RUBBER PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 479,
+  "fields": {
+    "customer_name": "NISHIGANDHA POLYMERS PVT. LTD.(BHIWANDI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 480,
+  "fields": {
+    "customer_name": "GURU KRIPA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 481,
+  "fields": {
+    "customer_name": "ANANTA POLYRUBB PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 482,
+  "fields": {
+    "customer_name": "NISHIGANDHA RUBCHEM (BHIWANDI)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 483,
+  "fields": {
+    "customer_name": "INDICA COMPOSITE PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 484,
+  "fields": {
+    "customer_name": "COMET FLOCK MFG. CO.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 485,
+  "fields": {
+    "customer_name": "COMMERCIAL SALES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 486,
+  "fields": {
+    "customer_name": "DURATUF PRODUCTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 487,
+  "fields": {
+    "customer_name": "DURATUF PRODUCTS PVT. LTD. NCR WAREHOUSE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 488,
+  "fields": {
+    "customer_name": "BEBITZ FLANGES WORKS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 489,
+  "fields": {
+    "customer_name": "ANAND ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 490,
+  "fields": {
+    "customer_name": "MITSUFUKU COMPOUND PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 491,
+  "fields": {
+    "customer_name": "BANNARI AMMAN SUGARS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 492,
+  "fields": {
+    "customer_name": "NILKANTH STONE INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 493,
+  "fields": {
+    "customer_name": "BANNARI AMMAN SUGAR LTD - UNIT IV",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 494,
+  "fields": {
+    "customer_name": "ABHAY INTERNATIONAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 495,
+  "fields": {
+    "customer_name": "MARSMAN INDIA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 496,
+  "fields": {
+    "customer_name": "NEO STRUCTO CONSTRUCTION PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 497,
+  "fields": {
+    "customer_name": "FABTECH CONSULTING ENGINEERS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 498,
+  "fields": {
+    "customer_name": "ADITYA ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 499,
+  "fields": {
+    "customer_name": "FUTURE FOUNDATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 500,
+  "fields": {
+    "customer_name": "DAQSHIN RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 501,
+  "fields": {
+    "customer_name": "ARCHANALOK TRADING COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 502,
+  "fields": {
+    "customer_name": "POOJA ENGINEERING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 503,
+  "fields": {
+    "customer_name": "VISHNU FABRIC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 504,
+  "fields": {
+    "customer_name": "ALLIED SPARES & AUTO PARTS MFG CO PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 505,
+  "fields": {
+    "customer_name": "STEELINT BLASTING EQUIPMENT PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 506,
+  "fields": {
+    "customer_name": "MADURA TECHNICAL TEXTILES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 507,
+  "fields": {
+    "customer_name": "J. P. & SONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 508,
+  "fields": {
+    "customer_name": "SWASTIK ENGINEERING STORES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 509,
+  "fields": {
+    "customer_name": "GLOBE ENGINEERING COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 510,
+  "fields": {
+    "customer_name": "INDUSTRIAL BELT CENTRE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 511,
+  "fields": {
+    "customer_name": "AGARWAL ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 512,
+  "fields": {
+    "customer_name": "SHASHI MOTORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 513,
+  "fields": {
+    "customer_name": "NEW SHAMBHU NATH & SONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 514,
+  "fields": {
+    "customer_name": "BORON RUBBER INDIA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 515,
+  "fields": {
+    "customer_name": "NIRANT KREATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 516,
+  "fields": {
+    "customer_name": "TIRUPATI SALES CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 517,
+  "fields": {
+    "customer_name": "KUSHAL ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 518,
+  "fields": {
+    "customer_name": "SHIVAJI BELTING CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 519,
+  "fields": {
+    "customer_name": "BHARAT ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 520,
+  "fields": {
+    "customer_name": "JHABUA POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 521,
+  "fields": {
+    "customer_name": "JINDAL STEEL ODISHA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 522,
+  "fields": {
+    "customer_name": "DAMODAR VALLEY CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 523,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED BUXUR THERMAL POWER PROJECT 2X660MW",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 524,
+  "fields": {
+    "customer_name": "N R AGARWAL INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 525,
+  "fields": {
+    "customer_name": "BAJAJ STEEL INDUSTRIES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 526,
+  "fields": {
+    "customer_name": "BULK MRO INDUSTRIAL SUPPLY PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 527,
+  "fields": {
+    "customer_name": "BAJAJ STEEL INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 528,
+  "fields": {
+    "customer_name": "LLOYDS METALS & ENERGY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 529,
+  "fields": {
+    "customer_name": "RANA SUGARS LIMITED (DISTILLERY DIVISION)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 530,
+  "fields": {
+    "customer_name": "RANA SUGARS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 531,
+  "fields": {
+    "customer_name": "CCS PROJECTS & EQUIPMENT PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 532,
+  "fields": {
+    "customer_name": "HALSTON DISTRIBUTORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 533,
+  "fields": {
+    "customer_name": "KANAIYA METALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 534,
+  "fields": {
+    "customer_name": "RITHWIK PROJECTS PVT LTD C/O NTPC,SISF CAMP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 535,
+  "fields": {
+    "customer_name": "MADURA TECHNICAL FABRICS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 536,
+  "fields": {
+    "customer_name": "MITTAL ENTERPRISES (NEW)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 537,
+  "fields": {
+    "customer_name": "NARMADA AGGERGATES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 538,
+  "fields": {
+    "customer_name": "NOURANG LAL MILESTONE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 539,
+  "fields": {
+    "customer_name": "SHALEEGRAM POWER CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 540,
+  "fields": {
+    "customer_name": "AALIYA TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 541,
+  "fields": {
+    "customer_name": "A.K.&CO.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 542,
+  "fields": {
+    "customer_name": "ALLIANCE FIBRES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 543,
+  "fields": {
+    "customer_name": "ELPHIEPOLY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 544,
+  "fields": {
+    "customer_name": "HAMZA ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 545,
+  "fields": {
+    "customer_name": "KSR INFRATRADE PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 546,
+  "fields": {
+    "customer_name": "MAX ONE RUBBER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 547,
+  "fields": {
+    "customer_name": "ROYAL MECH ENGINEERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 548,
+  "fields": {
+    "customer_name": "SHRI SAMARTH KRUPA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 549,
+  "fields": {
+    "customer_name": "SUNNY SALES CORPORATION (PUNE)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 550,
+  "fields": {
+    "customer_name": "SHYAM STEEL WORKS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 551,
+  "fields": {
+    "customer_name": "SUVAN STEELS PRIVATE LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 552,
+  "fields": {
+    "customer_name": "PARASAKTI CEMENT INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 553,
+  "fields": {
+    "customer_name": "PIONEER ALUMINIUM INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 554,
+  "fields": {
+    "customer_name": "SANGHI INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 555,
+  "fields": {
+    "customer_name": "KRISHNA BANGARU MINERALS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 556,
+  "fields": {
+    "customer_name": "NCL INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 557,
+  "fields": {
+    "customer_name": "ADANI POWER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 558,
+  "fields": {
+    "customer_name": "STEEL EXCHANGE INDIA LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 559,
+  "fields": {
+    "customer_name": "J .K. LAXMI CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 560,
+  "fields": {
+    "customer_name": "NATH INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 561,
+  "fields": {
+    "customer_name": "MAHARASHTRA STATE POWER GENERATION CO. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 562,
+  "fields": {
+    "customer_name": "S K SAMANTA & CO. (P) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 563,
+  "fields": {
+    "customer_name": "SURYADEV ALLOYS AND POWER PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 564,
+  "fields": {
+    "customer_name": "ADHUNIK POWER & NATURAL RESOURCES LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 565,
+  "fields": {
+    "customer_name": "GROWMECH INDUSTRIES PRIVATE LIMITED (FORMERLY KNOWN AS GLOBUS INTERNATIONAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 566,
+  "fields": {
+    "customer_name": "MARUTI CEMENTS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 567,
+  "fields": {
+    "customer_name": "NOBLE TECH INDUSTRIES PVT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 568,
+  "fields": {
+    "customer_name": "THERMAX LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 569,
+  "fields": {
+    "customer_name": "THERMAX BABCOCK & WILCOX ENERGY SOLUTION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 570,
+  "fields": {
+    "customer_name": "THERMAX ONSITE ENERGY SOLUTIONS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 571,
+  "fields": {
+    "customer_name": "EVONITH METALLICS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 572,
+  "fields": {
+    "customer_name": "UTTAM GALVA METALLICS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 573,
+  "fields": {
+    "customer_name": "KRIBHCO FERTILIZERS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 574,
+  "fields": {
+    "customer_name": "NEELACHAL ISPAT NIGAM LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 575,
+  "fields": {
+    "customer_name": "SAGAR CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 576,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED L&T ENERGY-CARBONLITE SOLUTIONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 577,
+  "fields": {
+    "customer_name": "THE KCP LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 578,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD UNIT-ROPAR",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 579,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD UNIT-NALAGARH",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 580,
+  "fields": {
+    "customer_name": "VISWAKIRTI PROJECTS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 581,
+  "fields": {
+    "customer_name": "SAURASHTRA CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 582,
+  "fields": {
+    "customer_name": "NUVOCO VISTAS CORP. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 583,
+  "fields": {
+    "customer_name": "ASIAN FINE CEMENT PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 584,
+  "fields": {
+    "customer_name": "RSPL LIMITED SODA ASH UNIT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 585,
+  "fields": {
+    "customer_name": "THE SEKSARIA BISWAN SUGAR FACTORY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 586,
+  "fields": {
+    "customer_name": "J .K.LAXMI CEMENT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 587,
+  "fields": {
+    "customer_name": "HARINAGAR SUGAR MILLS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 588,
+  "fields": {
+    "customer_name": "SOLID MATERIAL CONVEYING SYSTEM",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 589,
+  "fields": {
+    "customer_name": "BIHAR FOUNDRY & CASTINGS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 590,
+  "fields": {
+    "customer_name": "MAHAN ENERGEN LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 591,
+  "fields": {
+    "customer_name": "ADANI POWER JHARKHAND LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 592,
+  "fields": {
+    "customer_name": "SLR METALIKS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 593,
+  "fields": {
+    "customer_name": "KALYANI STEELS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 594,
+  "fields": {
+    "customer_name": "MINERA STEEL & POWER PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 595,
+  "fields": {
+    "customer_name": "SHYAM STEEL MANUFACTURING LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 596,
+  "fields": {
+    "customer_name": "R K INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 597,
+  "fields": {
+    "customer_name": "ADANI CEMENT INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 598,
+  "fields": {
+    "customer_name": "VIJAYNAGAR METALLICS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 599,
+  "fields": {
+    "customer_name": "NANDA PLASTIC INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 600,
+  "fields": {
+    "customer_name": "RELIANCE RAIN COATS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 601,
+  "fields": {
+    "customer_name": "GAYATRI CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 602,
+  "fields": {
+    "customer_name": "REGAL PLASTICS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 603,
+  "fields": {
+    "customer_name": "SADGURU PLASTIC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 604,
+  "fields": {
+    "customer_name": "SADHNA PACKERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 605,
+  "fields": {
+    "customer_name": "ANDHRA CEMENTS LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 606,
+  "fields": {
+    "customer_name": "ORISSA STEEL & POWER PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 607,
+  "fields": {
+    "customer_name": "LAMOR INDIA PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 608,
+  "fields": {
+    "customer_name": "REDEMACO ENGINEERING PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 609,
+  "fields": {
+    "customer_name": "VIKAS PLASTICS (DR)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 610,
+  "fields": {
+    "customer_name": "BRITE COATINGS PVT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 611,
+  "fields": {
+    "customer_name": "ADVANCE RUBBER INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 612,
+  "fields": {
+    "customer_name": "ARCOY FINECHEM PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 613,
+  "fields": {
+    "customer_name": "ATLAS RUBBERS & ENGINEERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 614,
+  "fields": {
+    "customer_name": "BOKARIA ENTERPRISES (P) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 615,
+  "fields": {
+    "customer_name": "CHANDERPUR WORKS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 616,
+  "fields": {
+    "customer_name": "CONMAT HEAVY INDUSTRIES PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 617,
+  "fields": {
+    "customer_name": "DARPAN INFRASTRUCTURE PVT LTD (JHARKHAND)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 618,
+  "fields": {
+    "customer_name": "DARPAN INFRASTRUCTURE PVT LTD (MATHURA)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 619,
+  "fields": {
+    "customer_name": "ENERTECH GLOBAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 620,
+  "fields": {
+    "customer_name": "GAYATRI SALES CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 621,
+  "fields": {
+    "customer_name": "J.K.CONVEYORS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 622,
+  "fields": {
+    "customer_name": "JONSON RUBBER INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 623,
+  "fields": {
+    "customer_name": "MADURA GREEN POLYMER PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 624,
+  "fields": {
+    "customer_name": "MANDOVI MINERALS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 625,
+  "fields": {
+    "customer_name": "RUBBER KING TYRE PRIVATE LIMITED UNIT-IV",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 626,
+  "fields": {
+    "customer_name": "SARVODAYA INDUSTRIES PACKAGING PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 627,
+  "fields": {
+    "customer_name": "S.K.RUBBER & ENGINEERING INDUSTRIES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 628,
+  "fields": {
+    "customer_name": "SUNCORE ENGINEERING INDIA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 629,
+  "fields": {
+    "customer_name": "LARSEN & TOUBRO LIMITED LAJKURA SIDING (15 MTY)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 630,
+  "fields": {
+    "customer_name": "BHAVYA CEMENTS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 631,
+  "fields": {
+    "customer_name": "M S METALS & STEELS PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 632,
+  "fields": {
+    "customer_name": "GREEN PLANET",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 633,
+  "fields": {
+    "customer_name": "U S ENGINEEIRNG",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 634,
+  "fields": {
+    "customer_name": "OWAIS RAZA TRADERA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 635,
+  "fields": {
+    "customer_name": "SANIYA ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 636,
+  "fields": {
+    "customer_name": "ANG RUBBER COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 637,
+  "fields": {
+    "customer_name": "J.K FENNER (INDIA)LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 638,
+  "fields": {
+    "customer_name": "PATRATU VIDYUT UTPADAN NIGAM LIMITED PATRATU THERMAL POWER STATION,",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 639,
+  "fields": {
+    "customer_name": "API ISPAT & POWERTECH (P) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 640,
+  "fields": {
+    "customer_name": "SHREE RAMDEV TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 641,
+  "fields": {
+    "customer_name": "FAILXX ENGINEERING PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 642,
+  "fields": {
+    "customer_name": "HOLDWELL COMPONENTS PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 643,
+  "fields": {
+    "customer_name": "NETMATRIX CROP CARE PVT.LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 644,
+  "fields": {
+    "customer_name": "RAM RAHIM SCRAP TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 645,
+  "fields": {
+    "customer_name": "BASAVA ENGINEERING PVT.LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 646,
+  "fields": {
+    "customer_name": "P M PRECAST LLP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 647,
+  "fields": {
+    "customer_name": "SHREE SIDDHIVINAYAK STONE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 648,
+  "fields": {
+    "customer_name": "S K ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 649,
+  "fields": {
+    "customer_name": "ANISH TRADERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 650,
+  "fields": {
+    "customer_name": "SHREE SADGURU KRUPA ENTERPISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 651,
+  "fields": {
+    "customer_name": "ANDHRA PAPER LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 652,
+  "fields": {
+    "customer_name": "ORIENT CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 653,
+  "fields": {
+    "customer_name": "LAFARGE UMIAM MINING PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 654,
+  "fields": {
+    "customer_name": "M/S SHIVPRASAD ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 655,
+  "fields": {
+    "customer_name": "INDUS EXIMS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 656,
+  "fields": {
+    "customer_name": "RAJSHREE SUGARS & CHEMICALS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 657,
+  "fields": {
+    "customer_name": "SEWA ELOSTOMERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 658,
+  "fields": {
+    "customer_name": "PADMA ENTERPRISES",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 659,
+  "fields": {
+    "customer_name": "ARHAM ENTERPRISE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 660,
+  "fields": {
+    "customer_name": "H. V. EQUIPMENTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 661,
+  "fields": {
+    "customer_name": "SANDVIK MINING AND ROCK TECH.INDIA PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 662,
+  "fields": {
+    "customer_name": "SHREE CHARBHUJA INFRATECH",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 663,
+  "fields": {
+    "customer_name": "VEDANTA LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 664,
+  "fields": {
+    "customer_name": "ORIENT CEMENT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 665,
+  "fields": {
+    "customer_name": "AMBUJA CEMENT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 666,
+  "fields": {
+    "customer_name": "SARTHAK COMPONENTS PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 667,
+  "fields": {
+    "customer_name": "MDCWL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 668,
+  "fields": {
+    "customer_name": "NTPC LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 669,
+  "fields": {
+    "customer_name": "HUMBOLDT WEDAG INDIA PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 670,
+  "fields": {
+    "customer_name": "SHIVALAYA ISPAT & POWER PVT. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 671,
+  "fields": {
+    "customer_name": "BELCOSYS INFRA TECH PVT. LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 672,
+  "fields": {
+    "customer_name": "JINDAL STEEL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 673,
+  "fields": {
+    "customer_name": "JSW SAMBALPUR STEEL LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 674,
+  "fields": {
+    "customer_name": "NACHIKETA POWER & STEEL PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 675,
+  "fields": {
+    "customer_name": "OMEX INTERNATIONAL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 676,
+  "fields": {
+    "customer_name": "IMFA LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 677,
+  "fields": {
+    "customer_name": "BR STEEL & POWER PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 678,
+  "fields": {
+    "customer_name": "CENTURY PULP & PAPER",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 679,
+  "fields": {
+    "customer_name": "PRAKASH SPONGE IRON & POWER PRIVATE LIMI",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 680,
+  "fields": {
+    "customer_name": "INDIAN METALS & FERRO ALLOYS LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 681,
+  "fields": {
+    "customer_name": "PAWANPUTRA CONCRETE SOLUTIONS PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 682,
+  "fields": {
+    "customer_name": "GRASIM INDUSTRIES LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 683,
+  "fields": {
+    "customer_name": "ADVANCED SYSTEM SAMPLING PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 684,
+  "fields": {
+    "customer_name": "DALMIA CEMENT (BHARAT) LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 685,
+  "fields": {
+    "customer_name": "MARUTI FABRITECH AND ENGINEERS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 686,
+  "fields": {
+    "customer_name": "TRIVENI ENGINEERING & INDUSTRIAL LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 687,
+  "fields": {
+    "customer_name": "AARTI INDUSTRIES LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 688,
+  "fields": {
+    "customer_name": "MARWAR CEMENT LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 689,
+  "fields": {
+    "customer_name": "M/S INDUS-\" RTI\" LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 690,
+  "fields": {
+    "customer_name": "M/S MI CONVEYANCE SOLUTIONS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 691,
+  "fields": {
+    "customer_name": "M/S APOGEE ENGINEERING &",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 692,
+  "fields": {
+    "customer_name": "M/S ASGCO MANUFACTURING INC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 693,
+  "fields": {
+    "customer_name": "M/S RIDDHI SIDDHI CRUSHER&LAND TRANSPORT",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 694,
+  "fields": {
+    "customer_name": "M/S RAM ENTERPRISE, INC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 695,
+  "fields": {
+    "customer_name": "M/S VIACORE SOLUTIONS, LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 696,
+  "fields": {
+    "customer_name": "M/S CANNON BELT BV",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 697,
+  "fields": {
+    "customer_name": "M/S BORPAC COM. IMP. E EXP. LTDA.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 698,
+  "fields": {
+    "customer_name": "M/S ARAB EMIRATES BANDAC CO. (L.L.C.)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 699,
+  "fields": {
+    "customer_name": "M/S DHIYO HOUSE INC.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 700,
+  "fields": {
+    "customer_name": "M/S LAKE CEMENT LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 701,
+  "fields": {
+    "customer_name": "M/S DAVINCI & TESLA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 702,
+  "fields": {
+    "customer_name": "M/S DANGOTE CEMENT CONGO S.A.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 703,
+  "fields": {
+    "customer_name": "M/S SANVIRA CARBON (FZC) LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 704,
+  "fields": {
+    "customer_name": "M/S GAMMA MATERIALS LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 705,
+  "fields": {
+    "customer_name": "M/S NATIONWIDE BELTING SERVICE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 706,
+  "fields": {
+    "customer_name": "M/S MAJAN GLASS COMPANY SAOG",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 707,
+  "fields": {
+    "customer_name": "M/S QATAR STEEL COMPANY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 708,
+  "fields": {
+    "customer_name": "M/S SAINT GOBAIN CERAMIC MATERAILS BHUTAN PVT.LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 709,
+  "fields": {
+    "customer_name": "M/S BELT TECH INDUSTRIAL, INC.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 710,
+  "fields": {
+    "customer_name": "M/S GLOCEM FZC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 711,
+  "fields": {
+    "customer_name": "M/S THEJO AUSTRALIA PTY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 712,
+  "fields": {
+    "customer_name": "M/S AL DAHRA AGRICULTURE TRADING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 713,
+  "fields": {
+    "customer_name": "M/S BORPAC COMERCIO IMPORTAÇÃO EXPORTAÇÃO LTDA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 714,
+  "fields": {
+    "customer_name": "M/S GLOBEXY GENERAL TRADING COMPANY W.L.L.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 715,
+  "fields": {
+    "customer_name": "M/S SATI GROUP SPA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 716,
+  "fields": {
+    "customer_name": "M/S FARPOINT TRADING",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 717,
+  "fields": {
+    "customer_name": "M/S BINKELMAN CORPORATION",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 718,
+  "fields": {
+    "customer_name": "M/S JINDAL SHADEED IRON & STEEL LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 719,
+  "fields": {
+    "customer_name": "M/S ELISEI NASTRI TRASPORTATORI SRL",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 720,
+  "fields": {
+    "customer_name": "M/S BELTING SUPPLY SERVICES, A MEMBER OF HUDACO GROUP",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 721,
+  "fields": {
+    "customer_name": "REXLINE ENGINEERING INDONESIA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 722,
+  "fields": {
+    "customer_name": "GENERAL INDUSTRIES CO .LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 723,
+  "fields": {
+    "customer_name": "INDAGE INTERNATIONAL LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 724,
+  "fields": {
+    "customer_name": "IRISH WATERJET PROFILE LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 725,
+  "fields": {
+    "customer_name": "RM BILTRITE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 726,
+  "fields": {
+    "customer_name": "SMILEY MONROE LTD (UK)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 727,
+  "fields": {
+    "customer_name": "TECHNICAL SEAL CO. LTD.",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 728,
+  "fields": {
+    "customer_name": "REMA TIP TOP MIDDLE EAST INDUSTRIAL SERVICES LLC",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 729,
+  "fields": {
+    "customer_name": "M/S IRISH WATER PROFILE LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 730,
+  "fields": {
+    "customer_name": "M/S TECHNICAL SEAL FACTORY COMPANY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 731,
+  "fields": {
+    "customer_name": "M/S SMILEY MONROE LTD (UK)",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 732,
+  "fields": {
+    "customer_name": "UNIVERSAL SUPPLY HOLDINGS PTY LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 733,
+  "fields": {
+    "customer_name": "MAHESHWARI TRADING CO",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 734,
+  "fields": {
+    "customer_name": "HINDUSTAN RUBBERS INDUSTRIES PVT LTD",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 735,
+  "fields": {
+    "customer_name": "KESAR INFRA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 736,
+  "fields": {
+    "customer_name": "LUBI ELECTRONICS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 737,
+  "fields": {
+    "customer_name": "DEEPAK MEDICOS",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 738,
+  "fields": {
+    "customer_name": "MUSKAN CLUTCH PLATE",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 739,
+  "fields": {
+    "customer_name": "SWASTIK MINERAL AGENCY",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 740,
+  "fields": {
+    "customer_name": "RAVASCO TRANSMISSION AND PACKING PRIVATE LIMITED",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+},
+{
+  "model": "core.customer",
+  "pk": 741,
+  "fields": {
+    "customer_name": "HINDUSTAN RUBBERS SILVASSA",
+    "contact_person": null,
+    "application": null,
+    "plant_location": null
+  }
+}
+]
