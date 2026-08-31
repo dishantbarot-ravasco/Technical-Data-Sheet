@@ -23,7 +23,9 @@ development-time fallback.
 
 from django.conf import settings
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include, re_path
+from django.views.defaults import page_not_found
 from django.views.generic import RedirectView
 from django.views.static import serve
 
@@ -31,6 +33,31 @@ from django.views.static import serve
 # Frontend directory (tds_app/frontend/) — defined once in settings.py as
 # FRONTEND_DIR and reused here so this file doesn't hardcode a path.
 FRONTEND_DIR = settings.FRONTEND_DIR
+
+
+def api_404_handler(request, exception=None):
+    """
+    Root handler404 (wired below). Covers BOTH cases Django treats as a 404:
+    a URL nothing matched at all, and a view that explicitly raised Http404
+    (e.g. the catch-all `serve` view below, when a request under /api/ falls
+    through every apps.api.urls pattern and is then looked up as a literal
+    file under frontend/ and not found there either — see the module
+    docstring's URL structure note). Neither case reaches DRF's
+    apps.api.exceptions.custom_exception_handler, because that only wraps
+    DRF views, not Django's URL resolver or its plain `serve` view — so
+    without this, a request for a renamed/removed API endpoint gets Django's
+    generic HTML 404 page instead of a JSON body, and the frontend's
+    apiFetch() (which expects JSON) falls back to a bare "HTTP 404" with no
+    real explanation (see the batch-download 404 incident this was added
+    for: a stale browser tab kept calling a retired endpoint after a deploy
+    swapped it out from under it).
+    """
+    if request.path.startswith('/api/'):
+        return JsonResponse(
+            {'detail': 'This endpoint is no longer available. Please refresh the page (Ctrl+Shift+R) and try again.'},
+            status=404,
+        )
+    return page_not_found(request, exception)
 
 
 urlpatterns = [
@@ -59,3 +86,8 @@ urlpatterns = [
     # frontend build/host step.
     re_path(r'^(?P<path>.+)$', serve, {'document_root': str(FRONTEND_DIR)}),
 ]
+
+# See api_404_handler() above — only takes effect when DEBUG=False (Django's
+# runserver / dev mode always shows its own debug 404 page regardless of
+# this setting, which is fine: this is a production-traffic concern).
+handler404 = api_404_handler

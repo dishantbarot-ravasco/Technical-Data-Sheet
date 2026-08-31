@@ -77,3 +77,24 @@ class CustomExceptionHandlerTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn('AttributeError', response.data['detail'])
         self.assertIn('boom', response.data['detail'])
+
+
+@override_settings(DEBUG=False)
+class Api404HandlerTests(TestCase):
+    """
+    config/urls.py's handler404 (api_404_handler) — covers routes DRF's
+    custom_exception_handler never sees: a URL nothing matched at all (this
+    is what a retired/renamed API endpoint looks like to a stale client, per
+    the batch-download 404 incident this was added for).
+    """
+
+    def test_unmatched_api_route_returns_json_detail(self):
+        response = self.client.get('/api/tds/batch/1/download-zip/')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        self.assertIn('refresh', response.json()['detail'].lower())
+
+    def test_unmatched_non_api_route_still_gets_normal_404(self):
+        response = self.client.get('/this-page-does-not-exist.html')
+        self.assertEqual(response.status_code, 404)
+        self.assertNotEqual(response.get('Content-Type', ''), 'application/json')

@@ -34,6 +34,38 @@ skips the check entirely, so nothing about existing API behavior changes.
 """
 from django.middleware.csrf import CsrfViewMiddleware
 
+# File extensions that define app behavior/contracts (which endpoints the
+# frontend calls, how it parses responses, etc.) — see
+# frontend_cache_headers() below for why these specifically need to always
+# revalidate rather than sit on WhiteNoise's default max-age.
+_ALWAYS_REVALIDATE_EXTENSIONS = ('.html', '.js', '.mjs', '.css')
+
+
+def frontend_cache_headers(headers, path, url):
+    """
+    WHITENOISE_ADD_HEADERS_FUNCTION hook (see WHITENOISE_ROOT in settings.py).
+
+    WhiteNoise's default Cache-Control is `max-age=60, public` for every file
+    under frontend/ (there's no per-file hashing/immutable-file scheme here,
+    since this app has no frontend build step). A page load within that
+    60-second window reuses the browser's cached copy with no request to the
+    server at all — normally harmless, but for .html/.js/.css specifically
+    this is exactly what let a browser serve JS calling a since-retired API
+    endpoint after a deploy removed it (see the batch-download 404 incident:
+    apps/api/routers/batch_urls.py's `download-zip` route was replaced with
+    the async export-job flow, but generate-tds.js's cache-busting `?v=`
+    query string on the <script> tag wasn't bumped when that shipped, so nothing
+    forced a fresh fetch). Overriding Cache-Control to `no-cache` for these
+    extensions doesn't disable caching — it forces a conditional GET
+    (If-None-Match/If-Modified-Since) on every load, so a browser always
+    finds out within one request whether the server has something newer,
+    instead of trusting a stale copy for up to 60 seconds after every deploy.
+    Images/fonts/etc. keep the default max-age, since they don't define
+    behavior and rarely change.
+    """
+    if path.endswith(_ALWAYS_REVALIDATE_EXTENSIONS):
+        headers['Cache-Control'] = 'no-cache, public'
+
 
 class NoCacheMiddleware:
     def __init__(self, get_response):

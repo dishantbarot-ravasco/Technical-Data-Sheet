@@ -10,6 +10,8 @@ from datetime import timedelta
 import dj_database_url
 from dotenv import load_dotenv
 
+from config.middleware import frontend_cache_headers
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 # django_backend/config/settings.py
 #   BASE_DIR  = django_backend/
@@ -189,6 +191,11 @@ STATIC_URL     = '/django-static/'
 STATIC_ROOT    = BASE_DIR / 'staticfiles'          # target for collectstatic
 FRONTEND_DIR   = TDS_APP_DIR / 'frontend'
 WHITENOISE_ROOT = str(FRONTEND_DIR)               # serves frontend/ at root URL paths
+
+# Forces .html/.js/.css to always revalidate with the server instead of
+# trusting WhiteNoise's default 60s Cache-Control — see frontend_cache_headers()
+# in config/middleware.py for why (a real incident where this bit us).
+WHITENOISE_ADD_HEADERS_FUNCTION = frontend_cache_headers
 
 # ── Django REST Framework ──────────────────────────────────────────────────────
 REST_FRAMEWORK = {
