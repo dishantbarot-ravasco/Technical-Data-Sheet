@@ -608,7 +608,10 @@ async function loadCoverGrades(standardId) {
     const grades = await getCoverGrades(standardId);
     sel.innerHTML = '<option value="">- Select Cover Grade -</option>' +
       grades.map(g => `<option value="${g.id}">${g.grade_code}</option>`).join('');
-  } catch { sel.innerHTML = '<option value="">Failed to load</option>'; }
+  } catch (err) {
+    sel.innerHTML = '<option value="">Failed to load</option>';
+    showToast('Failed to load cover grades: ' + err.message, 'error');
+  }
   refreshSearchableDisplay('cover-grade-id');
 }
 
@@ -643,9 +646,10 @@ async function loadBeltRatings(fabricTypeId) {
       ratings.map(r => `<option value="${r.id}">${r.rating_name}</option>`).join('');
     styleSel.innerHTML = '<option value="">- None -</option>' +
       styles.map(s => `<option value="${s.id}">${s.style_name}</option>`).join('');
-  } catch {
+  } catch (err) {
     ratingSel.innerHTML = '<option value="">Failed to load</option>';
     styleSel.innerHTML  = '<option value="">Failed to load</option>';
+    showToast('Failed to load belt ratings/fabric styles: ' + err.message, 'error');
   }
   refreshSearchableDisplay('belt-rating-id');
   refreshSearchableDisplay('fabric-style-id');
@@ -781,8 +785,7 @@ function updateBeltDescription() {
   _setBeltDescMode(false);
 
   const w  = val('belt-width-mm')     || '';
-  const ft = selectedText('fabric-type-id');   // 'EP', 'NN', 'EE'
-  const br = selectedText('belt-rating-id');   // 'EP 1000/5'
+  const br = selectedText('belt-rating-id');   // 'EP 1000/5' - already carries the fabric code
   const tc = val('top-cover-mm')      || '';
   const bc = val('bottom-cover-mm')   || '';
   const cg = selectedText('cover-grade-id');   // 'H', 'M', etc.
@@ -796,7 +799,6 @@ function updateBeltDescription() {
     return;
   }
 
-  const ft_clean = (ft === '- Select Fabric Type -' || !ft) ? '' : ft;
   const cg_clean = (cg === 'Select standard first' || cg === '- Select Cover Grade -' || !cg) ? '' : cg;
   const ec_clean = ec || '';
 
@@ -805,10 +807,10 @@ function updateBeltDescription() {
   const btLabel = (bt && bt !== '- Select Belt Type -') ? bt : 'Flat Belt';
   const beltTypeStr = ct === 'Endless' ? `Endless ${btLabel}` : btLabel;
 
-  // Format: 1200mm X EP X EP 400/3 X 6.0mm X 3.0mm X H X Cut Edge X Flat Belt
+  // Format: 1200mm X EP 400/3 X 6.0mm X 3.0mm X H X Cut Edge X Flat Belt
+  // No separate fabric-code field: `br` (Belt Rating) already starts with it.
   const parts = [
     `${w}mm`,
-    ft_clean,
     br,
     `${tc}mm`,
     `${bc}mm`,
@@ -867,10 +869,13 @@ let _liveParseFabricType = null;
  * user who already knows that format for pasting many belts doesn't have to
  * learn a second one for a single belt:
  *
- *   width X fabric X rating X top X bottom X grade X edge X end X type X length
+ *   width X rating X top X bottom X grade X edge X end X type X length
  *     [X bot_plies X bob_plies [X carcass_mm]]
  *
- * Example: 1200 X EP X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300
+ * No separate fabric field: `rating` (e.g. "EP 400/3") already starts with
+ * the fabric code, so it's derived from rating's leading word instead.
+ *
+ * Example: 1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300
  *
  * Unlike the batch importer (which only parses once a full line is pasted),
  * this runs on every keystroke (see the 'input' listener in wireEvents) and
@@ -893,9 +898,12 @@ async function liveParseBeltDescription() {
   // splits a field in half.
   const tokens = raw.split(/\s+X\s+/i).map(t => t.trim());
   const [
-    width, fabric, rating, top, bottom, grade, edge, endType, beltType,
+    width, rating, top, bottom, grade, edge, endType, beltType,
     length, botPlies, bobPlies, carcassMm,
   ] = tokens;
+  // Fabric code is rating's leading word (e.g. "EP 400/3" → "EP") - rating_name
+  // always starts with it (see BeltRating.rating_name's DB format).
+  const fabric = rating ? rating.trim().split(/\s+/)[0] : '';
 
   const isNum = (s) => s != null && s !== '' && !isNaN(parseFloat(s));
 
@@ -1151,13 +1159,18 @@ function recalcWeight() {
     return;
   }
 
+  // Weight is a precise decimal figure, not rounded up to the nearest 0.5
+  // (that rounding is only for physical roll dimensions - see roundUpHalf's
+  // docstring). The per-metre chip and the total are both derived from the
+  // same unrounded netPm/grossPm so "Net Wt/m" × length always reconciles
+  // with the displayed total, and both match Packing & Logistics below.
   const netPm   = sg * total         * (width / 1000);
   const grossPm = sg * (total + 0.5) * (width / 1000);
 
-  const netPmD   = roundUpHalf(netPm).toFixed(2);
-  const grossPmD = roundUpHalf(grossPm).toFixed(2);
-  const netTotD   = length ? roundUpHalf(netPm   * length).toFixed(2) : '-';
-  const grossTotD = length ? roundUpHalf(grossPm * length).toFixed(2) : '-';
+  const netPmD   = netPm.toFixed(2);
+  const grossPmD = grossPm.toFixed(2);
+  const netTotD   = length ? (netPm   * length).toFixed(2) : '-';
+  const grossTotD = length ? (grossPm * length).toFixed(2) : '-';
 
   // Update lookup chip strip
   setText('cv-weight-pm',    netPmD);
@@ -1304,10 +1317,13 @@ function recalcPacking() {
   const rollH = roundUpHalf(D).toFixed(2);
   const rollW = roundUpHalf(reelWidthM).toFixed(2);
 
+  // Same precise-decimal weight (no round-up-to-0.5) as recalcWeight() above,
+  // so the Belt Specs and Packing & Logistics previews always show the same
+  // net/gross figures for the same belt.
   const netPm   = sg > 0 ? sg * totalThick         * (beltWidth / 1000) : 0;
   const grossPm = sg > 0 ? sg * (totalThick + 0.5) * (beltWidth / 1000) : 0;
-  const netWt   = netPm   > 0 ? roundUpHalf(netPm   * beltLength).toFixed(2) : null;
-  const grossWt = grossPm > 0 ? roundUpHalf(grossPm * beltLength).toFixed(2) : null;
+  const netWt   = netPm   > 0 ? (netPm   * beltLength).toFixed(2) : null;
+  const grossWt = grossPm > 0 ? (grossPm * beltLength).toFixed(2) : null;
 
   setText('pc-d',     rollH);
   setText('pc-rolls', numRolls);
@@ -2094,12 +2110,20 @@ function captureBeltSpec() {
     breaker_bottom_plies: +val('breaker-bottom-plies') || null,
     reel_type_id:         +val('reel-type-id')    || null,
     packing_type_id:      +val('packing-type-id') || null,
-    num_rolls:            +val('num-rolls-override')      || +val('num-rolls')        || null,
-    roll_dimensions:      val('roll-dimensions')          || null,
-    length_per_roll_m:    parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
+    // Packing fields (num_rolls, length_per_roll_m, net/gross weight): only sent when
+    // the user has explicitly typed into the "-override" inputs. The auto-computed
+    // display fields (num-rolls, net-weight-kg, ...) are a live client-side PREVIEW
+    // only and are deliberately NOT sent here - the backend always recomputes these
+    // authoritatively server-side (packing_service.compute_packing()) unless an
+    // explicit override is present, so Belt Specs and Packing & Logistics stay in
+    // sync instead of silently trusting whatever the browser's preview happened to
+    // compute.
+    num_rolls:            +val('num-rolls-override') || null,
+    roll_dimensions:      null,
+    length_per_roll_m:    parseFloat(val('length-per-roll-override')) || null,
     roll_lengths_m:       _customRollLengthsOrNull(),
-    net_weight_kg:        parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
-    gross_weight_kg:      parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
+    net_weight_kg:        parseFloat(val('net-weight-kg-override'))   || null,
+    gross_weight_kg:      parseFloat(val('gross-weight-kg-override')) || null,
     splicing_required:    splicingOn,
     vulcanization_method: splicingOn ? (val('vulcanization-method') || 'Hot') : null,
     num_joints:           splicingOn ? (+val('num-joints') || null) : null,
@@ -2782,19 +2806,20 @@ async function submitTDS(mode = 'preview') {
       breaker_bottom:       document.getElementById('breaker-bottom')?.checked || false,
       breaker_bottom_plies: +val('breaker-bottom-plies') || null,
 
-      // Packing - reel/packing type for reference; computed values sent directly
-      // so the server stores them regardless of whether packing_type_id is chosen.
-      // (If num_rolls is supplied the server skips its own compute_packing() call.)
-      // Override fields (-override suffix) take priority over the auto-computed
-      // readonly fields when the user has manually adjusted them.
+      // Packing - reel/packing type for reference. num_rolls/length_per_roll_m/net &
+      // gross weight are ONLY sent when the user has explicitly typed into the
+      // "-override" inputs; otherwise they're left null so the server always runs
+      // its own authoritative compute_packing() rather than trusting whatever this
+      // page's live preview happened to compute (that mismatch was the root cause
+      // of Belt Specs vs. Packing & Logistics showing different weights).
       reel_type_id:       +val('reel-type-id')    || null,
       packing_type_id:    +val('packing-type-id') || null,
-      num_rolls:          +val('num-rolls-override')      || +val('num-rolls')        || null,
-      roll_dimensions:    val('roll-dimensions')          || null,
-      length_per_roll_m:  parseFloat(val('length-per-roll-override')) || parseFloat(val('length-per-roll')) || null,
+      num_rolls:          +val('num-rolls-override') || null,
+      roll_dimensions:    null,
+      length_per_roll_m:  parseFloat(val('length-per-roll-override')) || null,
       roll_lengths_m:     _customRollLengthsOrNull(),
-      net_weight_kg:      parseFloat(val('net-weight-kg-override'))   || parseFloat(val('net-weight-kg'))   || null,
-      gross_weight_kg:    parseFloat(val('gross-weight-kg-override')) || parseFloat(val('gross-weight-kg')) || null,
+      net_weight_kg:      parseFloat(val('net-weight-kg-override'))   || null,
+      gross_weight_kg:    parseFloat(val('gross-weight-kg-override')) || null,
 
       // Splicing - server computes step/splice length from the belt rating
       splicing_required:    splicingOn,

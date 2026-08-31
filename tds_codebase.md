@@ -3,7 +3,8 @@ tds-app-codebase-knowledge-map.md
 
 # TDS App — Full Codebase Knowledge Map
  
-*Last updated: 2026-08-24. All files read including pdf_renderer.py, packing_service.py, splicing_service.py, exceptions.py, all management commands, and all three standalone frontend calculators.*
+*Last updated: 2026-08-31. All files read including pdf_renderer.py, packing_service.py, splicing_service.py, exceptions.py, all management commands, and all three standalone frontend calculators.*
+*2026-08-31 pass: removed the fabric-code field from belt description assembly/parsing, switched net/gross weight to precise `round(x, 2)` (was round-up-to-0.5), made packing override fields all-or-nothing on the frontend, and reworked `exceptions.py`'s handler to describe more exception types instead of a blanket 500 — see the relevant sections below for specifics.*
  
 ---
  
@@ -345,10 +346,10 @@ Response: `{"status": "ok"|"degraded", "service": "...", "django": "<version>", 
 5. If `D ≤ max_D`: `num_rolls = base_rolls`; `L_per_roll = belt_length / base_rolls`
 6. `roll_height_m = _round_up_half(D)`; `roll_width_m = _round_up_half((belt_width_mm + 100) / 1000)`
 7. `roll_dimensions = f"H: {roll_height_m:.2f} m × W: {roll_width_m:.2f} m"`
-8. `net_weight_kg = _round_up_half(belt_weight_per_m_kg × belt_length_m)`
-9. Gross: `gross_per_m = belt_weight_per_m_kg × (total_thickness_mm + 0.5) / total_thickness_mm`; `gross_weight_kg = _round_up_half(gross_per_m × belt_length_m)`
-10. `gross_weight_per_roll_kg = _round_up_half(gross_weight_kg / num_rolls)` (None if num_rolls=0)
-**Note**: The gross formula scales existing net/m by `(T+0.5)/T` rather than re-multiplying by SG. Equivalent but avoids needing SG as a parameter.
+8. `net_weight_kg = round(belt_weight_per_m_kg × belt_length_m, 2)` — precise decimal, NOT `_round_up_half` (changed 2026-08-31; round-up-to-0.5 made this disagree with Belt Specs' per-metre weight × length)
+9. Gross: `gross_per_m = belt_weight_per_m_kg × (total_thickness_mm + 0.5) / total_thickness_mm`; `gross_weight_kg = round(gross_per_m × belt_length_m, 2)`
+10. `gross_weight_per_roll_kg = round(gross_weight_kg / num_rolls, 2)` (None if num_rolls=0)
+**Note**: The gross formula scales existing net/m by `(T+0.5)/T` rather than re-multiplying by SG. Equivalent but avoids needing SG as a parameter. `_round_up_half` itself is unchanged and still used for roll dimensions (step 6) — only weight switched to precise rounding.
  
 ### splicing_service.py — `compute_splicing()`
  
@@ -366,8 +367,11 @@ Response: `{"status": "ok"|"degraded", "service": "...", "django": "<version>", 
 6. Returns `SplicingResult(step_length_mm=step, splice_length_mm=splice_len, total_extra_length_m=total_extra)`
 ### exceptions.py — Custom DRF Exception Handler
  
-Wired via `REST_FRAMEWORK['EXCEPTION_HANDLER']`. Two cases:
-- **Unhandled exceptions** (response is None): logs full traceback with `logging.exception()`, returns `{'detail': 'An unexpected server error occurred.'}` with HTTP 500
+Wired via `REST_FRAMEWORK['EXCEPTION_HANDLER']`. Two cases (revised 2026-08-31):
+- **Unhandled exceptions** (response is None): logs full traceback with `logging.exception()` either way, then branches by type instead of always returning a generic 500:
+  - `_DESCRIBABLE_EXCEPTIONS = (ValueError, KeyError, DjangoValidationError, ObjectDoesNotExist)` → `{'detail': str(exc)}` with HTTP 400 (audited as always safe to show a client)
+  - `django.db.utils.IntegrityError` → `_describe_integrity_error()` inspects the DB driver's `diag` (constraint name / message detail) to return "already exists" / "referenced record no longer exists" / "required field was left empty" / generic constraint-violation text, HTTP 400
+  - Anything else (e.g. `AttributeError`, `TypeError` — likely real bugs) → generic `{'detail': 'An unexpected server error occurred.'}` HTTP 500, with `(ExcType: message)` appended when `settings.DEBUG` is on
 - **Validation errors**: if `response.data` is a bare dict (not already `{'detail': ...}`), wraps it as `{'detail': response.data}` so frontend always sees a consistent error shape
 ### pdf_renderer.py
  
@@ -412,6 +416,7 @@ Key computed fields in the doc:
 - Elastic Modulus rounded to 2dp
 - Hot splice curing: `HotSpliceCuringLookup.filter(thickness_mm__gte=...).first()` — uses highest tier if all below
 - `_DIRECT_MAP`: dict of parameter_name → lambda(tds) for non-EAV parameters (dimensional, construction, packing, etc.)
+- `"Breaker on Top | Number of Plies"` / `"Breaker on Bottom | Number of Plies"` rows are dropped entirely (not printed as "No") when `tds.breaker_top`/`tds.breaker_bottom` is falsy — added 2026-08-31, mirrors the existing Splicing Parameters group-level skip but at the single-parameter level
 ### otp_service.py
  
 - TTL: 10 minutes; Max attempts: 5
@@ -511,11 +516,10 @@ cover grade + belt rating → tdsLookup() → EAV data (plies, carcass, skim, sg
                                         → recalcTotal() → recalcWeight() → recalcPacking()
 ```
  
-**Belt description auto-assembly**: `{width} × {fabric} × {rating} × {top} × {bottom} × {grade} × {edge} × {construction type} {belt type} [× BOT-N X BOB-M]`
+**Belt description auto-assembly**: `{width} × {rating} × {top} × {bottom} × {grade} × {edge} × {construction type} {belt type} [× BOT-N X BOB-M]` — no separate `{fabric}` field as of 2026-08-31; `rating` (e.g. "EP 400/3") already starts with the fabric code, so a standalone fabric field duplicated it ("EP X EP 1000/5"). Paste-format field count dropped from 10–13 to 9–12; a fabric code needed elsewhere is derived as `rating.split(/\s+/)[0]`.
  
 **Weight formulas** (client-side mirror of backend):
-- Net/m: `SG × T × (W/1000)` rounded up to nearest 0.5
-- Gross/m: `SG × (T+0.5) × (W/1000)` rounded up to nearest 0.5
+- Net/m and Gross/m: `SG × T × (W/1000)` and `SG × (T+0.5) × (W/1000)` — shown as exact `.toFixed(2)`, NOT rounded up to nearest 0.5 (changed 2026-08-31, matches `packing_service.py`'s `round(x, 2)`)
 **Packing preview**: mirrors `packing_service.py`; handles circular/twin/elliptical reel formulas; back-calculates `num_rolls` when `D > maxD`; twin reels always multiples of 2; international: caps by container height + weight limits from live DB fetch
  
 **Splicing preview**: mirrors backend IS 14206 formula exactly; uses `Math.round()` (not roundUpHalf), matching Python's `round()` for splice_length_mm and total_extra_length_m

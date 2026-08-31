@@ -101,7 +101,15 @@ async function apiFetch(path, options = {}, _retried = false) {
     let msg = `HTTP ${res.status}`;
     try {
       const body = await res.json();
-      msg = body.detail || JSON.stringify(body);
+      if (body.detail && typeof body.detail === 'object') {
+        // Serializer-validation shape: { detail: { field: [msg, ...], ... } }
+        // Flatten into readable text instead of a raw JSON blob in the toast.
+        msg = Object.entries(body.detail)
+          .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(' ') : errs}`)
+          .join('; ');
+      } else {
+        msg = body.detail || JSON.stringify(body);
+      }
     } catch (_) {}
     throw new Error(msg);
   }
@@ -572,7 +580,10 @@ export function getPdfUrl(id, opts = {}) {
 export async function downloadPdf(id, tdsNumber, opts = {}) {
   // Use raw fetch (not apiFetch) because we need the raw binary Blob, not JSON
   const res = await fetch(getPdfUrl(id, opts), { headers: getAuthHeaders() });
-  if (!res.ok) throw new Error(`PDF export failed: HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `PDF export failed: HTTP ${res.status}`);
+  }
 
   // Convert the response stream to a binary Blob (application/pdf)
   const blob = await res.blob();

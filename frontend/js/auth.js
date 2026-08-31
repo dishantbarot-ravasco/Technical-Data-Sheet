@@ -833,3 +833,15 @@ if (document.readyState === 'loading') {
 } else {
   _initMobileNav();
 }
+
+/* ══════════════════════════════════════════════════════════
+   SECTION: Global unhandled-rejection safety net
+   auth.js loads first on every authenticated page, so this catches any
+   promise (typically an apiFetch() call) that rejects without ever reaching
+   a try/catch — a backstop for silent failures, not a replacement for the
+   try/catch + showToast pattern used everywhere else in the app.
+══════════════════════════════════════════════════════════ */
+window.addEventListener('unhandledrejection', (event) => {
+  const message = event.reason?.message || String(event.reason || 'Unknown error');
+  showToast('Unexpected error: ' + message, 'error', 6000);
+});

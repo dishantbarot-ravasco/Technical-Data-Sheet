@@ -113,6 +113,65 @@ pattern recurs across `admin.html`, `generate-tds.html`, `search-tds.html`, `hom
 calculator pages, so check both directions (color-as-text and text-on-that-background) when
 touching gold-family styling anywhere.
 
+**Belt description format has no separate fabric-code field** — `_belt_description()`
+(`apps/api/routers/batch_views.py`) and the frontend's `updateBeltDescription()` /
+`liveParseBeltDescription()` (`frontend/js/generate-tds.js`) no longer take a `fabric_code`
+argument. `BeltRating.rating_name` already starts with the fabric code (e.g. `"EP 1000/5"`), so
+including both used to render as a duplicated `"EP X EP 1000/5"`. The belt-line paste format
+(single-belt box, Multiple Belts box, and the `text_import_batch` endpoint) dropped from 10–13
+fields to 9–12 accordingly — width X rating X top X bottom X grade X edge X end X type X length
+[X bot_plies X bob_plies [X carcass_mm]]. When parsing a fabric code out of that format, derive
+it from the rating's leading word (`rating.split(/\s+/)[0]`) rather than expecting its own field.
+
+**Net/gross weight is a precise decimal, not rounded up to the nearest 0.5** —
+`packing_service.compute_packing()`'s `net_weight_kg`/`gross_weight_kg`/
+`gross_weight_per_roll_kg`, and the matching client-side previews in `recalcWeight()` /
+`recalcPacking()` (`frontend/js/generate-tds.js`), now use plain `round(x, 2)` instead of
+`_round_up_half()`. `_round_up_half()` is still correct and still used for physical roll
+dimensions (reel height/width/length per roll) — it's specifically weight that changed, because
+rounding weight up to 0.5 kg increments made the Belt Specs panel's per-metre weight × length
+not reconcile with the displayed total, and made Belt Specs disagree with Packing & Logistics for
+the same belt. Any new weight calculation should default to precise rounding unless it's a
+physical roll dimension.
+
+**Packing override fields are all-or-nothing on the frontend, not fallback-to-preview** —
+`captureBeltSpec()` and `submitTDS()` in `frontend/js/generate-tds.js` only send
+`num_rolls` / `length_per_roll_m` / `net_weight_kg` / `gross_weight_kg` when the user explicitly
+typed into the corresponding `-override` input; they no longer fall back to the readonly
+auto-computed display field's value. `roll_dimensions` is now always sent as `null` from the
+frontend. This means the server's own `compute_packing()` is authoritative whenever no override
+is present, rather than silently trusting a client-side preview value that could drift from the
+server's own math (this was the root cause of the Belt Specs vs. Packing & Logistics mismatch
+above).
+
+**Global error-handling pass (backend + frontend)**:
+- `apps/api/exceptions.py`'s `custom_exception_handler` now describes more exception types
+  instead of collapsing everything DRF doesn't recognize into a generic 500. `ValueError` /
+  `KeyError` / Django's `ValidationError` / `ObjectDoesNotExist` are treated as deliberate
+  application-level errors and returned as `400` with `str(exc)` as the detail (this list —
+  `_DESCRIBABLE_EXCEPTIONS` — is meant to only contain exception types whose message is always
+  safe to show a client; audit any new addition for that before including it).
+  `django.db.utils.IntegrityError` gets a dedicated `_describe_integrity_error()` that inspects
+  the DB driver's `diag` info to say "already exists" / "referenced record no longer exists" /
+  "required field was left empty" without leaking raw SQL. Everything else (e.g. `AttributeError`,
+  `TypeError` — likely real bugs) still returns a generic 500, except in `DEBUG` mode where the
+  exception type/message is appended for local debugging.
+- `frontend/js/api.js`'s `apiFetch()` now flattens DRF's serializer-validation error shape
+  (`{detail: {field: [msg, ...]}}`) into readable `"field: msg"` text instead of showing a raw
+  JSON blob in the toast. `downloadPdf()` now reads the JSON error body on a failed PDF request
+  instead of only reporting the HTTP status.
+- `frontend/js/auth.js` (loaded first on every authenticated page) now has a global
+  `window.addEventListener('unhandledrejection', ...)` that shows a toast for any promise
+  rejection that never reached a try/catch — a backstop, not a replacement for the existing
+  try/catch + `showToast` pattern used throughout the app.
+
+**PDF breaker rows are omitted entirely when not selected, not printed as "No"** —
+`build_tds_doc_data()` in `apps/services/pdf_service.py` now skips the
+`"Breaker on Top | Number of Plies"` / `"Breaker on Bottom | Number of Plies"` GI rows outright
+when `tds.breaker_top`/`tds.breaker_bottom` is falsy, mirroring the existing group-level skip for
+Splicing Parameters (when splicing isn't required) but at the single-parameter level, since these
+two rows live inside Belt Construction Parameters alongside other always-shown fields.
+
 ## Known future work / deferred proposals (v2 candidates)
 
 These were discussed across past sessions but deliberately not built yet — either genuinely

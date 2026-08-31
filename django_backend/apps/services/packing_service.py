@@ -162,18 +162,22 @@ def compute_packing(
     roll_dimensions = f"H: {roll_height_m:.2f} m × W: {roll_width_m:.2f} m"
 
     # ── Total Order Net Weight ────────────────────────────────────────────────
-    net_weight_kg = _round_up_half(belt_weight_per_m_kg * belt_length_m)
+    # Kept as a precise decimal (not rounded up to the nearest 0.5) so this
+    # figure reconciles exactly with Belt Specs' per-metre weight × length -
+    # _round_up_half is for physical roll dimensions (reel height/width/length
+    # per roll), not for weight, which should read as an exact computed value.
+    net_weight_kg = round(belt_weight_per_m_kg * belt_length_m, 2)
 
     # ── Total Order Gross Weight ──────────────────────────────────────────────
     if total_thickness_mm > 0:
         gross_per_m = belt_weight_per_m_kg * (total_thickness_mm + 0.5) / total_thickness_mm
     else:
         gross_per_m = belt_weight_per_m_kg
-    gross_weight_kg = _round_up_half(gross_per_m * belt_length_m)
+    gross_weight_kg = round(gross_per_m * belt_length_m, 2)
 
     # ── Gross Weight per Roll ─────────────────────────────────────────────────
     gross_weight_per_roll_kg = (
-        _round_up_half(gross_weight_kg / num_rolls) if num_rolls > 0 else None
+        round(gross_weight_kg / num_rolls, 2) if num_rolls > 0 else None
     )
 
     return PackingResult(

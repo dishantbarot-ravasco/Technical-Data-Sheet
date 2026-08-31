@@ -577,6 +577,15 @@ def build_tds_doc_data(
                 continue
             if vc == "hot_splice_only" and (tds.vulcanization_method or "").lower() != "hot":
                 continue
+            # Breaker rows are meaningless noise on the PDF when that breaker
+            # wasn't selected for this belt - drop the row entirely instead of
+            # printing "No" (mirrors the Splicing Parameters group skip above,
+            # just at the single-parameter level since these two live inside
+            # Belt Construction Parameters alongside always-shown fields).
+            if param.parameter_name == "Breaker on Top | Number of Plies" and not tds.breaker_top:
+                continue
+            if param.parameter_name == "Breaker on Bottom | Number of Plies" and not tds.breaker_bottom:
+                continue
 
             stm = stm_map.get(param.parameter_id)
             section     = stm.section                                  if (stm and show_section)      else None

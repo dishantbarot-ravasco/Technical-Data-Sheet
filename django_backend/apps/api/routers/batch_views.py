@@ -137,7 +137,7 @@ def _fetch_carcass_eav(belt_rating_id: int):
     return carcass, interply
 
 
-def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge,
+def _belt_description(width, rating_name, top, bottom, grade_code, edge,
                        belt_type_name, construction_type='Open-End'):
     """
     Canonical belt description shown on the TDS PDF header.
@@ -145,6 +145,10 @@ def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, 
     Both cover thicknesses carry an explicit 'mm' suffix (top used to be a
     bare number, e.g. "...X 6.0 X 3.0mm X..." - inconsistent with every other
     dimension in the string, which always states its unit).
+
+    No separate fabric-code field: rating_name already starts with it (e.g.
+    'EP 1000/5' - see BeltRating.rating_name's format), so including both
+    used to render as a duplicated "EP X EP 1000/5".
 
     End type mirrors the single-belt form's updateBeltDescription() in
     js/generate-tds.js: Open-End belts show just the belt type name, Endless
@@ -154,7 +158,7 @@ def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, 
     """
     belt_type_label = f"Endless {belt_type_name}" if construction_type == 'Endless' else belt_type_name
     return (
-        f"{width}mm X {fabric_code} X {rating_name} X "
+        f"{width}mm X {rating_name} X "
         f"{top}mm X {bottom}mm X {grade_code} X {edge} X {belt_type_label}"
     )
 
@@ -406,7 +410,6 @@ def create_batch(request):
         for b in belts:
             rating      = _rating_cache[b['belt_rating_id']]
             cover_grade = _cover_grade_cache[b['cover_grade_id']]
-            fabric_type = _fabric_type_cache[b['fabric_type_id']]
             belt_type   = _belt_type_cache[b['belt_type_id']]
 
             # Parse kN and plies from rating name (e.g. "EP 315/3" → 315, 3)
@@ -443,7 +446,6 @@ def create_batch(request):
             # Belt description string
             description = _belt_description(
                 width              = b['belt_width_mm'],
-                fabric_code        = fabric_type.fabric_code,
                 rating_name        = rating.rating_name,
                 top                = top_cover_mm,
                 bottom             = bottom_cover_mm,
@@ -976,7 +978,6 @@ def text_import_batch(request):
         for b in resolved_belts:
             rating      = BeltRating.objects.get(pk=b['belt_rating_id'])
             cover_grade = CoverGrade.objects.get(pk=b['cover_grade_id'])
-            fabric_type = FabricType.objects.get(pk=b['fabric_type_id'])
             belt_type   = BeltType.objects.get(pk=b['belt_type_id'])
 
             kn, plies = _parse_rating(rating.rating_name)
@@ -1007,7 +1008,6 @@ def text_import_batch(request):
 
             description = _belt_description(
                 width              = b['belt_width_mm'],
-                fabric_code        = fabric_type.fabric_code,
                 rating_name        = rating.rating_name,
                 top                = top_cover_mm,
                 bottom             = bottom_cover_mm,
