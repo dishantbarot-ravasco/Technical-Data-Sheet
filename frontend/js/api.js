@@ -580,10 +580,19 @@ export async function downloadPdf(id, tdsNumber, opts = {}) {
   // Create a temporary in-memory URL the browser can open/download
   const url  = URL.createObjectURL(blob);
 
+  // Filename comes from the server's Content-Disposition (pdf_views.py::
+  // generate_pdf) rather than being rebuilt here - it carries the record's
+  // current revision number (e.g. "TDS-0016_rev_01.pdf"), which this
+  // function has no way to know on its own. Falls back to the old plain
+  // "TDS-<number>.pdf" only if the header is somehow missing.
+  const cd = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^";]+)"?/i.exec(cd);
+  const filename = match ? match[1] : `TDS-${tdsNumber}.pdf`;
+
   // Build an invisible <a> link, click it to trigger the Save dialog, then clean up
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `TDS-${tdsNumber}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

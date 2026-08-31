@@ -167,15 +167,19 @@ class BatchExportJobRunTests(TransactionTestCase):
         self.assertGreater(len(dl.content), 0)
 
     def test_zip_export_names_tds_file_like_single_download(self):
-        # Same "TDS-<number>_rev_<NN>" convention as the single-belt download
-        # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf".
+        # Same "TDS-<number>" ordering as the single-belt download
+        # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf"
+        # (number first). No revision suffix here (unlike the single
+        # download) — batch exports aren't reached via Search TDS's
+        # edit-then-download flow.
         job_id, result = self._run_export('zip', {'copy': 'internal'})
         self.assertEqual(result['status'], 'done', result)
         dl = self.client.get(f'/api/tds/batch/export/{job_id}/download/')
         names = zipfile.ZipFile(io.BytesIO(dl.content)).namelist()
         tds_names = [n for n in names if n.startswith('TDS-') and n.endswith('.pdf')]
         self.assertEqual(len(tds_names), 1, names)
-        self.assertRegex(tds_names[0], r'^TDS-\S+_rev_00\.pdf$')
+        self.assertRegex(tds_names[0], r'^TDS-\S+\.pdf$')
+        self.assertNotIn('_rev_', tds_names[0])
 
     def test_merged_zip_export_completes_and_downloads(self):
         job_id, result = self._run_export('merged_zip', {'copy': 'internal'})

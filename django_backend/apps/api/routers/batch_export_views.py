@@ -134,10 +134,12 @@ def _build_zip_export(batch_id, params, on_progress=None):
             try:
                 tds_bytes = render_tds_pdf_bytes(r.tds_id, exclude_groups=exclude_groups)
                 safe_doc  = _SAFE.sub('-', r.tds_doc_number or '')
-                # Same "TDS-<number>_rev_<NN>" convention as the single-belt
-                # download (pdf_views.py::generate_pdf) — was previously
-                # "<number>_TDS.pdf" (number first), inconsistent with it.
-                tds_name  = f"TDS-{r.tds_number}_rev_{r.current_revision:02d}{'_' + safe_doc if safe_doc else ''}.pdf"
+                # Same "TDS-<number>" ordering as the single-belt download
+                # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf"
+                # (number first), inconsistent with it. No revision suffix here
+                # (unlike the single download) — batch exports aren't reached
+                # via Search TDS's edit-then-download flow.
+                tds_name  = f"TDS-{r.tds_number}{'_' + safe_doc if safe_doc else ''}.pdf"
                 zf.writestr(tds_name, tds_bytes)
                 written += 1
                 try:
