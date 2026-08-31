@@ -394,9 +394,20 @@ async function prefillFormFromRecord(record) {
   // Belt description: only restore the stored text if it differs from what
   // auto-assembly would now produce - belt-description is user-editable, so
   // a manually-customised description should survive re-editing the record.
+  //
+  // Comparison is normalized (see _normalizeBeltDescForCompare) rather than a
+  // raw string match: the API round-trips top_cover_mm/bottom_cover_mm/etc.
+  // through JSON as floats, so a value originally typed as "6.0" (giving a
+  // stored description like "...X 6.0mm...") comes back as JS number 6 and
+  // regenerates as "...X 6mm...". A raw compare treated that formatting
+  // drift as "the user customised this", which permanently stopped
+  // updateBeltDescription() from live-updating the field for the rest of
+  // the edit session (see beltDescDirty) - so changing belt width/covers/etc.
+  // afterward silently had no effect on the saved description at all.
   beltDescDirty = false;
   updateBeltDescription();
-  if (record.belt_description && val('belt-description') !== record.belt_description) {
+  if (record.belt_description
+      && _normalizeBeltDescForCompare(val('belt-description')) !== _normalizeBeltDescForCompare(record.belt_description)) {
     beltDescDirty = true;
     _setBeltDescMode(true);
     set('belt-description', record.belt_description);
@@ -740,6 +751,19 @@ function _setBeltDescMode(isManual) {
     hint.textContent = 'Auto-fills live · type here to enter your own — same format as the Multiple Belts paste box, and the rest of the form fills in live as you type';
     hint.style.color = '';
   }
+}
+
+/**
+ * Collapses "6mm" / "6.0mm" / "6.00mm" (any bare-number-plus-"mm" token) down
+ * to one canonical form, so two belt descriptions that differ only in
+ * decimal formatting compare as equal. See the edit-load belt-description
+ * restore logic above for why this matters: a value stored as "...X 6.0mm..."
+ * (typed at creation) round-trips through the API as a JSON float and
+ * regenerates as "...X 6mm...", which a raw string compare would otherwise
+ * treat as a genuine manual customisation.
+ */
+function _normalizeBeltDescForCompare(s) {
+  return (s || '').replace(/(\d+(?:\.\d+)?)mm\b/g, (_, num) => `${parseFloat(num)}mm`);
 }
 
 /**
