@@ -377,10 +377,20 @@
 
 
   <script type="module">
-    import { requireAuth, populateNavUser, getAuthHeaders } from './js/auth.js';
+    import { requireAuth, populateNavUser, getAuthHeaders, showToast } from './js/auth.js';
 
     const session = await requireAuth();
     if (session) populateNavUser();
+
+    // ── Finish + redirect ─────────────────────────────────────────
+    // Same "done, take the user back to the dashboard" behaviour as the
+    // single-belt flow's finishAndGoHome() in tds-preview.html - previously
+    // only wired up there, so completing a batch download/print left the
+    // user stranded on this page instead.
+    function finishAndGoHome(msg, delay = 3000) {
+      showToast(msg + ' Redirecting to dashboard…', 'success', delay);
+      setTimeout(() => { window.location.href = 'home.html'; }, delay);
+    }
 
     /* ── Helpers ──────────────────────────────────────────── */
     // getAuthHeaders() (js/auth.js) is the single source of truth for how
@@ -791,6 +801,7 @@
             URL.revokeObjectURL(url);
             /* Auto-download the splicing manual alongside the ZIP */
             if (splicingRequired) _downloadSplicingManual();
+            finishAndGoHome('Batch ZIP downloaded.', 5000);
           } catch (e) {
             alert('Download error: ' + e.message);
           } finally {
@@ -819,6 +830,7 @@
           const { blob } = await runBatchExportJob(batchId, 'print_all', {}, btn);
           const blobUrl = URL.createObjectURL(blob);
           win.location.href = blobUrl + '#toolbar=1';
+          finishAndGoHome('Batch PDF opened for printing.', 3000);
         } catch (e) {
           win.close();
           alert('Print All error: ' + e.message);
@@ -857,6 +869,7 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            finishAndGoHome('Merged PDF downloaded.', 5000);
           } catch (e) {
             alert('Download error: ' + e.message);
           } finally {
@@ -903,6 +916,11 @@
               console.error('Print All (separate): tds_id=' + tdsId + ' failed: ' + err.message);
             });
         });
+
+        // Tabs load their PDFs independently in the background above - no
+        // single completion point to wait on, so redirect right after they've
+        // all been opened (same as the merged/separate print flows).
+        finishAndGoHome(rows.length + ' belt PDF(s) opened for printing.', 3000);
       });
     }
   </script>
