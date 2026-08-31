@@ -9,7 +9,9 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.test import TestCase
 
-from apps.core.models import TDSInput
+from django.utils import timezone
+
+from apps.core.models import TDSInput, TDSRevision
 from apps.api.tests import factories
 from apps.api.tests.factories import make_user, make_tds_lookup_set
 
@@ -173,3 +175,50 @@ class PackingRecomputeWritePathTests(TestCase):
     def test_missing_ids_returns_400(self):
         response = self.client.patch(self._recompute_url(), {}, format='json')
         self.assertEqual(response.status_code, 400)
+
+
+class UpdateTdsRevisionGatingTests(TestCase):
+    """
+    PATCH /api/tds/{id} should only snapshot a TDSRevision once the record has
+    actually been downloaded (first_downloaded_at is set) — edits made while
+    still previewing a brand-new record shouldn't clutter revision history.
+    """
+    def setUp(self):
+        self.lookups = make_tds_lookup_set()
+        self.creator = make_user(email='creator3@ravasco.com', role='tds_creator')
+        self.client = auth_client(self.creator)
+
+        create_response = self.client.post(TDS_CREATE_URL, self.lookups['payload'], format='json')
+        assert create_response.status_code == 201, create_response.data
+        self.tds_id = create_response.data['tds_id']
+
+    def _update_url(self):
+        return f'/api/tds/{self.tds_id}'
+
+    def _changed_payload(self):
+        payload = dict(self.lookups['payload'])
+        payload['belt_width_mm'] = int(payload['belt_width_mm']) + 100
+        return payload
+
+    def test_edit_before_first_download_creates_no_revision(self):
+        record = TDSInput.objects.get(pk=self.tds_id)
+        self.assertIsNone(record.first_downloaded_at)
+
+        response = self.client.patch(self._update_url(), self._changed_payload(), format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        record.refresh_from_db()
+        self.assertEqual(record.current_revision, 0)
+        self.assertFalse(TDSRevision.objects.filter(tds_id=self.tds_id).exists())
+
+    def test_edit_after_first_download_creates_a_revision(self):
+        record = TDSInput.objects.get(pk=self.tds_id)
+        record.first_downloaded_at = timezone.now()
+        record.save(update_fields=['first_downloaded_at'])
+
+        response = self.client.patch(self._update_url(), self._changed_payload(), format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        record.refresh_from_db()
+        self.assertEqual(record.current_revision, 1)
+        self.assertTrue(TDSRevision.objects.filter(tds_id=self.tds_id).exists())

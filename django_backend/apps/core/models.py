@@ -819,6 +819,15 @@ class TDSInput(models.Model):
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
+    # Set once, the first time a real PDF (single download or batch ZIP/merged)
+    # is actually served for this record — see generate_pdf() in pdf_views.py
+    # and download_export() in batch_export_views.py. Stays NULL while the
+    # user is still tweaking a brand-new record via preview: _update_tds()
+    # checks this to decide whether an edit is pre-issue churn (no revision
+    # snapshot needed) or a correction to an already-issued document (must be
+    # snapshotted as a TDSRevision).
+    first_downloaded_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         db_table = 'tds_inputs'
         managed  = True

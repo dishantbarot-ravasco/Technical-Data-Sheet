@@ -497,6 +497,12 @@ def download_export(request, job_id):
     if job.status != 'done':
         return Response({'detail': f"Export is still {job.status}."}, status=status.HTTP_409_CONFLICT)
 
+    # Same "first real download" bookkeeping as the single-TDS download in
+    # pdf_views.py::generate_pdf() — a batch export always covers every
+    # TDSInput in the batch, so mark them all at once.
+    TDSInput.objects.filter(batch_id=job.batch_id, first_downloaded_at__isnull=True) \
+        .update(first_downloaded_at=timezone.now())
+
     resp = HttpResponse(bytes(job.file_bytes), content_type=job.content_type or 'application/octet-stream')
     disposition = 'inline' if job.content_type == 'application/pdf' else 'attachment'
     resp['Content-Disposition'] = f'{disposition}; filename="{job.filename}"'

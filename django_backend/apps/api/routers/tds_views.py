@@ -755,7 +755,13 @@ def _update_tds(request, tds_id):
 
     # Version history: only snapshot a genuine change — a no-op save (nothing
     # in new_values actually differed) shouldn't create an empty revision.
-    if changed_fields:
+    # Also skip the snapshot entirely while the record has never been really
+    # downloaded (first_downloaded_at is NULL): these are pre-issue tweaks
+    # made while still previewing, not a correction to an issued document, so
+    # they'd just be revision-history noise. Once a real download happens
+    # (see generate_pdf()/download_export()), every subsequent edit snapshots
+    # as before, however long after — that's what makes it a "revision".
+    if changed_fields and record.first_downloaded_at is not None:
         TDSRevision.objects.create(
             tds=record, revision_number=record.current_revision,
             snapshot=old_snapshot, edited_by=request.user, change_summary=detail,

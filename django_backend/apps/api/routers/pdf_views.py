@@ -16,6 +16,7 @@ Endpoint:
 import logging
 
 from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -109,6 +110,12 @@ def generate_pdf(request, tds_id):
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     tds_record = TDSInput.objects.filter(pk=tds_id).first()
+    # First real download closes out the "still drafting, not yet issued" window —
+    # from here on, _update_tds() will snapshot edits into TDSRevision instead of
+    # applying them silently (see TDSInput.first_downloaded_at docstring).
+    if tds_record and tds_record.first_downloaded_at is None:
+        tds_record.first_downloaded_at = timezone.now()
+        tds_record.save(update_fields=['first_downloaded_at'])
     log_tds_action(request, TDSAuditLog.ACTION_DOWNLOAD, tds=tds_record, detail=fmt)
     return response
 
