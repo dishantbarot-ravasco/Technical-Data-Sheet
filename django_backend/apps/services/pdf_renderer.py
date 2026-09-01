@@ -70,7 +70,7 @@ def render_tds_html(
         notes=TDS_NOTES,
         indus_logo=_logo_data_uri("indus_logo.png"),
         tuv_logo=_logo_data_uri("tuv_logo.png"),
-        dash="—",
+        dash="-",
         exclude_groups=set(exclude_groups or []),
         exclude_gi_fields=set(exclude_gi_fields or []),
         show_test_method=show_test_method,

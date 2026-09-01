@@ -22,7 +22,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.services.pdf_service import build_tds_doc_data
+from apps.services.pdf_service import build_tds_doc_data, tds_filename_base
 from apps.services.pdf_renderer import render_tds_html, render_tds_pdf
 from apps.core.audit_log import log_tds_action, TDSAuditLog
 from apps.core.models import TDSInput
@@ -106,12 +106,24 @@ def generate_pdf(request, tds_id):
         error_html = "<html><body><h2>PDF generation failed</h2><p>Please try again or contact support.</p></body></html>"
         return HttpResponse(error_html, content_type='text/html; charset=utf-8', status=500)
 
-    tds_record = TDSInput.objects.filter(pk=tds_id).first()
-    # Filename always carries the revision number (00 for a never-edited
-    # record) so a re-download after an edit doesn't silently overwrite an
-    # earlier download of the same tds_number under an identical filename.
-    rev_num  = tds_record.current_revision if tds_record else 0
-    filename = f"TDS-{doc.tds_number}_rev_{rev_num:02d}.pdf"
+    tds_record = TDSInput.objects.filter(pk=tds_id).select_related('customer').first()
+    # Filename is the user-entered TDS Document Number (falls back to the
+    # customer name, then "TDS-<number>", if that wasn't given -- see
+    # tds_filename_base()'s docstring), plus a revision suffix so a
+    # re-download after an edit doesn't silently overwrite an earlier
+    # download of the same document under an identical filename.
+    #
+    # BUG FIX: this suffix used to be current_revision as-is (0 for a
+    # never-edited record, i.e. "_rev_00") -- current_revision counts EDITS
+    # made after the first real download, not "which revision is this", so a
+    # document nobody has ever edited displayed as revision zero instead of
+    # its actual first/original revision. +1 makes a never-edited record
+    # "_rev_01" (its one and only revision so far), matching
+    # revisions_views.py's generate_revision_pdf(), which applies the same
+    # +1 to TDSRevision.revision_number for the same reason.
+    display_rev = (tds_record.current_revision if tds_record else 0) + 1
+    base = tds_filename_base(tds_record) if tds_record else doc.tds_number
+    filename = f"{base}_rev_{display_rev:02d}.pdf"
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     # First real download closes out the "still drafting, not yet issued" window —

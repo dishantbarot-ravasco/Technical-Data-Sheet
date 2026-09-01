@@ -695,7 +695,7 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
     fabric_obj  = FabricType.objects.filter(fabric_code__iexact=fabric_text).first()
     if not fabric_obj:
         row_errors.append(
-            f"Fabric code '{fabric_text}' was not found in the system — "
+            f"Fabric code '{fabric_text}' was not found in the system; "
             f"please check the fabric code (e.g. EP, NN, Steel)"
         )
 
@@ -709,7 +709,7 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
         ).first()
         if not rating_obj:
             row_errors.append(
-                f"Belt rating '{rating_text}' was not found for fabric '{fabric_text}' — "
+                f"Belt rating '{rating_text}' was not found for fabric '{fabric_text}'; "
                 f"verify the rating name (e.g. EP 315/3, EP 400/3, EP 630/4)"
             )
 
@@ -723,7 +723,7 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
         ).first()
     if not grade_obj:
         row_errors.append(
-            f"Cover grade '{grade_text}' was not found in the selected standard — "
+            f"Cover grade '{grade_text}' was not found in the selected standard; "
             f"check the grade code (e.g. M24, N17, HR, FR)"
         )
 
@@ -735,7 +735,7 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
     )
     if not belt_type_obj:
         row_errors.append(
-            f"Belt type '{belt_type_text}' was not found — "
+            f"Belt type '{belt_type_text}' was not found; "
             f"use a name from the master data (e.g. Flat, Troughed)"
         )
 
@@ -769,7 +769,7 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
             carcass_mm = float(raw_carcass)
         except (TypeError, ValueError):
             row_errors.append(
-                f"Carcass (mm) must be a decimal number if provided (e.g. 5.4) — "
+                f"Carcass (mm) must be a decimal number if provided (e.g. 5.4); "
                 f"leave blank to auto-calculate from the belt rating"
             )
 

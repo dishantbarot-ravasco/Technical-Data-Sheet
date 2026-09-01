@@ -97,6 +97,24 @@ def _create_batch(client, lookups, customer_name):
     return resp.data['batch']['batch_id']
 
 
+def _create_batch_multi(client, lookups, customer_name, belt_count):
+    """Same as _create_batch(), but with N identical belt rows (none with a
+    TDS Document Number) -- for exercising the zip-export filename
+    collision guard, which only matters once a batch has more than one belt
+    sharing the same fallback (customer-name) filename base."""
+    resp = client.post(BATCH_CREATE_URL, {
+        'shared': {
+            'purpose_id':  lookups['purpose'].pk,
+            'brand_id':    lookups['brand'].pk,
+            'standard_id': lookups['standard'].pk,
+        },
+        'customer': {'customer_name': customer_name},
+        'belts': [_belt_row(lookups['payload']) for _ in range(belt_count)],
+    }, format='json')
+    assert resp.status_code == 201, resp.content
+    return resp.data['batch']['batch_id']
+
+
 class BatchExportPermissionTests(TransactionTestCase):
     def setUp(self):
         self.lookups = make_tds_lookup_set()
@@ -166,20 +184,48 @@ class BatchExportJobRunTests(TransactionTestCase):
         self.assertEqual(dl['Content-Type'], 'application/zip')
         self.assertGreater(len(dl.content), 0)
 
-    def test_zip_export_names_tds_file_like_single_download(self):
-        # Same "TDS-<number>" ordering as the single-belt download
-        # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf"
-        # (number first). No revision suffix here (unlike the single
-        # download) — batch exports aren't reached via Search TDS's
-        # edit-then-download flow.
+    def test_zip_export_names_tds_file_by_doc_number_or_customer_name(self):
+        # Same base-name convention as the single-belt download
+        # (pdf_service.tds_filename_base): the belt's TDS Document Number if
+        # it has one, else the batch's customer name -- this batch's belt has
+        # no doc number, so it falls back to the customer name given to
+        # _create_batch ('Export Run Co', spaces kept -- only filesystem-
+        # unsafe characters like "/" get replaced). No revision suffix
+        # (unlike the single/revision downloads) — batch exports aren't
+        # reached via Search TDS's edit-then-download flow.
         job_id, result = self._run_export('zip', {'copy': 'internal'})
         self.assertEqual(result['status'], 'done', result)
         dl = self.client.get(f'/api/tds/batch/export/{job_id}/download/')
         names = zipfile.ZipFile(io.BytesIO(dl.content)).namelist()
-        tds_names = [n for n in names if n.startswith('TDS-') and n.endswith('.pdf')]
+        tds_names = [n for n in names if n.endswith('.pdf') and not n.endswith('_QAP.pdf') and 'Merged' not in n]
         self.assertEqual(len(tds_names), 1, names)
-        self.assertRegex(tds_names[0], r'^TDS-\S+\.pdf$')
+        self.assertEqual(tds_names[0], 'Export Run Co.pdf')
         self.assertNotIn('_rev_', tds_names[0])
+
+    def test_zip_export_disambiguates_belts_that_would_share_a_filename(self):
+        # Two belts, same customer, neither has a TDS Document Number --
+        # tds_filename_base() would return the identical customer name for
+        # both. Without a uniqueness guard, the second belt's zip entry would
+        # silently overwrite the first's (same name twice in one zip), and
+        # most unzip tools would only ever show one of the two PDFs. The
+        # tds_number-suffixed fallback (see _unique_zip_name in
+        # batch_export_views.py) must kick in for the second one.
+        batch_id = _create_batch_multi(self.client, self.lookups, 'Shared Customer Co', belt_count=2)
+        start = self.client.post(f'/api/tds/batch/{batch_id}/export/', {'export_type': 'zip', 'copy': 'internal'}, format='json')
+        self.assertEqual(start.status_code, 202, start.content)
+        result = _poll_job(self.client, start.data['job_id'])
+        self.assertEqual(result['status'], 'done', result)
+
+        dl = self.client.get(f"/api/tds/batch/export/{start.data['job_id']}/download/")
+        names = zipfile.ZipFile(io.BytesIO(dl.content)).namelist()
+        tds_names = [n for n in names if n.endswith('.pdf') and not n.endswith('_QAP.pdf') and 'Merged' not in n]
+        self.assertEqual(len(tds_names), 2, names)
+        self.assertEqual(len(set(tds_names)), 2, "two belts collapsed onto the same zip entry name")
+        self.assertIn('Shared Customer Co.pdf', tds_names)
+        self.assertTrue(
+            any(n.startswith('Shared Customer Co_') for n in tds_names if n != 'Shared Customer Co.pdf'),
+            tds_names,
+        )
 
     def test_merged_zip_export_completes_and_downloads(self):
         job_id, result = self._run_export('merged_zip', {'copy': 'internal'})

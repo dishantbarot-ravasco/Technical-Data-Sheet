@@ -106,6 +106,7 @@ def _build_zip_export(batch_id, params, on_progress=None):
     from apps.api.routers.pdf_views import render_tds_pdf_bytes
     from apps.services.qap_service import resolve_qap_template, build_qap_context
     from apps.services.pdf_renderer import render_qap_pdf
+    from apps.services.pdf_service import tds_filename_base
 
     exclude_groups = _get_exclude_groups(params)
     qap_doc_type = params.get('doc_type', 'PO')
@@ -125,21 +126,38 @@ def _build_zip_export(batch_id, params, on_progress=None):
     written = 0
     merger = PdfWriter()
     batch_customer_name = None
+    # Guards against two belts landing on the identical filename inside the
+    # zip -- e.g. neither has a TDS Document Number and both share the same
+    # customer, so tds_filename_base() would return the same customer name
+    # for both. zipfile happily writes a duplicate entry name, but most
+    # unzip tools then only show one of the two, silently hiding a belt's
+    # PDF. Disambiguate with the tds_number, which is always unique.
+    used_names = set()
+
+    def _unique_zip_name(base, tds_number, suffix):
+        name = f"{base}{suffix}"
+        if name in used_names:
+            name = f"{base}_{tds_number}{suffix}"
+        used_names.add(name)
+        return name
 
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for i, r in enumerate(records, start=1):
             if batch_customer_name is None and r.customer_id:
                 batch_customer_name = r.customer.customer_name
 
+            base = tds_filename_base(r)
+
             try:
                 tds_bytes = render_tds_pdf_bytes(r.tds_id, exclude_groups=exclude_groups)
-                safe_doc  = _SAFE.sub('-', r.tds_doc_number or '')
-                # Same "TDS-<number>" ordering as the single-belt download
-                # (pdf_views.py::generate_pdf) — was previously "<number>_TDS.pdf"
-                # (number first), inconsistent with it. No revision suffix here
-                # (unlike the single download) — batch exports aren't reached
-                # via Search TDS's edit-then-download flow.
-                tds_name  = f"TDS-{r.tds_number}{'_' + safe_doc if safe_doc else ''}.pdf"
+                # Same base-name convention as the single-belt download
+                # (TDS Document Number, else customer name, else
+                # "TDS-<number>") -- was previously always "TDS-<number>"
+                # plus the doc number, inconsistent with it. No revision
+                # suffix here (unlike the single/revision downloads) --
+                # batch exports aren't reached via Search TDS's
+                # edit-then-download flow.
+                tds_name = _unique_zip_name(base, r.tds_number, '.pdf')
                 zf.writestr(tds_name, tds_bytes)
                 written += 1
                 try:
@@ -164,7 +182,8 @@ def _build_zip_export(batch_id, params, on_progress=None):
                         doc_type=qap_doc_type, ref_no=qap_ref_no, ref_date=qap_ref_date,
                     )
                     qap_bytes = render_qap_pdf(qap_context)
-                    zf.writestr(f"{r.tds_number}_QAP.pdf", qap_bytes)
+                    qap_name  = _unique_zip_name(base, r.tds_number, '_QAP.pdf')
+                    zf.writestr(qap_name, qap_bytes)
             except Exception:
                 logger.exception(
                     "QAP PDF generation failed for tds_id=%s (batch=%s)", r.tds_id, batch_id
@@ -219,6 +238,7 @@ def _build_merged_zip_export(batch_id, params, on_progress=None):
     from apps.api.routers.pdf_views import render_tds_pdf_bytes
     from apps.services.qap_service import resolve_qap_template, build_qap_context
     from apps.services.pdf_renderer import render_qap_pdf
+    from apps.services.pdf_service import tds_filename_base
 
     exclude_groups = _get_exclude_groups(params)
     qap_doc_type = params.get('doc_type', 'PO')
@@ -238,6 +258,11 @@ def _build_merged_zip_export(batch_id, params, on_progress=None):
     failed  = []
     batch_customer_name = None
     qap_bundle = []
+    # Same duplicate-name guard as _build_zip_export() -- two belts with
+    # neither a TDS Document Number nor distinct customers would otherwise
+    # both produce "<customer>_QAP.pdf" and one would silently disappear
+    # from the zip.
+    used_qap_names = set()
 
     for i, r in enumerate(records, start=1):
         if batch_customer_name is None and r.customer_id:
@@ -261,7 +286,11 @@ def _build_merged_zip_export(batch_id, params, on_progress=None):
                     doc_type=qap_doc_type, ref_no=qap_ref_no, ref_date=qap_ref_date,
                 )
                 qap_bytes = render_qap_pdf(qap_context)
-                qap_bundle.append((f"{r.tds_number}_QAP.pdf", qap_bytes))
+                qap_name  = f"{tds_filename_base(r)}_QAP.pdf"
+                if qap_name in used_qap_names:
+                    qap_name = f"{tds_filename_base(r)}_{r.tds_number}_QAP.pdf"
+                used_qap_names.add(qap_name)
+                qap_bundle.append((qap_name, qap_bytes))
         except Exception:
             logger.exception(
                 "QAP PDF generation failed for tds_id=%s (batch=%s merged-zip)", r.tds_id, batch_id

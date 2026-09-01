@@ -456,7 +456,11 @@ function dash(v, suffix='') {
 function populateModal(t) {
   document.getElementById('modal-title').textContent  = `TDS-${t.tds_number}`;
   document.getElementById('d-tds-number').textContent = t.tds_number;
-  document.getElementById('d-revision').textContent   = 'Rev ' + String(t.current_revision ?? 0).padStart(2, '0');
+  // +1: current_revision counts edits made since the first real download (0
+  // for a never-edited record), not "which revision is this" -- the document
+  // itself is always at least on its first/original revision. Matches the
+  // same +1 applied to the downloaded filename (pdf_views.py::generate_pdf).
+  document.getElementById('d-revision').textContent   = 'Rev ' + String((t.current_revision ?? 0) + 1).padStart(2, '0');
   document.getElementById('d-date').textContent       = new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('d-standard').textContent   = t.standard?.standard_name || '-';
   document.getElementById('d-purpose').textContent    = t.purpose?.purpose_type   || '-';
@@ -513,7 +517,11 @@ async function populateHistoryTab(tdsId) {
     list.innerHTML = revisions.map(r => {
       const editor = r.edited_by?.full_name || r.edited_by?.email || 'Unknown user';
       const when   = r.edited_at ? new Date(r.edited_at).toLocaleString('en-IN') : '-';
-      const rev    = String(r.revision_number).padStart(2, '0');
+      // Display only: +1 so this reads "Rev 01" for the first-ever snapshot
+      // instead of "Rev 00" (see the matching comment on d-revision above).
+      // data-rev below stays the raw, un-offset value -- that's the actual
+      // key used to fetch/download this revision.
+      const rev    = String(r.revision_number + 1).padStart(2, '0');
       return `
         <div class="history-row" data-rev="${r.revision_number}" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">

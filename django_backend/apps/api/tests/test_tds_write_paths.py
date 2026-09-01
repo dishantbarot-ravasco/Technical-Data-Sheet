@@ -11,7 +11,7 @@ from django.test import TestCase
 
 from django.utils import timezone
 
-from apps.core.models import TDSInput, TDSRevision
+from apps.core.models import Customer, TDSInput, TDSRevision
 from apps.api.tests import factories
 from apps.api.tests.factories import make_user, make_tds_lookup_set
 
@@ -227,10 +227,12 @@ class UpdateTdsRevisionGatingTests(TestCase):
 class PdfDownloadFilenameTests(TestCase):
     """
     GET /api/tds/{id}/pdf?format=pdf should name the file
-    "TDS-<tds_number>_rev_<NN>.pdf" - always carrying the revision number (00
-    for a never-edited record) so a re-download after an edit doesn't
-    silently overwrite an earlier download of the same tds_number under an
-    identical filename.
+    "<base>_rev_<NN>.pdf", where <base> is the TDS Document Number if one was
+    entered, else the customer name, else "TDS-<tds_number>" (see
+    pdf_service.tds_filename_base) -- and NN is 1-indexed (01 for a
+    never-edited record's one and only revision so far, not 00) so a
+    re-download after an edit doesn't silently overwrite an earlier download
+    of the same document under an identical filename.
     """
     def setUp(self):
         self.lookups = make_tds_lookup_set()
@@ -246,15 +248,16 @@ class PdfDownloadFilenameTests(TestCase):
         return f'/api/tds/{self.tds_id}/pdf'
 
     def _content_disposition_filename(self, response):
-        # e.g. 'inline; filename="TDS-0001_rev_00.pdf"'
+        # e.g. 'inline; filename="TDS-0001_rev_01.pdf"'
         return response['Content-Disposition'].split('filename="')[1].rstrip('"')
 
-    def test_filename_carries_rev_00_before_any_edit(self):
+    def test_filename_falls_back_to_tds_number_with_no_doc_number_or_customer(self):
+        # This factory payload sets neither tds_doc_number nor customer_id.
         response = self.client.get(self._pdf_url())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             self._content_disposition_filename(response),
-            f'TDS-{self.tds_number}_rev_00.pdf',
+            f'TDS-{self.tds_number}_rev_01.pdf',
         )
 
     def test_filename_rev_increments_after_a_post_download_edit(self):
@@ -271,5 +274,72 @@ class PdfDownloadFilenameTests(TestCase):
         response = self.client.get(self._pdf_url())
         self.assertEqual(
             self._content_disposition_filename(response),
-            f'TDS-{self.tds_number}_rev_01.pdf',
+            f'TDS-{self.tds_number}_rev_02.pdf',
+        )
+
+    def test_filename_uses_tds_doc_number_when_set(self):
+        payload = dict(self.lookups['payload'])
+        payload['tds_doc_number'] = 'RTPH/TDS/2026/001'
+        create_response = self.client.post(TDS_CREATE_URL, payload, format='json')
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+
+        response = self.client.get(f"/api/tds/{create_response.data['tds_id']}/pdf")
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            'RTPH-TDS-2026-001_rev_01.pdf',
+        )
+
+    def test_filename_uses_customer_name_when_no_doc_number(self):
+        cust = Customer.objects.create(customer_name='Galadari Brothers')
+        payload = dict(self.lookups['payload'])
+        payload['customer_id'] = cust.pk
+        create_response = self.client.post(TDS_CREATE_URL, payload, format='json')
+        self.assertEqual(create_response.status_code, 201, create_response.data)
+
+        response = self.client.get(f"/api/tds/{create_response.data['tds_id']}/pdf")
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            'Galadari Brothers_rev_01.pdf',
+        )
+
+
+class RevisionPdfFilenameTests(TestCase):
+    """
+    GET /api/tds/{id}/revisions/{n}/pdf should name the file the same way as
+    the live-document download (pdf_service.tds_filename_base + "_rev_NN"),
+    with NN = the stored (0-indexed) TDSRevision.revision_number + 1 -- e.g.
+    the first-ever snapshot (revision_number=0, representing the document's
+    original/first revision, taken right before the edit that created it)
+    downloads as "..._rev_01.pdf", matching the live document's own "_rev_02"
+    after that same edit (see PdfDownloadFilenameTests above).
+    """
+    def setUp(self):
+        self.lookups = make_tds_lookup_set()
+        self.creator = make_user(email='creator5@ravasco.com', role='tds_creator')
+        self.client = auth_client(self.creator)
+
+        payload = dict(self.lookups['payload'])
+        payload['tds_doc_number'] = 'RTPH/TDS/2026/002'
+        create_response = self.client.post(TDS_CREATE_URL, payload, format='json')
+        assert create_response.status_code == 201, create_response.data
+        self.tds_id = create_response.data['tds_id']
+
+        # First download marks first_downloaded_at (see PdfDownloadFilenameTests),
+        # opening the window where the next edit snapshots a TDSRevision.
+        self.client.get(f'/api/tds/{self.tds_id}/pdf')
+
+        edited_payload = dict(payload)
+        edited_payload['belt_width_mm'] = int(edited_payload['belt_width_mm']) + 100
+        update_response = self.client.patch(f'/api/tds/{self.tds_id}', edited_payload, format='json')
+        assert update_response.status_code == 200, update_response.data
+
+    def _content_disposition_filename(self, response):
+        return response['Content-Disposition'].split('filename="')[1].rstrip('"')
+
+    def test_revision_zero_downloads_as_rev_01(self):
+        response = self.client.get(f'/api/tds/{self.tds_id}/revisions/0/pdf')
+        self.assertEqual(response.status_code, 200, response.content[:500])
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            'RTPH-TDS-2026-002_rev_01.pdf',
         )

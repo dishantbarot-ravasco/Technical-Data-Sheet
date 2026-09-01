@@ -42,7 +42,7 @@ Reading guide — top to bottom, this file is organized as:
        g. walks PARAMETER_GROUP_ORDER (apps/services/sections.py) building one
           ParameterGroup per section, resolving each row's value with this
           precedence: EAV lookup → hot-splice curing resolver → _DIRECT_MAP →
-          "—" (dash, meaning "not available"),
+          "-" (dash, meaning "not available"),
        h. applies two group-specific post-processing rules (Belt Construction
           Parameters' spec column is forced to "Not Specified"; Belt Breaking
           Strength computes "Weft % as per Warp" and rounds Elastic Modulus).
@@ -76,6 +76,36 @@ from apps.core.models import (
     TDSInput,
 )
 from apps.services.sections import PARAMETER_GROUP_ORDER
+
+# Characters invalid in a Windows/macOS/Linux filename. Same pattern
+# batch_export_views.py already used for its own zip-entry names — kept here
+# as the one shared definition so every download filename (single, batch,
+# revision, QAP) sanitizes the same way.
+_UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*]')
+
+
+def tds_filename_base(tds: TDSInput) -> str:
+    """
+    The shared "what to call this download" root every TDS/QAP filename is
+    built from: the user-entered TDS Document Number if one was given
+    (sanitized -- it commonly contains slashes, e.g. "RTPH/TDS/2026/001"),
+    else the customer name, else a "TDS-<number>" fallback so a record with
+    neither a doc number nor a customer still gets a sane filename instead
+    of an empty string.
+
+    tds_doc_number replaces slashes/etc. with "-" (matches the previous
+    batch-export convention for it); customer_name replaces them with "_"
+    (matches the previous batch-export convention for it) -- kept distinct
+    so a doc number's internal structure (e.g. "RTPH-TDS-2026-001") stays
+    readable rather than looking like a customer name.
+    """
+    doc_number = (tds.tds_doc_number or '').strip()
+    if doc_number:
+        return _UNSAFE_FILENAME_CHARS.sub('-', doc_number)
+
+    customer_name = tds.customer.customer_name if tds.customer_id else ''
+    safe_customer = _UNSAFE_FILENAME_CHARS.sub('_', customer_name).strip('_')
+    return safe_customer or f"TDS-{tds.tds_number}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -131,7 +161,7 @@ class TDSDocData:
     # ── Parameter Groups ───────────────────────────────────────────────────
     groups: list[ParameterGroup] = field(default_factory=list)
     # ── Footer ────────────────────────────────────────────────────────────
-    prepared_by_name: str = "—"
+    prepared_by_name: str = "-"
     prepared_by_designation: str = ""
     # data: URI (image/png;base64,...) when the creator has uploaded a
     # signature (apps/api/routers/users_views.py's user_signature endpoint);
@@ -189,42 +219,42 @@ _DIRECT_MAP: dict[str, callable] = {
     "Top Cover Thickness (mm)":              lambda t: str(t.top_cover_mm),
     "Bottom Cover Thickness (mm)":           lambda t: str(t.bottom_cover_mm),
     "Carcass Thickness (mm)":                lambda t: str(t.carcass_thickness_mm),
-    "Interply Skim Thickness (mm)":          lambda t: str(t.interply_skim_mm) if t.interply_skim_mm is not None else "—",
+    "Interply Skim Thickness (mm)":          lambda t: str(t.interply_skim_mm) if t.interply_skim_mm is not None else "-",
     "Total Belt Thickness (mm)":             lambda t: str(t.total_thickness_mm),
     # Belt Construction Parameters
-    "Fabric Type":                           lambda t: t.fabric_type.fabric_code if t.fabric_type else "—",
+    "Fabric Type":                           lambda t: t.fabric_type.fabric_code if t.fabric_type else "-",
     "Make of Fabric":                        lambda t: t.make_of_fabric,
     "Number of Plies":                       lambda t: str(t.num_plies),
     "Breaker on Top | Number of Plies":      _breaker_top,
     "Breaker on Bottom | Number of Plies":   _breaker_bottom,
     "Edge Construction":                     lambda t: t.edge_construction,
     # Fabric Parameters
-    "Fabric Style":                          lambda t: t.fabric_style.style_name if t.fabric_style else "—",
+    "Fabric Style":                          lambda t: t.fabric_style.style_name if t.fabric_style else "-",
     # Packing and Logistics (Django field names — no _rel suffix)
-    "Reel Type":                             lambda t: t.reel_type.reel_name if t.reel_type else "—",
-    "Packing Type":                          lambda t: t.packing_type.packing_name if t.packing_type else "—",
-    "Number of Rolls":                       lambda t: str(t.num_rolls) if t.num_rolls is not None else "—",
-    "Rolls Dimensions (H X W)":              lambda t: t.roll_dimensions if t.roll_dimensions else "—",
-    "Total Order Net Weight (kg)":           lambda t: str(t.net_weight_kg) if t.net_weight_kg is not None else "—",
-    "Total Order Gross Weight (kg)":         lambda t: str(t.gross_weight_kg) if t.gross_weight_kg is not None else "—",
-    "Gross Weight per Roll (kg)":            lambda t: str(t.gross_weight_per_roll_kg) if t.gross_weight_per_roll_kg is not None else "—",
+    "Reel Type":                             lambda t: t.reel_type.reel_name if t.reel_type else "-",
+    "Packing Type":                          lambda t: t.packing_type.packing_name if t.packing_type else "-",
+    "Number of Rolls":                       lambda t: str(t.num_rolls) if t.num_rolls is not None else "-",
+    "Rolls Dimensions (H X W)":              lambda t: t.roll_dimensions if t.roll_dimensions else "-",
+    "Total Order Net Weight (kg)":           lambda t: str(t.net_weight_kg) if t.net_weight_kg is not None else "-",
+    "Total Order Gross Weight (kg)":         lambda t: str(t.gross_weight_kg) if t.gross_weight_kg is not None else "-",
+    "Gross Weight per Roll (kg)":            lambda t: str(t.gross_weight_per_roll_kg) if t.gross_weight_per_roll_kg is not None else "-",
     # International logistics
-    "Shipping Region":                       lambda t: t.shipping_region or "—",
-    "Container Type":                        lambda t: t.container_type.name if t.container_type else "—",
+    "Shipping Region":                       lambda t: t.shipping_region or "-",
+    "Container Type":                        lambda t: t.container_type.name if t.container_type else "-",
     # Splicing Parameters
-    "Splicing Method":                       lambda t: (t.vulcanization_method or "—").capitalize(),
-    "Number of Splice Joints":               lambda t: str(t.num_joints) if t.num_joints is not None else "—",
-    "Step Length (mm)":                      lambda t: str(t.step_length_mm) if t.step_length_mm is not None else "—",
-    "Splice Length (mm)":                    lambda t: f"{float(t.splice_length_mm):.2f}" if t.splice_length_mm is not None else "—",
-    "Total Extra Belt Length for Splicing (m)": lambda t: f"{float(t.total_extra_length_m):.2f}" if t.total_extra_length_m is not None else "—",
+    "Splicing Method":                       lambda t: (t.vulcanization_method or "-").capitalize(),
+    "Number of Splice Joints":               lambda t: str(t.num_joints) if t.num_joints is not None else "-",
+    "Step Length (mm)":                      lambda t: str(t.step_length_mm) if t.step_length_mm is not None else "-",
+    "Splice Length (mm)":                    lambda t: f"{float(t.splice_length_mm):.2f}" if t.splice_length_mm is not None else "-",
+    "Total Extra Belt Length for Splicing (m)": lambda t: f"{float(t.total_extra_length_m):.2f}" if t.total_extra_length_m is not None else "-",
     "Total Belt Length with Splicing (m)":   lambda t: (
         f"{float(t.belt_length_m) + float(t.total_extra_length_m):.2f}"
-        if t.total_extra_length_m is not None else "—"
+        if t.total_extra_length_m is not None else "-"
     ),
     # Hot-splice curing — values injected by _curing_resolver; lambdas are safe fallback
-    "Specific Pressure (Hot Splicing)":      lambda t: "—",
-    "Curing Temperature (Hot Splicing)":     lambda t: "—",
-    "Curing Time (Hot Splicing)":            lambda t: "—",
+    "Specific Pressure (Hot Splicing)":      lambda t: "-",
+    "Curing Temperature (Hot Splicing)":     lambda t: "-",
+    "Curing Time (Hot Splicing)":            lambda t: "-",
 }
 
 
@@ -463,19 +493,19 @@ def build_tds_doc_data(
     _GI_RESOLVER: dict[str, object] = {
         # tds_doc_number is an optional full reference (e.g. "TDS-2024-0007").
         # If not set, fall back to the sequential tds_number (e.g. "0007").
-        "TDS Number":                                   lambda t: t.tds_doc_number or t.tds_number or "—",
+        "TDS Number":                                   lambda t: t.tds_doc_number or t.tds_number or "-",
         "Date":                                         lambda t: t.tds_date.strftime("%d %b %Y"),
-        "Customer Name":                                lambda t: t.customer.customer_name if t.customer else "—",
-        "Contact Person":                               lambda t: (t.customer.contact_person or "—") if t.customer else "—",
-        "Application":                                  lambda t: (t.customer.application or "—") if t.customer else "—",
-        "Plant / Factory Location":                     lambda t: (t.customer.plant_location or "—") if t.customer else "—",
+        "Customer Name":                                lambda t: t.customer.customer_name if t.customer else "-",
+        "Contact Person":                               lambda t: (t.customer.contact_person or "-") if t.customer else "-",
+        "Application":                                  lambda t: (t.customer.application or "-") if t.customer else "-",
+        "Plant / Factory Location":                     lambda t: (t.customer.plant_location or "-") if t.customer else "-",
         "Indus Brand Name":                             lambda t: t.brand.brand_name,
         "Applicable Standard":                          lambda t: std_label,
         "Belt End Type":                                lambda t: t.construction_type,
-        "Belt Description":                             lambda t: t.belt_description or "—",
+        "Belt Description":                             lambda t: t.belt_description or "-",
         "Total Belt Length (with Roll Length Breakup)": lambda t: belt_len_display,
-        "Number of Rolls":                              lambda t: str(t.num_rolls) if t.num_rolls is not None else "—",
-        "Belt Weight per Meter (kg/m)":                 lambda t: f"{float(t.belt_weight_per_m_kg):.2f} kg/m" if t.belt_weight_per_m_kg is not None else "—",
+        "Number of Rolls":                              lambda t: str(t.num_rolls) if t.num_rolls is not None else "-",
+        "Belt Weight per Meter (kg/m)":                 lambda t: f"{float(t.belt_weight_per_m_kg):.2f} kg/m" if t.belt_weight_per_m_kg is not None else "-",
     }
 
     # GI parameters — filtered by brand and group, ordered by brand-level display_order
@@ -496,7 +526,7 @@ def build_tds_doc_data(
         try:
             _val = _resolver(tds)
         except Exception:
-            _val = "—"
+            _val = "-"
         gi_rows.append(GIRow(
             label=_gi_p.parameter_name,
             value=_val,
@@ -506,7 +536,7 @@ def build_tds_doc_data(
     doc = TDSDocData(
         tds_number=tds.tds_number,
         tds_date=tds.tds_date.strftime("%d %b %Y"),
-        customer_name=tds.customer.customer_name if tds.customer else "—",
+        customer_name=tds.customer.customer_name if tds.customer else "-",
         contact_person=tds.customer.contact_person if tds.customer else None,
         application=tds.customer.application if tds.customer else None,
         plant_location=tds.customer.plant_location if tds.customer else None,
@@ -527,7 +557,7 @@ def build_tds_doc_data(
     # Django FK field: created_by (not created_by_user)
     creator = tds.created_by
     if creator:
-        doc.prepared_by_name        = creator.full_name or "—"
+        doc.prepared_by_name        = creator.full_name or "-"
         doc.prepared_by_designation = creator.designation or ""
         if creator.signature_image:
             encoded = base64.b64encode(bytes(creator.signature_image)).decode("ascii")
@@ -611,7 +641,7 @@ def build_tds_doc_data(
                 try:
                     indus_val = _DIRECT_MAP[param.parameter_name](tds)
                 except Exception:
-                    indus_val = "—"
+                    indus_val = "-"
                 if param.parameter_id in dim_spec_map:
                     spec_val = dim_spec_map[param.parameter_id]
                 elif param.spec_equals_indus:
@@ -620,7 +650,7 @@ def build_tds_doc_data(
                     spec_val = None
             else:
                 spec_val  = None
-                indus_val = "—"
+                indus_val = "-"
 
             if stm and any([section, test_method, reference]):
                 group.has_test_columns = True
@@ -631,8 +661,8 @@ def build_tds_doc_data(
                 section=section,
                 test_method=test_method,
                 reference=reference,
-                spec_value=spec_val or "—",
-                indus_value=indus_val or "—",
+                spec_value=spec_val or "-",
+                indus_value=indus_val or "-",
             ))
 
         # Belt Construction Parameters: spec = "Not Specified"
@@ -651,8 +681,8 @@ def build_tds_doc_data(
                         row.indus_value = f"{_pct:.1f}%"
                         row.spec_value = "Not Specified"
                     except (TypeError, ValueError, ZeroDivisionError):
-                        row.indus_value = "—"
-                elif "Elastic Modulus" in row.name and row.indus_value and row.indus_value != "—":
+                        row.indus_value = "-"
+                elif "Elastic Modulus" in row.name and row.indus_value and row.indus_value != "-":
                     try:
                         row.indus_value = f"{float(row.indus_value):.2f}"
                     except (ValueError, TypeError):

@@ -107,7 +107,7 @@ class PurposeBeltType(models.Model):
         unique_together = [('purpose', 'belt_type')]
 
     def __str__(self):
-        return f"{self.purpose} — {self.belt_type}"
+        return f"{self.purpose} - {self.belt_type}"
 
 
 class BrandBeltType(models.Model):
@@ -128,7 +128,7 @@ class BrandBeltType(models.Model):
         unique_together = [('brand', 'belt_type')]
 
     def __str__(self):
-        return f"{self.brand} — {self.belt_type}"
+        return f"{self.brand} - {self.belt_type}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ class TDSParameter(models.Model):
         unique_together = [('parameter_group', 'parameter_name')]
 
     def __str__(self):
-        return f"{self.parameter_group} — {self.parameter_name}"
+        return f"{self.parameter_group} - {self.parameter_name}"
 
 
 class BrandParameter(models.Model):
@@ -894,7 +894,7 @@ class TDSBatch(models.Model):
         managed  = True   # Django owns this table via migrations
 
     def __str__(self):
-        return f"TDSBatch #{self.batch_id} ({self.created_at.date() if self.created_at else '—'})"
+        return f"TDSBatch #{self.batch_id} ({self.created_at.date() if self.created_at else '-'})"
 
 
 class BatchExportJob(models.Model):

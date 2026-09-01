@@ -15,7 +15,6 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.test import TestCase
 
-from apps.core.models import TDSInput, TDSUser
 from apps.api.tests.factories import make_user, make_tds_lookup_set
 from apps.services.pdf_service import build_tds_doc_data
 from apps.services.signature_service import process_signature_image, InvalidSignatureImage

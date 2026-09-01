@@ -774,7 +774,7 @@ function _setBeltDescMode(isManual) {
   } else {
     field.classList.add('auto-field');
     badge.textContent = 'AUTO';
-    hint.textContent = 'Auto-fills live · type here to enter your own — same format as the Multiple Belts paste box, and the rest of the form fills in live as you type';
+    hint.textContent = 'Auto-fills live · type here to enter your own, using the same format as the Multiple Belts paste box, and the rest of the form fills in live as you type';
     hint.style.color = '';
   }
 }

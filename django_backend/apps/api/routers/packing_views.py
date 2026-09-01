@@ -40,7 +40,7 @@ def _compute_and_save(tds_id, reel_type_id, packing_type_id):
     if not record:
         raise NotFound(f"TDS {tds_id} not found")
     if record.status not in ('draft',):
-        raise ValidationError({'detail': f"TDS {tds_id} is '{record.status}' — only draft records can be updated"})
+        raise ValidationError({'detail': f"TDS {tds_id} is '{record.status}'; only draft records can be updated"})
 
     reel = ReelType.objects.filter(pk=reel_type_id).first()
     if not reel:
@@ -54,7 +54,7 @@ def _compute_and_save(tds_id, reel_type_id, packing_type_id):
 
     if record.belt_weight_per_m_kg is None:
         raise ValidationError({
-            'detail': "belt_weight_per_m_kg is NULL on this TDS — cannot compute packing weights."
+            'detail': "belt_weight_per_m_kg is NULL on this TDS; cannot compute packing weights."
         })
 
     result = compute_packing(

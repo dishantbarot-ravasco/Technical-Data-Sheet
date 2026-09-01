@@ -349,9 +349,21 @@ export async function downloadRevisionPdf(id, revisionNum, tdsNumber, opts = {})
   }
   const blob = await res.blob();
   const url  = URL.createObjectURL(blob);
+
+  // BUG FIX: this used to always build its own filename client-side,
+  // ignoring whatever the server actually named it (revisions_views.py::
+  // generate_revision_pdf) -- the two had already drifted out of sync once
+  // (this used "-revNN", the server used "_rev_NN") and would again the next
+  // time either changed independently. Same fix as downloadPdf() above:
+  // trust the server's Content-Disposition, and use this template only if
+  // the header is somehow missing.
+  const cd = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^";]+)"?/i.exec(cd);
+  const filename = match ? match[1] : `TDS-${tdsNumber}_rev_${String(Number(revisionNum) + 1).padStart(2, '0')}.pdf`;
+
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `TDS-${tdsNumber}-rev${String(revisionNum).padStart(2, '0')}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -691,9 +703,20 @@ export async function downloadQapPdf(id, tdsNumber, ref = {}) {
   }
   const blob = await res.blob();
   const url  = URL.createObjectURL(blob);
+
+  // BUG FIX: this used to always build "QAP-<number>.pdf" client-side
+  // regardless of what the server actually named it (qap_views.py::
+  // generate_qap_pdf now uses the TDS Document Number / customer name, same
+  // as the TDS PDF itself). Same fix as downloadPdf() above: trust the
+  // server's Content-Disposition, and use this template only if the header
+  // is somehow missing.
+  const cd = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^";]+)"?/i.exec(cd);
+  const filename = match ? match[1] : `QAP-${tdsNumber}.pdf`;
+
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `QAP-${tdsNumber}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

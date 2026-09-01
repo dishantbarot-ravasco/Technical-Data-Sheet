@@ -22,7 +22,7 @@ from rest_framework.exceptions import NotFound
 
 from apps.core.models import TDSInput, TDSRevision
 from apps.core.audit_log import log_tds_action, TDSAuditLog
-from apps.services.pdf_service import build_tds_doc_data
+from apps.services.pdf_service import build_tds_doc_data, tds_filename_base
 from apps.services.pdf_renderer import render_tds_pdf
 
 logger = logging.getLogger(__name__)
@@ -86,7 +86,8 @@ def generate_revision_pdf(request, tds_id, revision_number):
     (spec tolerances, test methods) are joined live, so a later correction
     to master data would show up here too — the header banner says so.
     """
-    if not TDSInput.objects.filter(pk=tds_id).exists():
+    tds_record = TDSInput.objects.filter(pk=tds_id).select_related('customer').first()
+    if not tds_record:
         raise NotFound(f"TDS {tds_id} not found")
     rev = TDSRevision.objects.filter(tds_id=tds_id, revision_number=revision_number).first()
     if not rev:
@@ -99,7 +100,14 @@ def generate_revision_pdf(request, tds_id, revision_number):
     # user-facing timestamp in this app. Formatting the raw UTC value directly
     # would print a time 5:30 behind what the record was actually saved at.
     when = timezone.localtime(rev.edited_at).strftime('%d %b %Y, %H:%M') if rev.edited_at else 'an earlier date'
-    banner = f"HISTORICAL REVISION {revision_number:02d} - state as saved on {when}"
+    # BUG FIX: TDSRevision.revision_number is 0-indexed (the first snapshot
+    # ever taken is numbered 0 -- see tds_views.py::_update_tds()), but that's
+    # an internal counter, not a human-facing revision number: it represents
+    # "how the document looked before edit #1", i.e. its actual first/
+    # original revision. +1 so this reads "REVISION 01" instead of "00",
+    # matching pdf_views.py::generate_pdf's same +1 for the live document.
+    display_rev = revision_number + 1
+    banner = f"HISTORICAL REVISION {display_rev:02d} - state as saved on {when}"
 
     try:
         doc = build_tds_doc_data(
@@ -113,9 +121,12 @@ def generate_revision_pdf(request, tds_id, revision_number):
         logger.error("Revision PDF render failed for tds_id=%s rev=%s: %s", tds_id, revision_number, exc, exc_info=True)
         return Response({'detail': 'Failed to render this revision as a PDF.'}, status=500)
 
-    filename = f"TDS-{doc.tds_number}-rev{revision_number:02d}.pdf"
+    # Same base-name convention (doc number, else customer name, else
+    # "TDS-<number>") and "_rev_NN" suffix style as the live-document
+    # download (pdf_views.py::generate_pdf) -- these used to differ
+    # ("TDS-<number>-revNN" here vs "TDS-<number>_rev_NN" there).
+    filename = f"{tds_filename_base(tds_record)}_rev_{display_rev:02d}.pdf"
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
-    tds_record = TDSInput.objects.filter(pk=tds_id).first()
     log_tds_action(request, TDSAuditLog.ACTION_DOWNLOAD, tds=tds_record, detail=f'revision {revision_number}')
     return response

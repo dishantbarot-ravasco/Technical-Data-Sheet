@@ -38,6 +38,39 @@ from FastAPI" throughout the codebase describe the previous implementation this 
 replaced. `run_django.py` / `start.py` at the repo root are Render-entrypoint shims, not a
 second live app.
 
+## Content style rules
+
+**No em dashes ("—") anywhere in the application's user-facing output.** Swept and fixed
+2026-09-01 across: frontend HTML/JS strings (labels, hints, toasts), API error/validation
+messages (`ValidationError`/`raise ValueError` text returned to the frontend and shown as a
+toast), the TDS/QAP PDF templates and the data assembled for them (`apps/services/pdf_service.py`
+— including the single-character "no value" placeholder itself, now `"-"` not `"—"`, both the
+literal in `_DIRECT_MAP` and `pdf_renderer.py`'s `dash=` template variable), Django admin
+`__str__` representations on registered models, and the `/api/` health-check response body. In
+prose, replace the dash with whatever reads most naturally for that sentence (comma, semicolon,
+period, "and"/"but") — don't mechanically swap in a hyphen there; a hyphen is only the right
+substitute for the placeholder/"blank value" character use, not for joining clauses.
+
+**Exempt** (not user-facing, left as-is; do not "fix" these if you see them):
+- Python/JS source comments and docstrings, and this file — developer documentation, not
+  application output. This codebase's own convention (see "BUG FIX"/"SECURITY" comments
+  throughout) relies heavily on em dashes for readability there.
+- `logger.info/warning/error(...)` calls anywhere — these reach Sentry/console, never a user.
+- `apps/core/management/commands/*.py` console output (`self.stdout.write`, `print`) — CLI tooling
+  run directly by a developer/operator in a terminal, not part of the deployed web app's
+  request/response cycle.
+- The literal `"—"` sentinel stored in seeded EAV reference data (`indus_value` on
+  `BeltRatingValue` etc., seeded by `0025_seed_reference_catalog.py`) and the code that compares
+  against it (`tds_views.py`'s `_validate_and_compute_tds_fields()`, `batch_views.py`'s
+  `_fetch_carcass_eav()`-adjacent value-cleaning) — this is stored data content being matched
+  literally, not prose being generated; rewriting the comparison without also migrating the
+  seeded data would break the "treat as not specified" logic it implements. Would need an actual
+  data migration to change, which is a materially different (and riskier) task than a text edit.
+
+When adding new user-facing text, check it before committing; when editing existing user-facing
+text that happens to contain one, remove it as you touch that line, but this is not a standing
+mandate to re-sweep the exempt categories above.
+
 ## Architecture
 
 **Two Django "apps" with very different roles**, both under `django_backend/apps/`:
@@ -218,6 +251,57 @@ max-height:26pt`) replaces the blank `.sig-line` in the "Prepared By" column whe
 on file, falling back to the plain line otherwise. The **Customer Acceptance** column's contact-
 person sub-line was removed at the same time (now shows only the customer name) — unrelated
 change, same footer block.
+
+**Download filenames (single/batch/revision/QAP) all share one base-name convention:
+`tds_filename_base()` (`apps/services/pdf_service.py`)** — the TDS Document Number if the user
+entered one (sanitized: filesystem-unsafe characters like `/` become `-`, e.g.
+`"RTPH/TDS/2026/001"` → `"RTPH-TDS-2026-001"`), else the customer name (sanitized the same way
+but with `_`, spaces kept), else `"TDS-<tds_number>"` if neither is set. Every download filename
+is built from this one function so the four surfaces can't drift independently the way they
+previously had (`pdf_views.py` used `"TDS-<number>_rev_NN"`, `revisions_views.py` used
+`"TDS-<number>-revNN"` — same intent, different punctuation):
+- **Single TDS** (`pdf_views.py::generate_pdf`) — `"{base}_rev_{NN}.pdf"`.
+- **Revision history** (`revisions_views.py::generate_revision_pdf`) — same `"{base}_rev_{NN}.pdf"`
+  pattern (previously `-revNN`, now unified).
+- **QAP** (`qap_views.py::generate_qap_pdf`) — `"{base}_QAP.pdf"` (the `_QAP` suffix is required —
+  without it, a TDS and its QAP for the same record would produce the identical filename and one
+  would overwrite the other in the user's Downloads folder).
+- **Batch export per-file names** (`batch_export_views.py`'s `_build_zip_export`/
+  `_build_merged_zip_export`) — same `{base}` (previously always `"TDS-<number>"` prefixed with
+  the doc number if present; now doc-number-or-customer-name first, matching the single download),
+  no revision suffix (batch exports aren't reached via Search TDS's edit-then-download flow). Two
+  belts in the same batch that would otherwise collide on an identical `{base}` (no doc number,
+  same customer) are disambiguated with a `_<tds_number>` suffix — see `_unique_zip_name()`;
+  without this, `zipfile` silently keeps only one of the two identically-named entries. The
+  **outer** zip/merged-zip filename is unchanged (still customer-name-or-`Batch_<id>`-based,
+  batch-level rather than per-belt) and `print_all`'s single merged-PDF filename is unchanged too
+  (an aggregate of every belt, so no single doc number applies).
+- Frontend: `frontend/js/api.js`'s `downloadPdf()` already trusted the server's
+  `Content-Disposition` header for the filename; `downloadQapPdf()` and `downloadRevisionPdf()`
+  used to hard-code their own filename client-side instead (the actual source of the `-revNN` vs
+  `_rev_NN` drift above) — both now read `Content-Disposition` the same way `downloadPdf()` does,
+  falling back to a same-shaped template only if the header is somehow missing.
+  `tds-preview.html`'s standalone QAP-download handler (doesn't import `api.js`) got the identical
+  fix inline.
+
+**Revision numbers are 1-indexed for anything a user reads or downloads; the underlying
+`TDSRevision.revision_number` / `TDSInput.current_revision` counters stay 0-indexed in the
+DB.** `current_revision` (default `0`) counts *edits made after the first real download*, not
+"which revision is this" — a never-edited record is still on its first/original revision, so
+showing `current_revision` directly as `"rev_00"` was showing the wrong number by one, not a
+deliberate 0-indexed scheme. Every place that turns one of these into text now adds `+1` at the
+display/filename boundary only — the stored value and every query/comparison against it
+(`TDSRevision.objects.filter(revision_number=...)`, the URL path `/revisions/{n}/pdf`, etc.) is
+untouched and still 0-indexed:
+- `pdf_views.py::generate_pdf`'s filename suffix, `revisions_views.py::generate_revision_pdf`'s
+  filename suffix AND its in-PDF `"HISTORICAL REVISION NN"` banner text.
+- `frontend/js/search-tds.js`'s modal `"Rev NN"` badge (`d-revision`) and the version-history
+  list's `"Rev NN - edited by ..."` rows — `data-rev="${r.revision_number}"` (which drives the
+  actual download API call) deliberately stays un-offset; only the *text* shown next to it does.
+- `frontend/js/api.js::downloadRevisionPdf()`'s fallback-filename template (`revisionNum + 1`) —
+  watch the string/number coercion here if touching it again: `revisionNum` arrives as a string
+  from a DOM `dataset` attribute, so `revisionNum + 1` is string concatenation ("0"+1 → "01" by
+  accident, "1"+1 → "11" not "2"); it must be `Number(revisionNum) + 1`.
 
 ## Codebase survey pass (2026-09-01) — silent-failure / perf audit fixes
 

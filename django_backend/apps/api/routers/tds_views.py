@@ -775,7 +775,7 @@ def _update_tds(request, tds_id):
         old_snapshot[field] = _json_safe_value(old_val)
         setattr(record, field, new_val)
 
-    detail = f"fields changed: {', '.join(changed_fields)}" if changed_fields else "saved — no field values actually changed"
+    detail = f"fields changed: {', '.join(changed_fields)}" if changed_fields else "saved; no field values actually changed"
 
     # Version history: only snapshot a genuine change — a no-op save (nothing
     # in new_values actually differed) shouldn't create an empty revision.

@@ -34,7 +34,7 @@ def health_check(request):
 
     return Response({
         'status':   'ok' if db_status == 'ok' else 'degraded',
-        'service':  'TDS Automation — Django Backend',
+        'service':  'TDS Automation - Django Backend',
         'django':   django.get_version(),
         'database': db_status,
     })
