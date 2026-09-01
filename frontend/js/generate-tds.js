@@ -986,6 +986,20 @@ async function liveParseBeltDescription() {
         await loadBeltRatings(ftValue);   // populates belt-rating-id + fabric-style-id
         if (myGen !== _liveParseGen) return;   // a newer keystroke has since run its own parse
       }
+
+      // A fabric token is already present, so a rating that ALSO still
+      // carries its own fabric-code prefix (e.g. "EP" fabric + "EP 400/3"
+      // rating, typed following the old habit/placeholder) would otherwise
+      // print as a duplicated "...X EP X EP 400/3 X..." on the PDF, since
+      // this field's raw text is kept verbatim once dirty (see beltDescDirty
+      // above) rather than being recomposed from the parsed tokens. Strip
+      // the redundant prefix from the on-screen text itself so what's typed
+      // matches what actually gets saved/printed.
+      if (bareRating !== rating.trim()) {
+        const normalizedTokens = tokens.slice();
+        normalizedTokens[2] = bareRating;
+        set('belt-description', normalizedTokens.join(' X '));
+      }
     } else if (!currentFabricValue) {
       // No explicit fabric token (short/legacy-style line) and nothing
       // selected yet -- fall back to the old combined-rating derivation,

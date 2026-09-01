@@ -215,6 +215,19 @@ edge X end X type X length [X bot_plies X bob_plies [X carcass_mm]]` (10–13 fi
   they differ), so reconstructing and exact-matching the prefix can silently fail to find a real
   row. Both the bare `"400/3"` and legacy fabric-prefixed `"EP 400/3"` rating text are still
   accepted here for backward compatibility with older pasted data.
+- **The single-belt description box's on-screen text can echo a duplicated fabric code if the
+  user types a fabric-prefixed rating alongside an explicit fabric token** — e.g. typing
+  `"1200 X EP X EP 400/3 X ..."` (fabric token `"EP"` *and* a rating that still carries its own
+  `"EP "` prefix) printed verbatim as `"...X EP X EP 400/3 X..."` on the actual TDS PDF, since
+  `#belt-description`'s raw text is kept exactly as typed once dirty (`beltDescDirty`,
+  `frontend/js/generate-tds.js`) rather than recomposed from the parsed tokens — `submitTDS()`
+  sends `val('belt-description').trim()` literally. Fixed in `liveParseBeltDescription()`: when an
+  explicit `fabric` token is present and `stripFabricPrefix(rating) !== rating.trim()` (the rating
+  token still has a redundant prefix), the on-screen text itself is normalized in place (rewriting
+  just that token via `set()`, which assigns `.value` directly with no event dispatch, so it doesn't
+  recurse into another parse). Legacy lines with no explicit fabric token, and already-clean lines,
+  are left untouched — verified via `javascript_tool` against the running dev server (no JS test
+  harness exists in this repo).
 - **`BeltRating.rating_name` itself is deliberately left unchanged in the DB** (still stored as
   `"EP 1000/5"`) even though it's never shown that way anymore — considered and rejected because:
   it would break admin.html's Fabrics analytics breakdown, which derives its grouping label from
