@@ -21,9 +21,13 @@ validate() implements the device-aware 2FA gate:
 import logging
 from django.contrib.auth import authenticate
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
+from rest_framework_simplejwt.settings import api_settings
 
 from apps.services.device_service import is_trusted_device, send_device_otp
+from apps.api.auth_backend import tds_user_authentication_rule
+from apps.core.models import TDSUser
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +142,62 @@ class TDSTokenObtainPairSerializer(TokenObtainPairSerializer):
             else:
                 logger.info("auth: new device — OTP sent for user_id=%s", user.user_id)
             return {'status': 'device_verify'}
+
+
+class TDSTokenRefreshSerializer(TokenRefreshSerializer):
+    """
+    Override simplejwt's TokenRefreshSerializer to resolve TDSUser directly
+    instead of via get_user_model().
+
+    BUG FIX (production incident, 2026-09-01): stock TokenRefreshSerializer's
+    validate() (djangorestframework-simplejwt >= 5.3) does:
+        get_user_model().objects.get(**{api_settings.USER_ID_FIELD: user_id})
+    to re-check the user is still active before issuing a refreshed access
+    token. get_user_model() resolves Django's AUTH_USER_MODEL setting, which
+    this app deliberately leaves at its default (django.contrib.auth.User) —
+    every other place real authentication happens (TDSJWTAuthentication.get_user,
+    TDSUserBackend, tds_user_authentication_rule — see auth_backend.py's
+    module docstring) resolves TDSUser directly instead of touching
+    AUTH_USER_MODEL at all. SIMPLE_JWT['USER_ID_FIELD'] = 'user_id' was set
+    so token *creation* embeds the right claim (TDSTokenObtainPairSerializer.
+    get_token() reads `user.user_id`), but this simplejwt version also reuses
+    it for the refresh-time active-user check against get_user_model() —
+    auth.User has no `user_id` field (only `id`), so every refresh request
+    crashed with FieldError: Cannot resolve keyword 'user_id' into field.
+
+    This override does the same active-user check the stock serializer
+    intends, but against TDSUser (reusing tds_user_authentication_rule, the
+    same predicate SIMPLE_JWT['USER_AUTHENTICATION_RULE'] already points at,
+    so there's one source of truth for what counts as "active" for a token).
+    """
+
+    def validate(self, attrs):
+        refresh = self.token_class(attrs['refresh'])
+
+        user_id = refresh.payload.get(api_settings.USER_ID_CLAIM, None)
+        if user_id is not None:
+            user = TDSUser.objects.filter(pk=user_id).first()
+            if not tds_user_authentication_rule(user):
+                raise AuthenticationFailed(
+                    self.error_messages['no_active_account'],
+                    'no_active_account',
+                )
+
+        data = {'access': str(refresh.access_token)}
+
+        # ROTATE_REFRESH_TOKENS is not set in SIMPLE_JWT (defaults to False),
+        # so this app never issues a new refresh token here — kept for parity
+        # with the stock serializer in case that setting is ever turned on.
+        if api_settings.ROTATE_REFRESH_TOKENS:
+            if api_settings.BLACKLIST_AFTER_ROTATION:
+                try:
+                    refresh.blacklist()
+                except AttributeError:
+                    pass
+            refresh.set_jti()
+            refresh.set_exp()
+            refresh.set_iat()
+            refresh.outstand()
+            data['refresh'] = str(refresh)
+
+        return data

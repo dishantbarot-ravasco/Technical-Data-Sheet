@@ -20,6 +20,7 @@ LOGIN_URL = '/api/auth/login'
 DEVICE_VERIFY_URL = '/api/auth/device-verify'
 LOGOUT_URL = '/api/auth/logout'
 TDS_LIST_URL = '/api/tds/'
+TOKEN_REFRESH_URL = '/api/auth/token/refresh'
 
 
 def _extract_otp_from_outbox():
@@ -170,6 +171,59 @@ class ProtectedEndpointAuthTests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token.access_token}')
         response = self.client.get(TDS_LIST_URL)
         self.assertEqual(response.status_code, 200)
+
+
+class TokenRefreshTests(TestCase):
+    """
+    Regression test for a production incident: POST /api/auth/token/refresh
+    crashed every request with
+        FieldError: Cannot resolve keyword 'user_id' into field. Choices are:
+        date_joined, email, first_name, groups, id, is_active, ... (auth.User's
+        fields, NOT TDSUser's)
+    Stock simplejwt's TokenRefreshSerializer re-checks the user is active via
+    get_user_model().objects.get(user_id=...) -- get_user_model() resolves
+    Django's AUTH_USER_MODEL, which this app leaves at its default (auth.User)
+    since it uses TDSUser (a plain, unrelated model) for everything real.
+    TDSTokenRefreshSerializer (auth_serializers.py) fixes this by resolving
+    TDSUser directly, the same way every other authentication path in this
+    app already does.
+    """
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_valid_refresh_token_returns_new_access_token(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        user = make_user()
+        refresh = RefreshToken.for_user(user)
+
+        response = self.client.post(TOKEN_REFRESH_URL, {'refresh': str(refresh)}, format='json')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn('access', response.data)
+
+    def test_refresh_token_for_inactive_user_is_rejected_not_500(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        user = make_user()
+        refresh = RefreshToken.for_user(user)
+        user.is_active = False
+        user.save()
+
+        response = self.client.post(TOKEN_REFRESH_URL, {'refresh': str(refresh)}, format='json')
+
+        # Must be a clean 401 (simplejwt's AuthenticationFailed), never a 500.
+        self.assertEqual(response.status_code, 401, response.data)
+
+    def test_refresh_pulls_token_from_cookie_when_body_omits_it(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        user = make_user()
+        refresh = RefreshToken.for_user(user)
+
+        self.client.cookies['tds_refresh'] = str(refresh)
+        response = self.client.post(TOKEN_REFRESH_URL, {}, format='json')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn('access', response.data)
 
 
 class LogoutTests(TestCase):

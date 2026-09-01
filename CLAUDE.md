@@ -64,6 +64,30 @@ cookie first, then falls back to a `Bearer` header for non-browser API clients. 
 `admin` / `tds_creator` / `viewer`, gated by `apps/api/permissions.py`'s `IsAdmin` /
 `IsEditor` / `IsCreator` (viewer is search/view/download only).
 
+**`AUTH_USER_MODEL` is deliberately left at Django's default (`auth.User`) — this app's real user
+model, `TDSUser` (`apps.core.models`), is a plain, unrelated model, not a Django auth user.**
+Every real authentication path resolves `TDSUser` directly instead of touching
+`get_user_model()`/`AUTH_USER_MODEL` at all: `TDSUserBackend.authenticate()`/`get_user()`,
+`TDSJWTAuthentication.get_user()` (reads the `sub` claim), and
+`tds_user_authentication_rule()` (all in `apps/api/auth_backend.py`) each query `TDSUser`
+explicitly. **Any new code — or any third-party library upgrade — that calls
+`django.contrib.auth.get_user_model()` will silently resolve to `auth.User`, not `TDSUser`,
+and almost certainly do the wrong thing or crash outright.** This bit a production incident on
+2026-09-01: djangorestframework-simplejwt >= a certain 5.x point release added an active-user
+check inside `TokenRefreshSerializer.validate()` that calls
+`get_user_model().objects.get(**{api_settings.USER_ID_FIELD: user_id})` — since
+`SIMPLE_JWT['USER_ID_FIELD']` is `'user_id'` (correct for `TDSUser`'s PK, wrong for `auth.User`'s
+`id`), every `POST /api/auth/token/refresh` request crashed with `FieldError: Cannot resolve
+keyword 'user_id' into field`. Fixed with `TDSTokenRefreshSerializer`
+(`apps/api/auth_serializers.py`), which overrides `validate()` to resolve `TDSUser` directly
+(reusing `tds_user_authentication_rule` as the one source of truth for "is this user allowed to
+refresh") instead of `get_user_model()`, wired in via
+`TDSTokenRefreshView.serializer_class` (`apps/api/auth_views.py`). Covered by
+`apps/api/tests/test_auth_flow.py`'s `TokenRefreshTests` — confirmed these tests reproduce the
+exact 500 when the fix is reverted. **Before adopting any simplejwt/DRF upgrade, grep it for new
+`get_user_model()` call sites** — that's the recurring failure mode this whole class of bug comes
+from, not anything specific to token refresh.
+
 **Migration history has real, historical gaps — don't assume `manage.py migrate` on a fresh DB
 "just works" without checking.** ~30 reference/lookup tables (`purposes`, `standards`,
 `tds_inputs`, `cover_grades`, `belt_ratings`, etc.) were declared `managed=False` in

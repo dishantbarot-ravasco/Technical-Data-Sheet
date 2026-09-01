@@ -34,7 +34,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
-from .auth_serializers import TDSTokenObtainPairSerializer
+from .auth_serializers import TDSTokenObtainPairSerializer, TDSTokenRefreshSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,15 @@ class TDSTokenRefreshView(TokenRefreshView):
     On success, re-sets the tds_access cookie to the new token so cookie auth
     doesn't go stale independently of a Bearer-header caller's copy.
     """
+    # BUG FIX: stock simplejwt's TokenRefreshSerializer looks up the user via
+    # get_user_model() (Django's AUTH_USER_MODEL, left at its default
+    # auth.User in this app) to re-check they're still active — this app's
+    # actual user model is TDSUser, which auth.User has no fields in common
+    # with (crashed in production with
+    # "FieldError: Cannot resolve keyword 'user_id' into field"). See
+    # TDSTokenRefreshSerializer's docstring in auth_serializers.py.
+    serializer_class = TDSTokenRefreshSerializer
+
     def post(self, request, *args, **kwargs):
         from apps.services.device_service import REFRESH_COOKIE_NAME, set_access_cookie
 
