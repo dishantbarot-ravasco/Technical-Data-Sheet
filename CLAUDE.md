@@ -196,6 +196,29 @@ when `tds.breaker_top`/`tds.breaker_bottom` is falsy, mirroring the existing gro
 Splicing Parameters (when splicing isn't required) but at the single-parameter level, since these
 two rows live inside Belt Construction Parameters alongside other always-shown fields.
 
+**Per-user signature image, shown in the PDF's "Prepared By" footer box** — `TDSUser` gained two
+fields (`signature_image`: `BinaryField`, `signature_content_type`: `TextField`, both nullable —
+migration `0030_add_user_signature.py`), following the same in-Postgres-blob pattern as
+`TDSBatchExportJob.file_bytes` (no `MEDIA_ROOT`/disk/S3 storage exists anywhere in this app).
+Optional and admin-managed only — uploaded/replaced/removed via admin.html's existing user-edit
+modal (a new "Signature" row, visible only when editing an existing user, not when creating one),
+backed by `PUT`/`GET`/`DELETE /api/users/{id}/signature` (`apps/api/routers/users_views.py`'s
+`user_signature()`, `IsAdmin`-gated same as every other user-management endpoint). Upload/remove
+apply immediately on file-select/click, independent of the form's own "Save Changes" button — this
+was a deliberate choice to avoid the exact stale-staged-state bug class fixed elsewhere in this
+file (see the packing-override fix above): a "stage now, apply on Save" design would need a
+pending-remove flag reset on every modal open, per-user, which is exactly the kind of state that
+previously leaked between different records.
+`apps/services/signature_service.py#process_signature_image()` normalizes any upload (any
+size/aspect ratio/format) to a fixed `480×160` PNG canvas — fit-within (never upscaled/cropped/
+distorted), centered, transparent-padded when the source has alpha — before storage, so
+`pdf_service.py` can embed it as a plain base64 data URI (`TDSDocData.prepared_by_signature`)
+with no image processing at render time. `tds.html`'s `.sig-img` (`max-width:85pt;
+max-height:26pt`) replaces the blank `.sig-line` in the "Prepared By" column when a signature is
+on file, falling back to the plain line otherwise. The **Customer Acceptance** column's contact-
+person sub-line was removed at the same time (now shows only the customer name) — unrelated
+change, same footer block.
+
 ## Codebase survey pass (2026-09-01) — silent-failure / perf audit fixes
 
 A full-codebase audit for bugs that make the app slower or fail silently (not style issues)

@@ -661,6 +661,21 @@
             <option value="false">Inactive (blocked)</option>
           </select>
         </div>
+        <!-- Signature: optional, and only meaningful once the user already exists
+             (upload targets /api/users/{id}/signature), so this row only appears
+             when editing, not when creating a brand-new user. -->
+        <div class="uf-row" id="uf-signature-row" style="display:none;">
+          <label class="uf-label">Signature <span style="color:var(--text-light);font-weight:400;">(optional)</span></label>
+          <p class="uf-hint">Shown in the "Prepared By" box on every TDS PDF this user creates. Any image works — it's automatically cropped and resized to fit.</p>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+            <img id="uf-signature-preview" style="display:none;max-width:110px;max-height:40px;border:1px solid var(--border);border-radius:4px;background:#fff;padding:4px;" alt="Current signature" />
+            <span id="uf-signature-none" style="color:var(--text-light);font-size:13px;">No signature on file</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+            <input id="uf-signature-file" type="file" accept="image/png,image/jpeg,image/webp" style="flex:1;" />
+            <button type="button" class="btn btn-ghost" id="uf-signature-remove" style="display:none;white-space:nowrap;">Remove</button>
+          </div>
+        </div>
       </div>
       <div class="uf-foot">
         <button class="btn btn-ghost" id="uf-cancel">Cancel</button>
@@ -673,7 +688,10 @@
 
   <script type="module">
     import { requireAuth, populateNavUser, showToast } from './js/auth.js';
-    import { listUsers, createUser, updateUser, listTDS } from './js/api.js';
+    import {
+      listUsers, createUser, updateUser, listTDS,
+      getUserSignatureUrl, uploadUserSignature, deleteUserSignature,
+    } from './js/api.js';
 
     const session = await requireAuth();
     if (!session) throw new Error('redirect');
@@ -1049,9 +1067,67 @@
       if (edit) document.getElementById('uf-active').value   = String(user.is_active);
       document.getElementById('uf-email').readOnly = edit;
       document.getElementById('uf-err').classList.remove('show');
+
+      // Signature: only meaningful for an existing user (upload targets
+      // /api/users/{id}/signature). File input is always cleared on open —
+      // browsers otherwise keep a previously-picked file selected, which
+      // would silently re-upload the WRONG user's file if left as-is after
+      // switching which user this modal is editing.
+      document.getElementById('uf-signature-row').style.display = edit ? 'block' : 'none';
+      document.getElementById('uf-signature-file').value = '';
+      if (edit) refreshSignaturePreview(user);
+
       document.getElementById('uf-overlay').classList.add('open');
       document.getElementById('uf-fullname').focus();
     }
+
+    /**
+     * Show/hide the current-signature preview for the user being edited.
+     * Called on open, and again after a successful upload/remove so the
+     * preview reflects the just-made change without a full page reload.
+     */
+    function refreshSignaturePreview(user) {
+      const img    = document.getElementById('uf-signature-preview');
+      const noneEl = document.getElementById('uf-signature-none');
+      const rmBtn  = document.getElementById('uf-signature-remove');
+      if (user.has_signature) {
+        img.src = getUserSignatureUrl(user.user_id) + `?t=${Date.now()}`;  // bust cache after replace
+        img.style.display = 'block';
+        noneEl.style.display = 'none';
+        rmBtn.style.display = 'inline-block';
+      } else {
+        img.style.display = 'none';
+        noneEl.style.display = 'inline';
+        rmBtn.style.display = 'none';
+      }
+    }
+
+    document.getElementById('uf-signature-file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file || !editingUid) return;
+      try {
+        const updated = await uploadUserSignature(editingUid, file);
+        refreshSignaturePreview(updated);
+        showToast('Signature uploaded.', 'success');
+        await loadAll();
+      } catch (err) {
+        showToast('Signature upload failed: ' + err.message, 'error');
+      } finally {
+        e.target.value = '';
+      }
+    });
+
+    document.getElementById('uf-signature-remove').addEventListener('click', async () => {
+      if (!editingUid) return;
+      try {
+        await deleteUserSignature(editingUid);
+        refreshSignaturePreview({ user_id: editingUid, has_signature: false });
+        showToast('Signature removed.', 'success');
+        await loadAll();
+      } catch (err) {
+        showToast('Failed to remove signature: ' + err.message, 'error');
+      }
+    });
 
     function closeForm() { document.getElementById('uf-overlay').classList.remove('open'); editingUid=null; }
 

@@ -37,9 +37,12 @@ class OTPVerifyThrottle(AnonRateThrottle):
     """10 OTP verify attempts per minute per IP — supplements per-code lockout."""
     scope = 'otp_verify'
 
+from django.http import HttpResponse
+
 from apps.core.models import TDSUser
 from apps.api.permissions import IsAdmin, is_allowed_email_domain
 from apps.services.otp_service import generate_otp, verify_otp, send_otp_email
+from apps.services.signature_service import process_signature_image
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,11 @@ def _user_out(u):
         "is_active":   u.is_active,
         "created_at":  u.created_at.isoformat() if u.created_at else None,
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        # Signature bytes are never included in a JSON response (they're
+        # fetched separately as raw image bytes — see user_signature() GET
+        # below); this flag just tells the admin UI whether to render a
+        # preview <img> or the empty/"no signature" state.
+        "has_signature": bool(u.signature_image),
     }
 
 
@@ -305,5 +313,51 @@ def update_user(request, user_id):
         user.full_name = data['full_name']
     if 'designation' in data and data['designation'] is not None:
         user.designation = data['designation']
+    user.save()
+    return Response(_user_out(user))
+
+
+# ── Signature image (Prepared By footer on the TDS PDF) ────────────────────────
+# Admin-only, same as every other user-management endpoint in this file — a
+# user's own signature is uploaded on their behalf by an admin rather than
+# self-service, matching how the rest of admin.html's user form already
+# works (an admin edits full_name/designation/role for any user).
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAdmin])
+def user_signature(request, user_id):
+    """
+    GET    /api/users/{id}/signature — raw image bytes (for an <img src=...>
+                                        preview in the admin panel; browsers
+                                        send the auth cookie automatically on
+                                        a same-origin <img> request, no JS
+                                        fetch glue needed).
+    PUT    /api/users/{id}/signature — upload/replace. multipart/form-data,
+                                        field name "signature". Optional —
+                                        not every user needs one.
+    DELETE /api/users/{id}/signature — remove it.
+    """
+    user = TDSUser.objects.filter(pk=user_id).first()
+    if not user:
+        raise NotFound(f"User {user_id} not found")
+
+    if request.method == 'GET':
+        if not user.signature_image:
+            raise NotFound(f"User {user_id} has no signature on file.")
+        return HttpResponse(bytes(user.signature_image), content_type=user.signature_content_type)
+
+    if request.method == 'DELETE':
+        user.signature_image        = None
+        user.signature_content_type = None
+        user.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # PUT
+    upload = request.FILES.get('signature')
+    if not upload:
+        raise ValidationError({'detail': 'No file uploaded under the "signature" field.'})
+    png_bytes, content_type = process_signature_image(upload.read())
+    user.signature_image        = png_bytes
+    user.signature_content_type = content_type
     user.save()
     return Response(_user_out(user))

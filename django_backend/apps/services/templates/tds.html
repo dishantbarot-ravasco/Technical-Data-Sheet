@@ -209,6 +209,11 @@ body {
 .sig-table tbody td { padding: 38pt 14pt 10pt; vertical-align: bottom; width: 50%; }
 .sig-table tbody td + td { border-left: 1pt solid #eeeeee; }
 .sig-line  { border-top: .8pt solid #999; margin-bottom: 4pt; width: 80%; }
+/* Uploaded signature image (apps/services/signature_service.py normalizes
+   every upload to this same box, but bound max-width/height here too in
+   case that ever changes) — sits in the blank space above the line where a
+   handwritten signature would otherwise go, replacing .sig-line entirely. */
+.sig-img   { display: block; max-width: 85pt; max-height: 26pt; margin: 0 auto 4pt; }
 .sig-name  { font-size: 8.5pt; font-weight: 700; color: #1a1a1a; }
 .sig-desig { font-size: 7.5pt; color: #F5A623; margin-top: 1pt; }
 
@@ -393,14 +398,17 @@ body {
       <tbody>
         <tr>
           <td>
+            {% if doc.prepared_by_signature %}
+            <img class="sig-img" src="{{ doc.prepared_by_signature }}" alt="Signature" />
+            {% else %}
             <div class="sig-line"></div>
+            {% endif %}
             <div class="sig-name">{{ doc.prepared_by_name }}</div>
             <div class="sig-desig">{{ doc.prepared_by_designation }}</div>
           </td>
           <td>
             <div class="sig-line"></div>
             <div class="sig-name">{{ doc.customer_name }}</div>
-            <div class="sig-desig" style="color:#aaa;">{{ doc.contact_person or "Authorised Signatory" }}</div>
           </td>
         </tr>
       </tbody>

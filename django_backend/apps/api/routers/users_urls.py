@@ -19,4 +19,5 @@ urlpatterns = [
     path('users/',                v.create_user,          name='users-create'),
     path('users/<int:user_id>',   v.get_user,             name='user-detail'),
     path('users/<int:user_id>/',  v.update_user,          name='user-update'),
+    path('users/<int:user_id>/signature', v.user_signature, name='user-signature'),
 ]

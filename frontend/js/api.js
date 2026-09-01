@@ -17,6 +17,7 @@
  *   listTDS / getTDS / createTDS / createBatch / approveTDS / declineTDS / deleteTDS
  *   getParameters
  *   listUsers / createUser / updateUser
+ *   getUserSignatureUrl / uploadUserSignature / deleteUserSignature
  *   requestOTP / verifyOTP / changePassword
  *   getPdfUrl / downloadPdf
  *
@@ -477,6 +478,58 @@ export const createUser = (payload) =>
  */
 export const updateUser = (id, payload) =>
   apiFetch(`/users/${id}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+
+/**
+ * URL for a user's signature image preview (<img src="...">). Not fetched
+ * via apiFetch/fetch — the browser sends the auth cookie automatically on a
+ * same-origin <img> request, so this is just a plain URL. 404s if the user
+ * has no signature on file; the caller should only set it as an <img> src
+ * when list/getUser's `has_signature` flag is true.
+ * @param {number} id - The user's ID
+ * @returns {string}
+ */
+export const getUserSignatureUrl = (id) => `${API_BASE}/users/${id}/signature`;
+
+/**
+ * Upload (or replace) a user's signature image. Optional — not every user
+ * needs one. The server crops/resizes it to fit the PDF footer regardless
+ * of the source image's size or aspect ratio.
+ *
+ * Uses raw fetch, not apiFetch, because apiFetch always forces
+ * Content-Type: application/json — a multipart/form-data upload needs the
+ * browser to set its own Content-Type (with the multipart boundary), so it
+ * must never be set manually here.
+ * @param {number} id   - The user's ID
+ * @param {File} file   - The image file (PNG/JPEG/WEBP)
+ * @returns {Promise<Object>} Updated user object
+ */
+export async function uploadUserSignature(id, file) {
+  const body = new FormData();
+  body.append('signature', file);
+  const res = await fetch(`${API_BASE}/users/${id}/signature`, {
+    method: 'PUT', credentials: 'include', headers: getAuthHeaders(), body,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Signature upload failed: HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/**
+ * Remove a user's signature image.
+ * @param {number} id - The user's ID
+ * @returns {Promise<void>}
+ */
+export async function deleteUserSignature(id) {
+  const res = await fetch(`${API_BASE}/users/${id}/signature`, {
+    method: 'DELETE', credentials: 'include', headers: getAuthHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Signature removal failed: HTTP ${res.status}`);
+  }
+}
 
 /* ══════════════════════════════════════════════════════════
    SECTION: OTP / Password Change

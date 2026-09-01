@@ -55,6 +55,7 @@ self.attributes without changing behaviour or improving readability.
 """
 from __future__ import annotations
 
+import base64
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -132,6 +133,10 @@ class TDSDocData:
     # ── Footer ────────────────────────────────────────────────────────────
     prepared_by_name: str = "—"
     prepared_by_designation: str = ""
+    # data: URI (image/png;base64,...) when the creator has uploaded a
+    # signature (apps/api/routers/users_views.py's user_signature endpoint);
+    # None renders the plain blank signature line instead — see tds.html.
+    prepared_by_signature: Optional[str] = None
     # Set only when this doc was built from a past TDSRevision snapshot
     # (see `overrides` on build_tds_doc_data) — shown as a header notice.
     revision_banner: Optional[str] = None
@@ -524,6 +529,9 @@ def build_tds_doc_data(
     if creator:
         doc.prepared_by_name        = creator.full_name or "—"
         doc.prepared_by_designation = creator.designation or ""
+        if creator.signature_image:
+            encoded = base64.b64encode(bytes(creator.signature_image)).decode("ascii")
+            doc.prepared_by_signature = f"data:{creator.signature_content_type};base64,{encoded}"
 
     # ── Hot-splice curing lookup ──────────────────────────────────────────────
     hot_curing_row = None

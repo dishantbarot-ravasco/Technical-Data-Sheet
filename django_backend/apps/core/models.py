@@ -624,6 +624,17 @@ class TDSUser(models.Model):
     created_at    = models.DateTimeField(auto_now_add=True)
     last_login_at = models.DateTimeField(null=True, blank=True)
 
+    # Optional signature image, shown in the "Prepared By" block of the TDS
+    # PDF footer for whichever user created that record (see
+    # pdf_service.py#build_tds_doc_data). Stored in Postgres (bytea) rather
+    # than on disk/S3 -- mirrors TDSBatchExportJob.file_bytes, the only other
+    # binary-blob storage in this app; no MEDIA_ROOT/file storage is
+    # configured anywhere. Always pre-processed to PNG at upload time
+    # (apps/services/signature_service.py) so pdf_service.py can embed it as
+    # a data URI without touching Pillow itself.
+    signature_image        = models.BinaryField(null=True, blank=True)
+    signature_content_type = models.TextField(null=True, blank=True)
+
     # ── Django/DRF auth protocol ──────────────────────────────────────────────
     # TDSUser does NOT inherit from AbstractBaseUser, so we must explicitly
     # declare these attributes.  DRF's IsAuthenticated permission calls

@@ -43,3 +43,8 @@ whitenoise>=6.7               # serves frontend/ and Django admin static files
 # ── Data / Excel (if used) ────────────────────────────────────────────────────
 pandas>=2.2
 openpyxl>=3.1
+
+# ── Image processing ───────────────────────────────────────────────────────────
+# Used by apps/services/signature_service.py to normalize a user's uploaded
+# signature image (crop/resize/reformat to PNG) before storing it.
+Pillow>=11.0
