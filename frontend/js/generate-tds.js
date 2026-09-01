@@ -625,7 +625,16 @@ async function loadCoverGrades(standardId) {
  *
  * @param {string|number} fabricTypeId - The selected fabric type's database ID
  */
+// Bumped on every loadBeltRatings() call. Fast Fabric Type changes (or a
+// dropdown change racing a liveParseBeltDescription() call) can fire
+// overlapping requests; without this, an older request's response arriving
+// after a newer one would silently overwrite the belt-rating/fabric-style
+// dropdown options — and lookupData-driving fields — with stale data. Same
+// pattern as _liveParseGen above.
+let _loadBeltRatingsGen = 0;
+
 async function loadBeltRatings(fabricTypeId) {
+  const myGen = ++_loadBeltRatingsGen;
   const ratingSel = document.getElementById('belt-rating-id');
   const styleSel  = document.getElementById('fabric-style-id');
   ratingSel.innerHTML = '<option value="">Loading…</option>';
@@ -642,11 +651,13 @@ async function loadBeltRatings(fabricTypeId) {
       getBeltRatings(fabricTypeId),
       getFabricStyles(fabricTypeId),
     ]);
+    if (myGen !== _loadBeltRatingsGen) return;   // a newer call has since started
     ratingSel.innerHTML = '<option value="">- Select Belt Rating -</option>' +
       ratings.map(r => `<option value="${r.id}">${r.rating_name}</option>`).join('');
     styleSel.innerHTML = '<option value="">- None -</option>' +
       styles.map(s => `<option value="${s.id}">${s.style_name}</option>`).join('');
   } catch (err) {
+    if (myGen !== _loadBeltRatingsGen) return;
     ratingSel.innerHTML = '<option value="">Failed to load</option>';
     styleSel.innerHTML  = '<option value="">Failed to load</option>';
     showToast('Failed to load belt ratings/fabric styles: ' + err.message, 'error');
@@ -665,18 +676,28 @@ async function loadBeltRatings(fabricTypeId) {
  * This is the main "intelligence" step of the form - after this call,
  * the form knows the rubber and carcass properties needed for all calculations.
  */
+// Bumped on every runLookup() call. Rapidly changing Standard/Cover Grade/
+// Belt Rating fires overlapping tdsLookup() requests; without this, an
+// out-of-order response would silently overwrite lookupData (which drives
+// weight/packing calculations) and the Computed Values chips with stale
+// data for a combination the user has already moved past.
+let _runLookupGen = 0;
+
 async function runLookup() {
   const standardId   = val('standard-id');
   const coverGradeId = val('cover-grade-id');
   const beltRatingId = val('belt-rating-id');
   if (!standardId || !coverGradeId || !beltRatingId) return;
 
+  const myGen = ++_runLookupGen;
   try {
-    lookupData = await tdsLookup({
+    const result = await tdsLookup({
       standard_id:    +standardId,
       cover_grade_id: +coverGradeId,
       belt_rating_id: +beltRatingId,
     });
+    if (myGen !== _runLookupGen) return;   // a newer lookup has since started
+    lookupData = result;
 
     const plies   = lookupData.belt_rating?.num_plies            ?? '-';
     const carcass = lookupData.belt_rating?.carcass_thickness_mm ?? '-';
@@ -710,6 +731,7 @@ async function runLookup() {
     document.getElementById('lookup-result').style.display = 'block';
     updateBeltDescription();
   } catch (err) {
+    if (myGen !== _runLookupGen) return;
     showToast('Lookup failed: ' + err.message, 'error');
   }
 }
@@ -1828,23 +1850,41 @@ function clearCustomerDetailFields() {
  * Called whenever the standard or belt width changes.
  * Silently ignores errors - dimensional specs are informational and non-blocking.
  */
-async function fetchDimensionalSpecs() {
-  const standardId  = val('standard-id');
-  const beltWidthMm = val('belt-width-mm');
-  if (!standardId || !beltWidthMm) return;
+// BUG FIX: this used to fire one request per keystroke on every wired input
+// (top/bottom cover, carcass thickness, belt width — see wireEvents below),
+// unthrottled and unordered — wasteful, and an out-of-order response could
+// silently leave window._dimSpecs (which the PDF preview reads) showing
+// stale tolerance data for values the user has since changed. Debounced
+// (same 250ms pattern as the customer-autocomplete search) and sequence-
+// guarded (same pattern as _liveParseGen/_loadBeltRatingsGen/_runLookupGen
+// above) so only the latest call's response is ever applied.
+let _dimSpecsDebounceTimer = null;
+let _dimSpecsReqSeq = 0;
 
-  try {
-    const specs = await getDimensionalSpecs(+standardId, {
-      belt_width_mm:        +beltWidthMm,
-      top_cover_mm:         +val('top-cover-mm')          || undefined,
-      bottom_cover_mm:      +val('bottom-cover-mm')       || undefined,
-      carcass_thickness_mm: +val('carcass-thickness-mm')  || undefined,
-      total_thickness_mm:   +val('total-thickness-mm')    || undefined,
-    });
-    window._dimSpecs = specs;   // { "1": { parameter_name, spec_value }, ... }
-  } catch (e) {
-    console.warn('dimensional-specs fetch failed:', e);
-  }
+function fetchDimensionalSpecs() {
+  if (_dimSpecsDebounceTimer) clearTimeout(_dimSpecsDebounceTimer);
+  const mySeq = ++_dimSpecsReqSeq;
+
+  _dimSpecsDebounceTimer = setTimeout(async () => {
+    const standardId  = val('standard-id');
+    const beltWidthMm = val('belt-width-mm');
+    if (!standardId || !beltWidthMm) return;
+
+    try {
+      const specs = await getDimensionalSpecs(+standardId, {
+        belt_width_mm:        +beltWidthMm,
+        top_cover_mm:         +val('top-cover-mm')          || undefined,
+        bottom_cover_mm:      +val('bottom-cover-mm')       || undefined,
+        carcass_thickness_mm: +val('carcass-thickness-mm')  || undefined,
+        total_thickness_mm:   +val('total-thickness-mm')    || undefined,
+      });
+      if (mySeq !== _dimSpecsReqSeq) return;   // a newer call has since started
+      window._dimSpecs = specs;   // { "1": { parameter_name, spec_value }, ... }
+    } catch (e) {
+      if (mySeq !== _dimSpecsReqSeq) return;
+      console.warn('dimensional-specs fetch failed:', e);
+    }
+  }, 250);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2217,6 +2257,18 @@ function clearBeltSpecFields() {
   set('gross-weight-kg',   '');
   const overrideFields = document.getElementById('packing-override-fields');
   if (overrideFields) overrideFields.style.display = 'none';
+  // BUG FIX: this used to only hide the override panel, leaving the override
+  // INPUTS themselves (num-rolls-override, net-weight-kg-override, etc.)
+  // holding whatever the previous belt's values were. captureBeltSpec()
+  // reads these inputs directly regardless of whether the panel is visible,
+  // so a belt queued with a manual override would silently leak its
+  // num_rolls/net_weight_kg/gross_weight_kg onto the NEXT belt if the user
+  // didn't reopen the (now-hidden) override panel to notice and clear them.
+  set('num-rolls-override',       '');
+  set('length-per-roll-override', '');
+  set('net-weight-kg-override',   '');
+  set('gross-weight-kg-override', '');
+  renderRollLengthInputs(0);   // clears any roll-len-override-* inputs too
 
   // ⑤ Splicing
   const splReq = document.getElementById('splicing-required');

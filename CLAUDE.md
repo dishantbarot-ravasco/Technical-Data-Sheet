@@ -172,6 +172,129 @@ when `tds.breaker_top`/`tds.breaker_bottom` is falsy, mirroring the existing gro
 Splicing Parameters (when splicing isn't required) but at the single-parameter level, since these
 two rows live inside Belt Construction Parameters alongside other always-shown fields.
 
+## Codebase survey pass (2026-09-01) — silent-failure / perf audit fixes
+
+A full-codebase audit for bugs that make the app slower or fail silently (not style issues)
+turned up several confirmed bugs. All eight — four high-severity, four medium-severity, and the
+two low-severity ones below — were fixed and covered by tests/verification across three passes
+the same day.
+
+- **`GET /api/splicing-config` silently stopped enforcing auth after the first cache fill** —
+  `get_splicing_config` in `apps/api/routers/master_views.py` stacked `@cache_page` *above*
+  `@permission_classes([IsAuthenticated])`. Django's `cache_page` short-circuits on a cache hit
+  and returns the stored `HttpResponse` without ever re-invoking the view, so the permission
+  check only actually ran on the request that missed the cache — after that, the same response
+  (non-sensitive splicing lookup data, already embedded in the unauthenticated `/api/bootstrap`)
+  was served to any caller for up to an hour. Fixed by making it `AllowAny`, matching this file's
+  own module docstring ("No auth required on GET endpoints") and matching `bootstrap`. **Any
+  future `@cache_page`-wrapped view in this codebase must be `AllowAny`** — if it needs real
+  per-user gating, don't cache it (`cache_page` and per-request auth are mutually exclusive here).
+  Covered by `apps/api/tests/test_master_views.py`.
+
+- **Batch import silently saved TDS rows with null packing fields when `compute_packing()`
+  failed** — both `create_batch()` and `text_import_batch()` in `apps/api/routers/batch_views.py`
+  caught the packing-computation call in a bare `except Exception: logger.exception(...)` and
+  fell through, leaving `num_rolls`/`net_weight_kg`/`gross_weight_kg` as `None` on an otherwise
+  fully-created record — contradicting this file's own "collect-all-errors, block the whole batch
+  on any failure" design, and rendering as PDF fields that just show "—" with zero indication to
+  the user that anything failed. `compute_packing()` only ever raises `ValueError` for
+  attributable input problems (bad reel config, non-physical dimensions, `belt_length_m <= 0`,
+  etc. — see `packing_service.py`), so the fix catches `ValueError` specifically and re-raises it
+  as a `ValidationError` keyed to the offending row (`belts[i]`), which aborts the whole
+  `transaction.atomic()` block instead of persisting a half-computed record. Covered by
+  `apps/api/tests/test_batch_packing_failure.py` (asserts the 400, the attributable row-keyed
+  message, that no `TDSBatch`/`TDSInput` rows are left behind, and that a valid batch is
+  unaffected).
+
+- **Manually-supplied `num_rolls` reintroduced the round-up-to-0.5kg weight bug that was already
+  fixed elsewhere** — `_validate_and_compute_tds_fields()` in `apps/api/routers/tds_views.py` has
+  a fallback that derives `gross_weight_per_roll_kg` when `num_rolls` is sent directly (skipping
+  `compute_packing()`'s own branch entirely). That fallback still used
+  `math.ceil(x*2)/2` — the exact convention `packing_service.compute_packing()` was deliberately
+  changed away from (see "Net/gross weight is a precise decimal" above) because it made per-roll
+  weight × num_rolls disagree with the displayed total. Fixed to `round(x, 2)`, matching
+  `compute_packing()`. Covered by `apps/api/tests/test_packing_rounding.py` (locks in
+  `round(1000.32/3, 2) == 333.44`, not the old `333.5`).
+
+- **A queued belt's manual packing override silently leaked onto the next belt** —
+  `clearBeltSpecFields()` in `frontend/js/generate-tds.js` hid the `#packing-override-fields`
+  panel after a belt was added to the queue but never cleared the override *input values*
+  themselves (`num-rolls-override`, `length-per-roll-override`, `net-weight-kg-override`,
+  `gross-weight-kg-override`, `roll-len-override-*`). `captureBeltSpec()` reads those inputs
+  unconditionally regardless of whether the panel is visible, so overriding Belt 1's weight and
+  then queuing Belt 2 without reopening the (now-hidden) panel silently applied Belt 1's override
+  values to Belt 2. Fixed by explicitly blanking those four inputs and calling
+  `renderRollLengthInputs(0)` in `clearBeltSpecFields()`. No JS test harness exists in this repo
+  (frontend is plain script-tag JS, no build/test tooling) — verified by tracing `captureBeltSpec()`'s
+  exact read list against the exact fields now cleared, and by confirming the module still parses
+  and runs with no syntax/runtime errors (`import()` in a browser console against the running
+  dev server).
+
+- **`_update_tds()`'s revision snapshot and its own record save weren't atomic** —
+  `apps/api/routers/tds_views.py` created the `TDSRevision` row and then called `record.save()`
+  as two separate statements. If `record.save()` raised, the revision snapshot was already
+  permanently committed even though the edit it describes never actually applied, leaving
+  `current_revision` on the live row out of sync with the max revision number actually stored in
+  `tds_revisions`. Fixed by wrapping both in one `transaction.atomic()` block. Covered by
+  `apps/api/tests/test_update_tds_atomicity.py` (mocks `TDSInput.save` to raise and asserts the
+  revision row and `current_revision` are both rolled back; a second test asserts a normal
+  successful edit still creates exactly one revision).
+
+- **`gross_weight_per_roll_kg` went stale after a `roll_lengths_m` (unequal roll count) override**
+  — in `_validate_and_compute_tds_fields()` (`tds_views.py`), when `reel_type_id`+
+  `packing_type_id` auto-computed packing for N rolls, then the caller also supplied
+  `roll_lengths_m` splitting the belt into a *different* number of unequal rolls,
+  `packing_num_rolls` was correctly updated to the new count but `packing_gross_weight_per_roll`
+  kept the value averaged over the old count — e.g. "Number of Rolls: 3" next to a per-roll weight
+  actually computed for 2. Fixed by resetting `packing_gross_weight_per_roll` to `None` inside the
+  `roll_lengths_m` override branch, so the existing fallback just below recomputes it against the
+  corrected roll count. Covered by `apps/api/tests/test_roll_lengths_override.py` (auto-computes
+  1 roll as a baseline, then overrides to 2 unequal rolls and asserts the per-roll weight is
+  recomputed for 2, not left over from the 1-roll baseline).
+
+- **Unsequenced dropdown-populating fetches could apply a stale response over a newer one** —
+  `loadBeltRatings()` and `runLookup()` in `frontend/js/generate-tds.js` had no request
+  sequencing of their own (unlike `liveParseBeltDescription()`, which already used a generation
+  counter — `_liveParseGen` — for exactly this). Fast Fabric Type / Cover Grade / Belt Rating
+  changes could fire overlapping requests; if an older one resolved after a newer one, its
+  response would silently overwrite the belt-rating/fabric-style dropdown options or
+  `lookupData` (which drives weight/packing calculations) with stale data. Fixed by adding the
+  same generation-counter pattern to both (`_loadBeltRatingsGen`, `_runLookupGen`) — a response
+  is only applied if its generation still matches the latest call when it resolves.
+
+- **`fetchDimensionalSpecs()` fired one request per keystroke, unordered** — wired to `input` on
+  top/bottom cover, carcass thickness, and belt width in `generate-tds.js`, with no debounce and
+  no sequencing, wasting requests and occasionally leaving `window._dimSpecs` (which the PDF
+  preview reads) showing stale tolerance data for values the user has since changed. Fixed by
+  debouncing 250ms (same pattern as the customer-autocomplete search) plus the same
+  generation-counter guard as above (`_dimSpecsReqSeq`).
+
+  The last three frontend fixes have no JS test harness (none exists in this repo) — verified the
+  same way as the packing-override fix: tracing the exact logic change against callers/callees,
+  and confirming the module still parses and runs with no syntax/runtime errors via `import()`
+  against the running dev server.
+
+- **`customers()` GET search materialized every matching row before ranking/slicing, with no
+  upper bound on the initial fetch** — `apps/api/routers/master_views.py`'s
+  `list(qs.filter(customer_name__icontains=search))` pulled every match into Python before
+  `_customer_search_tier()`-ranking and slicing to `limit`; a broad search term (a common letter)
+  against a large `customers` table would materialize far more rows than could ever be returned.
+  Fine at current lookup-table-scale data volume, but fixed anyway by capping the candidate
+  fetch at `_SEARCH_CANDIDATE_CAP` (500) via `.order_by('customer_name')[:_SEARCH_CANDIDATE_CAP]`
+  before ranking — only changes behavior if a single term has more than 500 matches, in which
+  case the lowest-relevance-tier ones beyond the cap may not be considered. Covered by
+  `apps/api/tests/test_master_views.py`'s `CustomerSearchCandidateCapTests` (patches the cap down
+  to 3 to exercise it against a small fixture set, and asserts the result never exceeds `limit`).
+
+- **`populateNavUser()` swallowed every failure with a bare `catch { /* non-fatal */ }`** —
+  `frontend/js/auth.js`. Left non-fatal by design (a nav-bar-population failure shouldn't block
+  page load), but a network error or JSON parse failure disappeared with zero trace, unlike every
+  other unhandled rejection in the app (which the `unhandledrejection` backstop in this same file
+  at least toasts). Added `console.warn('populateNavUser failed:', err)` inside the catch — cheap,
+  and turns "nav bar is silently blank" into something debuggable. Verified by forcing `fetch` to
+  reject in a browser console against the running dev server and confirming the warning fires
+  (no JS test harness exists in this repo).
+
 ## Known future work / deferred proposals (v2 candidates)
 
 These were discussed across past sessions but deliberately not built yet — either genuinely

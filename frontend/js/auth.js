@@ -776,7 +776,14 @@ export async function populateNavUser() {
     const adminLink = document.getElementById('nav-admin-link');
     if (adminLink) adminLink.style.display = (user.role==='admin') ? 'block' : 'none';
 
-  } catch { /* non-fatal */ }
+  } catch (err) {
+    // Non-fatal: leaving the nav bar unpopulated is a cosmetic-only failure,
+    // not worth interrupting the page load over. But this used to swallow
+    // the error completely with no trace at all (network error, JSON parse
+    // failure, etc.) — a console.warn costs nothing and turns "nav bar is
+    // silently blank" into something debuggable.
+    console.warn('populateNavUser failed:', err);
+  }
 
   const logoutBtn = document.getElementById('btn-logout');
   if (logoutBtn) logoutBtn.addEventListener('click', logout);

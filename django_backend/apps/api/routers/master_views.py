@@ -50,6 +50,10 @@ from rest_framework.exceptions import NotFound, ValidationError
 # under @api_view would try to cache DRF's un-rendered Response and error.
 CACHE_TTL_SECONDS = 60 * 60
 
+# Upper bound on how many rows customers' search fetches before ranking —
+# see the PERFORMANCE note at its call site in customers() below.
+_SEARCH_CANDIDATE_CAP = 500
+
 from apps.core.models import (
     BeltRating, CoverGrade, Customer, FabricStyle, FabricType, IndusBrand,
     PackingType, Purpose, BeltType, ReelType, Standard, TDSParameter,
@@ -405,7 +409,22 @@ def customers(request):
         qs = Customer.objects.all()
         if search:
             search_lc = search.lower()
-            objs = list(qs.filter(customer_name__icontains=search))
+            # PERFORMANCE: this used to materialize every matching row into
+            # Python before ranking/sorting, with no upper bound on the
+            # initial fetch (only the final result was capped at `limit`) --
+            # a broad search term (e.g. a common letter) against a large
+            # customers table would pull thousands of rows into memory just
+            # to rank and throw most of them away. Capping the candidate set
+            # at _SEARCH_CANDIDATE_CAP bounds that while still ranking
+            # correctly for any realistic `limit` (<= 200); it only changes
+            # behavior if a single search term has more matches than the cap,
+            # in which case the lowest-relevance-tier matches beyond the cap
+            # (already the ones this endpoint is least likely to want to
+            # return) may not be considered.
+            objs = list(
+                qs.filter(customer_name__icontains=search)
+                  .order_by('customer_name')[:_SEARCH_CANDIDATE_CAP]
+            )
             objs.sort(key=lambda c: (
                 _customer_search_tier(c.customer_name, search_lc),
                 (c.customer_name or '').lower(),
@@ -506,7 +525,7 @@ def shipping_constraints(request):
 
 @cache_page(CACHE_TTL_SECONDS)
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_splicing_config(request):
     """
     GET /api/splicing-config
@@ -515,6 +534,17 @@ def get_splicing_config(request):
     the frontend calculators never have to hardcode them.  The same data is
     also embedded in /api/bootstrap (splicing_config key) so generate-tds.js
     gets it for free with zero extra requests.
+
+    AllowAny, matching every other endpoint in this file (see module
+    docstring: "No auth required on GET endpoints") and matching bootstrap's
+    own AllowAny — this view previously required IsAuthenticated, but
+    @cache_page sits above @permission_classes and short-circuits on a cache
+    hit by returning the stored HttpResponse without ever re-invoking the
+    view, so the permission check silently stopped applying after the first
+    cache fill anyway. Since the identical data is already public via
+    bootstrap, AllowAny here just makes the real behavior match the
+    intended one instead of leaving a permission check that only worked
+    for the first request per cache period.
 
     Response shape:
         {

@@ -407,7 +407,8 @@ def create_batch(request):
         created_records = []
 
         # 4b. Create one TDSInput per belt row
-        for b in belts:
+        for i, b in enumerate(belts):
+            row = f"belts[{i}]"
             rating      = _rating_cache[b['belt_rating_id']]
             cover_grade = _cover_grade_cache[b['cover_grade_id']]
             belt_type   = _belt_type_cache[b['belt_type_id']]
@@ -480,11 +481,21 @@ def create_batch(request):
                     packing_net_weight   = pr.net_weight_kg
                     packing_gross_weight = pr.gross_weight_kg
                     packing_gw_per_roll  = pr.gross_weight_per_roll_kg
-                except Exception:
-                    logger.exception(
-                        "compute_packing failed for belt_rating_id=%s belt_width_mm=%s",
-                        b['belt_rating_id'], b['belt_width_mm'],
-                    )
+                except ValueError as exc:
+                    # BUG FIX: this used to catch bare Exception, log it, and
+                    # silently continue with all packing_* fields left None --
+                    # the row was still saved, and the PDF rendered "-" for
+                    # Number of Rolls / Net Weight / Gross Weight with no
+                    # indication to the caller that anything had failed.
+                    # compute_packing only ever raises ValueError for
+                    # attributable input problems (bad reel/packing config,
+                    # non-physical dimensions, etc.) -- surface those as a
+                    # validation error tied to the offending row instead,
+                    # which also rolls back the whole atomic block so no
+                    # half-computed record is ever persisted.
+                    raise ValidationError(
+                        {row: [f'Packing calculation failed: {exc}']}
+                    ) from exc
 
             # Splicing: shared method, per-belt joint count
             # num_joints = 1 per roll (typical, matches single-belt flow);
@@ -975,7 +986,8 @@ def text_import_batch(request):
 
         created_records = []
 
-        for b in resolved_belts:
+        for i, b in enumerate(resolved_belts):
+            row = f"belts[{i}]"
             rating      = BeltRating.objects.get(pk=b['belt_rating_id'])
             cover_grade = CoverGrade.objects.get(pk=b['cover_grade_id'])
             belt_type   = BeltType.objects.get(pk=b['belt_type_id'])
@@ -1042,11 +1054,13 @@ def text_import_batch(request):
                     packing_net_weight   = pr.net_weight_kg
                     packing_gross_weight = pr.gross_weight_kg
                     packing_gw_per_roll  = pr.gross_weight_per_roll_kg
-                except Exception:
-                    logger.exception(
-                        "compute_packing failed for belt_rating_id=%s belt_width_mm=%s",
-                        b['belt_rating_id'], b['belt_width_mm'],
-                    )
+                except ValueError as exc:
+                    # BUG FIX: see the matching fix in create_batch() above —
+                    # this used to swallow the failure, log it, and save the
+                    # row anyway with all packing_* fields left None.
+                    raise ValidationError(
+                        {row: [f'Packing calculation failed: {exc}']}
+                    ) from exc
 
             # Splicing — num_joints = 1 per roll (typical, auto-computed from packing);
             # falls back to shared value if packing wasn't computed.

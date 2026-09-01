@@ -13,11 +13,11 @@ Endpoints:
   PATCH  /api/tds/{id}/status
   DELETE /api/tds/{id}
 """
-import math
 import logging
 from datetime import datetime, timezone, date
 from decimal import Decimal
 
+from django.db import transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -468,12 +468,36 @@ def _validate_and_compute_tds_fields(p):
         packing_num_rolls    = len(roll_lengths_m)
         packing_len_per_roll = round(sum(map(float, roll_lengths_m)) / len(roll_lengths_m), 2)
         packing_roll_dims    = rv.roll_dimensions
+        # BUG FIX: packing_gross_weight_per_roll may already hold a value
+        # computed by the compute_packing() branch above for its OWN
+        # (different) num_rolls -- e.g. reel_type_id+packing_type_id with
+        # num_rolls=None auto-computes 2 rolls, then this override splits the
+        # belt into 3 unequal rolls instead. Without resetting it here, the
+        # PDF would show "Number of Rolls: 3" next to a "Gross Weight per
+        # Roll" that was actually averaged over 2 -- an internally
+        # inconsistent number with no error raised. Resetting to None lets
+        # the fallback just below recompute it against the correct,
+        # just-updated packing_num_rolls.
+        packing_gross_weight_per_roll = None
 
     # Fallback: derive gross_weight_per_roll when num_rolls was sent directly
+    #
+    # BUG FIX: this used to round up to the nearest 0.5 kg
+    # (math.ceil(x*2)/2) — the old convention packing_service.compute_packing()
+    # deliberately moved away from for weight fields (see its own
+    # gross_weight_per_roll_kg, and the CLAUDE.md note on precise weight
+    # rounding). This fallback path only runs when num_rolls is supplied
+    # directly (skipping compute_packing's own branch above), so it had
+    # silently regressed back to the round-up-to-half-kg convention here,
+    # producing a per-roll weight that doesn't reconcile with
+    # packing_gross_weight / packing_num_rolls (e.g. gross_weight_kg=1000.32,
+    # num_rolls=3 → 333.5/roll × 3 = 1000.5, off by 0.18kg) — the exact
+    # Belt-Specs-vs-Packing mismatch class this file's precise-rounding
+    # convention exists to prevent. round(x, 2) matches compute_packing().
     if packing_gross_weight_per_roll is None and packing_gross_weight and packing_num_rolls:
-        packing_gross_weight_per_roll = math.ceil(
-            float(packing_gross_weight) / int(packing_num_rolls) * 2
-        ) / 2
+        packing_gross_weight_per_roll = round(
+            float(packing_gross_weight) / int(packing_num_rolls), 2
+        )
 
     # ── Auto-compute splicing ─────────────────────────────────────────────────
     step_len  = p.get('step_length_mm')
@@ -761,14 +785,23 @@ def _update_tds(request, tds_id):
     # they'd just be revision-history noise. Once a real download happens
     # (see generate_pdf()/download_export()), every subsequent edit snapshots
     # as before, however long after — that's what makes it a "revision".
-    if changed_fields and record.first_downloaded_at is not None:
-        TDSRevision.objects.create(
-            tds=record, revision_number=record.current_revision,
-            snapshot=old_snapshot, edited_by=request.user, change_summary=detail,
-        )
-        record.current_revision += 1
+    # BUG FIX: the revision-snapshot create() and the record's own save() used
+    # to be two separate uncommitted-together statements — if record.save()
+    # raised (e.g. a DB constraint violation on one of the new field values),
+    # the TDSRevision row describing this edit was already permanently
+    # committed even though the edit it describes never actually applied,
+    # leaving current_revision on the live row out of sync with the max
+    # revision number actually stored in tds_revisions. Wrapping both in one
+    # atomic block means either both persist or neither does.
+    with transaction.atomic():
+        if changed_fields and record.first_downloaded_at is not None:
+            TDSRevision.objects.create(
+                tds=record, revision_number=record.current_revision,
+                snapshot=old_snapshot, edited_by=request.user, change_summary=detail,
+            )
+            record.current_revision += 1
 
-    record.save()
+        record.save()
 
     log_tds_action(request, TDSAuditLog.ACTION_UPDATE, tds=record, detail=detail)
     return Response(_tds_full(_load_full(tds_id)))
