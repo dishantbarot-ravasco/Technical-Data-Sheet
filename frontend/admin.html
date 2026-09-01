@@ -693,6 +693,19 @@
       getUserSignatureUrl, uploadUserSignature, deleteUserSignature,
     } from './js/api.js';
 
+    /**
+     * Strip the leading fabric-code token off a BeltRating.rating_name
+     * ("EP 1000/5" -> "1000/5") for display. Mirrors
+     * apps/services/calculations.py::strip_fabric_prefix() and the copies in
+     * frontend/js/generate-tds.js / frontend/js/search-tds.js — keep all in
+     * sync if this format ever changes. Deliberately NOT applied to the
+     * Fabrics analytics breakdown below, which intentionally reads the raw
+     * rating_name to derive its own (separate) fabric-code grouping label.
+     */
+    function stripFabricPrefix(ratingName) {
+      return (ratingName || '').trim().replace(/^\S+\s+/, '');
+    }
+
     const session = await requireAuth();
     if (!session) throw new Error('redirect');
     if (session.role !== 'admin') {
@@ -972,7 +985,7 @@
             <td><span class="badge badge-muted" style="font-size:11px;">
               ${(t.standard?.standard_name||'-').split(':')[0].trim()}</span></td>
             <td class="td-muted">${t.belt_width_mm}×${parseFloat(t.belt_length_m).toFixed(0)}m</td>
-            <td class="td-muted" style="font-size:12px;">${t.belt_rating?.rating_name||'-'}</td>
+            <td class="td-muted" style="font-size:12px;">${stripFabricPrefix(t.belt_rating?.rating_name)||'-'}</td>
             <td>
               <div style="font-size:11px;font-weight:500;color:var(--text);">
                 ${t.created_by_user?.full_name||t.created_by_user?.email||`User ${t.created_by}`}</div>

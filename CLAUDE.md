@@ -170,15 +170,59 @@ pattern recurs across `admin.html`, `generate-tds.html`, `search-tds.html`, `hom
 calculator pages, so check both directions (color-as-text and text-on-that-background) when
 touching gold-family styling anywhere.
 
-**Belt description format has no separate fabric-code field** — `_belt_description()`
-(`apps/api/routers/batch_views.py`) and the frontend's `updateBeltDescription()` /
-`liveParseBeltDescription()` (`frontend/js/generate-tds.js`) no longer take a `fabric_code`
-argument. `BeltRating.rating_name` already starts with the fabric code (e.g. `"EP 1000/5"`), so
-including both used to render as a duplicated `"EP X EP 1000/5"`. The belt-line paste format
-(single-belt box, Multiple Belts box, and the `text_import_batch` endpoint) dropped from 10–13
-fields to 9–12 accordingly — width X rating X top X bottom X grade X edge X end X type X length
-[X bot_plies X bob_plies [X carcass_mm]]. When parsing a fabric code out of that format, derive
-it from the rating's leading word (`rating.split(/\s+/)[0]`) rather than expecting its own field.
+**Belt Rating's displayed/printed text never shows a fabric-code prefix, but Fabric Type is always
+shown separately alongside it** — `"EP 1000/5"` (the raw `BeltRating.rating_name`) is stripped
+down to bare `"1000/5"` everywhere it's displayed or printed (Belt Rating dropdown, the belt
+description printed verbatim in the TDS PDF, Search TDS's table/detail-modal), and Fabric Type is
+composed in as its own separate `"X"`-joined token instead — `"...X EP X 1000/5 X..."`, not the
+old duplicated `"...X EP 1000/5 X..."` and not fabric-less either. This is a display-time
+transform only: `rating_name` itself is never modified in the DB (see below for why). The belt-line
+paste format (single-belt box, Multiple Belts box, and the `text_import_batch` endpoint) carries
+Fabric and Rating as two distinct fields — `width X fabric X rating X top X bottom X grade X
+edge X end X type X length [X bot_plies X bob_plies [X carcass_mm]]` (10–13 fields).
+
+- `strip_fabric_prefix()` in `apps/services/calculations.py` is the one canonical implementation
+  of the stripping regex; `frontend/js/generate-tds.js` and `frontend/js/search-tds.js` each
+  carry a small mirrored copy (same regex) — keep all three in sync if this format ever changes.
+- `_belt_description(width, fabric_code, rating_name, ...)` (`apps/api/routers/batch_views.py`)
+  takes the fabric code as its own argument again and interpolates `strip_fabric_prefix(rating_name)`
+  separately, rather than gluing them together or omitting fabric. Both call sites
+  (`create_batch`, `text_import_batch`) pass the *selected* `FabricType.fabric_code` for that
+  belt line — not anything parsed out of `rating_name` — since a rating's leading word is only a
+  naming convention, not a guaranteed match to the fabric actually chosen (see the
+  `_resolve_belt_line()` note below).
+- The **single-belt** description box's `liveParseBeltDescription()`
+  (`frontend/js/generate-tds.js`) reads `fabric` as its own token (index 1). If that token
+  resolves to a real Fabric Type option, it's used directly with no network call. If the token is
+  omitted (or a pasted line still uses the old fabric-glued-into-rating format), it falls back to:
+  legacy leading-word extraction from the rating text when the rating still has a prefix, or
+  `GET /api/belt-ratings/resolve?rating=<bare number>` (`master_views.py::resolve_belt_ratings`,
+  cache_page'd) to search belt ratings across ALL fabric types otherwise — auto-selecting Fabric
+  Type only when exactly one fabric type has a matching rating (ambiguous/unmatched numbers are
+  left for the user to pick manually). This resolve endpoint is a fallback path now, not the
+  primary mechanism — the primary path is just reading the explicit fabric token.
+- The **Multiple Belts** bulk-paste box's `_parseBeltText()` (`generate-tds.html`) was reworked
+  to match: `fabric` is now parsed as its own split token (field 2) instead of being derived from
+  the rating's leading word, and a line with fewer than 10 fields (the old fabric-less 9-field
+  format) is rejected with an explicit "needs at least 10 fields" error rather than silently
+  misparsing. Both paste boxes' placeholders/examples/docs were updated to show `width X EP X
+  400/3 X ...`.
+- `_resolve_belt_line()` (backend counterpart for `text_import_batch`) matches on `rating_name`
+  ending with `" <rating_text>"` (not by reconstructing `"<fabric_code> <rating_text>"` and
+  exact-matching that) — do not "fix" this back to prefix-reconstruction: a
+  `BeltRating.rating_name`'s leading word is a *convention*, not a database constraint tying it to
+  that row's actual `FabricType.fabric_code` (the shared test factory itself creates rows where
+  they differ), so reconstructing and exact-matching the prefix can silently fail to find a real
+  row. Both the bare `"400/3"` and legacy fabric-prefixed `"EP 400/3"` rating text are still
+  accepted here for backward compatibility with older pasted data.
+- **`BeltRating.rating_name` itself is deliberately left unchanged in the DB** (still stored as
+  `"EP 1000/5"`) even though it's never shown that way anymore — considered and rejected because:
+  it would break admin.html's Fabrics analytics breakdown, which derives its grouping label from
+  `rating_name.split('/')[0]`; it would break Django Admin's `search_fields = ('rating_name',)`
+  for BeltRating; it would require a data migration touching ~100+ seeded reference rows in a
+  table this file already flags as having "real, historical gaps" in its migration history; and
+  it has no functional benefit since display-layer stripping already produces the same visible
+  result. Any future work in this area should keep transforming at display time, not in the DB.
 
 **Net/gross weight is a precise decimal, not rounded up to the nearest 0.5** —
 `packing_service.compute_packing()`'s `net_weight_kg`/`gross_weight_kg`/
@@ -252,56 +296,56 @@ on file, falling back to the plain line otherwise. The **Customer Acceptance** c
 person sub-line was removed at the same time (now shows only the customer name) — unrelated
 change, same footer block.
 
-**Download filenames (single/batch/revision/QAP) all share one base-name convention:
-`tds_filename_base()` (`apps/services/pdf_service.py`)** — the TDS Document Number if the user
-entered one (sanitized: filesystem-unsafe characters like `/` become `-`, e.g.
-`"RTPH/TDS/2026/001"` → `"RTPH-TDS-2026-001"`), else the customer name (sanitized the same way
-but with `_`, spaces kept), else `"TDS-<tds_number>"` if neither is set. Every download filename
-is built from this one function so the four surfaces can't drift independently the way they
-previously had (`pdf_views.py` used `"TDS-<number>_rev_NN"`, `revisions_views.py` used
-`"TDS-<number>-revNN"` — same intent, different punctuation):
-- **Single TDS** (`pdf_views.py::generate_pdf`) — `"{base}_rev_{NN}.pdf"`.
-- **Revision history** (`revisions_views.py::generate_revision_pdf`) — same `"{base}_rev_{NN}.pdf"`
-  pattern (previously `-revNN`, now unified).
-- **QAP** (`qap_views.py::generate_qap_pdf`) — `"{base}_QAP.pdf"` (the `_QAP` suffix is required —
-  without it, a TDS and its QAP for the same record would produce the identical filename and one
-  would overwrite the other in the user's Downloads folder).
-- **Batch export per-file names** (`batch_export_views.py`'s `_build_zip_export`/
-  `_build_merged_zip_export`) — same `{base}` (previously always `"TDS-<number>"` prefixed with
-  the doc number if present; now doc-number-or-customer-name first, matching the single download),
-  no revision suffix (batch exports aren't reached via Search TDS's edit-then-download flow). Two
-  belts in the same batch that would otherwise collide on an identical `{base}` (no doc number,
-  same customer) are disambiguated with a `_<tds_number>` suffix — see `_unique_zip_name()`;
-  without this, `zipfile` silently keeps only one of the two identically-named entries. The
-  **outer** zip/merged-zip filename is unchanged (still customer-name-or-`Batch_<id>`-based,
-  batch-level rather than per-belt) and `print_all`'s single merged-PDF filename is unchanged too
-  (an aggregate of every belt, so no single doc number applies).
+**Download filenames (single/batch/revision/QAP) all share one base name and one "when does the
+revision suffix appear" rule, both in `apps/services/pdf_service.py`:**
+- `tds_filename_base(tds)` — the TDS Document Number if the user entered one (sanitized:
+  filesystem-unsafe characters like `/` become `-`, e.g. `"RTPH/TDS/2026/001"` →
+  `"RTPH-TDS-2026-001"`), else the customer name (sanitized the same way but with `_`, spaces
+  kept), else `"TDS-<tds_number>"` if neither is set.
+- `tds_filename(tds, doc_suffix='')` — `tds_filename_base()` + an optional document-type marker
+  (`doc_suffix='_QAP'` for the QAP file, so it doesn't collide with that TDS's own PDF in the same
+  Downloads folder) + a `"_rev_NN"` suffix **only once `tds.current_revision > 0`** — a
+  never-edited record has no revision history yet, so its filename stays plain (`"TDS_001.pdf"`,
+  not `"TDS_001_rev_00.pdf"` or `"..._rev_01.pdf"`); the suffix appears starting with the first
+  post-download edit (`"..._rev_01.pdf"`, then `_rev_02`, etc.) so a re-download after an edit
+  doesn't silently overwrite an earlier download under an identical name. Used by the single TDS
+  download (`pdf_views.py::generate_pdf`), the QAP download (`qap_views.py::generate_qap_pdf`),
+  and each belt's per-file name inside a batch zip/merged-zip
+  (`batch_export_views.py`'s `_build_zip_export`/`_build_merged_zip_export`) — one function so all
+  three can't drift independently the way the TDS/QAP/revision filenames previously had (three
+  different punctuation styles for what was meant to be the same suffix).
+- `revision_pdf_filename(tds, revision_number)` — same idea for downloading one specific PAST
+  revision (`revisions_views.py::generate_revision_pdf`): `revision_number` is the exact snapshot
+  being viewed (independent of the live record's current `current_revision`), so `revision_number
+  == 0` (the snapshot taken right before the very first edit — the document's original version)
+  gets no suffix, matching what that download would have produced before any edit existed; `1`,
+  `2`, etc. get `"_rev_01"`, `"_rev_02"`. The banner rendered inside that PDF
+  (`"HISTORICAL REVISION NN"` / `"HISTORICAL REVISION - ORIGINAL VERSION"` for `0`) follows the
+  same numbering.
+- Batch export per-file names: two belts in the same batch that would otherwise collide on an
+  identical filename (no doc number, same customer, neither edited) are disambiguated with a
+  `_<tds_number>` suffix inserted before the extension — see `_unique_zip_name()` in
+  `batch_export_views.py`; without this, `zipfile` silently keeps only one of two
+  identically-named entries. The **outer** zip/merged-zip filename is unchanged (still
+  customer-name-or-`Batch_<id>`-based, batch-level rather than per-belt, no revision suffix) and
+  `print_all`'s single merged-PDF filename is unchanged too (an aggregate of every belt, so no
+  single doc number or revision state applies).
 - Frontend: `frontend/js/api.js`'s `downloadPdf()` already trusted the server's
   `Content-Disposition` header for the filename; `downloadQapPdf()` and `downloadRevisionPdf()`
-  used to hard-code their own filename client-side instead (the actual source of the `-revNN` vs
-  `_rev_NN` drift above) — both now read `Content-Disposition` the same way `downloadPdf()` does,
-  falling back to a same-shaped template only if the header is somehow missing.
-  `tds-preview.html`'s standalone QAP-download handler (doesn't import `api.js`) got the identical
-  fix inline.
-
-**Revision numbers are 1-indexed for anything a user reads or downloads; the underlying
-`TDSRevision.revision_number` / `TDSInput.current_revision` counters stay 0-indexed in the
-DB.** `current_revision` (default `0`) counts *edits made after the first real download*, not
-"which revision is this" — a never-edited record is still on its first/original revision, so
-showing `current_revision` directly as `"rev_00"` was showing the wrong number by one, not a
-deliberate 0-indexed scheme. Every place that turns one of these into text now adds `+1` at the
-display/filename boundary only — the stored value and every query/comparison against it
-(`TDSRevision.objects.filter(revision_number=...)`, the URL path `/revisions/{n}/pdf`, etc.) is
-untouched and still 0-indexed:
-- `pdf_views.py::generate_pdf`'s filename suffix, `revisions_views.py::generate_revision_pdf`'s
-  filename suffix AND its in-PDF `"HISTORICAL REVISION NN"` banner text.
-- `frontend/js/search-tds.js`'s modal `"Rev NN"` badge (`d-revision`) and the version-history
-  list's `"Rev NN - edited by ..."` rows — `data-rev="${r.revision_number}"` (which drives the
-  actual download API call) deliberately stays un-offset; only the *text* shown next to it does.
-- `frontend/js/api.js::downloadRevisionPdf()`'s fallback-filename template (`revisionNum + 1`) —
-  watch the string/number coercion here if touching it again: `revisionNum` arrives as a string
-  from a DOM `dataset` attribute, so `revisionNum + 1` is string concatenation ("0"+1 → "01" by
-  accident, "1"+1 → "11" not "2"); it must be `Number(revisionNum) + 1`.
+  used to hard-code their own filename client-side instead (the actual source of an earlier
+  `-revNN` vs `_rev_NN` drift between endpoints) — both now read `Content-Disposition` the same
+  way `downloadPdf()` does, falling back to a same-shaped template only if the header is somehow
+  missing. `tds-preview.html`'s standalone QAP-download handler (doesn't import `api.js`) got the
+  identical fix inline.
+- On-screen revision indicators (`frontend/js/search-tds.js`'s modal `d-revision` badge and the
+  version-history list rows) show `"Original"` when the underlying counter is `0`, else
+  `"Rev NN"` with the raw stored value — no `+1` offset anywhere; `data-rev="${r.revision_number}"`
+  (which drives the actual download API call) was never offset and still isn't.
+- **If touching any of this again**: don't reintroduce a blanket `+1` offset on
+  `current_revision`/`revision_number` — the correct rule is "0 → no suffix / say Original",
+  not "always add one". And if a revision number ever arrives as a string (e.g. from a DOM
+  `dataset` attribute, as in `downloadRevisionPdf()`), coerce with `Number(...)` before doing
+  arithmetic on it — `"1" + 1` in JS is string concatenation ("11"), not addition.
 
 ## Codebase survey pass (2026-09-01) — silent-failure / perf audit fixes
 

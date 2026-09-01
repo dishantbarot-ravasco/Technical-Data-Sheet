@@ -17,6 +17,7 @@ urlpatterns = [
     path('fabric-types',                                v.list_fabric_types,   name='fabric-types'),
     path('fabric-types/<int:fabric_type_id>/styles',   v.list_fabric_styles,  name='fabric-styles'),
     path('fabric-types/<int:fabric_type_id>/belt-ratings', v.list_belt_ratings, name='belt-ratings-list'),
+    path('belt-ratings/resolve',                        v.resolve_belt_ratings, name='belt-ratings-resolve'),
     path('belt-ratings/<int:rating_id>',                v.get_belt_rating,     name='belt-rating-detail'),
     path('customers',                                   v.customers,           name='customers'),
     path('customers/<int:customer_id>',                 v.update_customer,     name='customer-update'),

@@ -226,13 +226,14 @@ class UpdateTdsRevisionGatingTests(TestCase):
 
 class PdfDownloadFilenameTests(TestCase):
     """
-    GET /api/tds/{id}/pdf?format=pdf should name the file
-    "<base>_rev_<NN>.pdf", where <base> is the TDS Document Number if one was
-    entered, else the customer name, else "TDS-<tds_number>" (see
-    pdf_service.tds_filename_base) -- and NN is 1-indexed (01 for a
-    never-edited record's one and only revision so far, not 00) so a
-    re-download after an edit doesn't silently overwrite an earlier download
-    of the same document under an identical filename.
+    GET /api/tds/{id}/pdf?format=pdf should name the file "<base>.pdf" where
+    <base> is the TDS Document Number if one was entered, else the customer
+    name, else "TDS-<tds_number>" (see pdf_service.tds_filename_base) -- and
+    a "_rev_NN" suffix is added ONLY once the record has actually been
+    edited at least once (current_revision > 0). A never-edited record has
+    no revision history yet, so its filename stays plain; the suffix exists
+    so a re-download after an edit doesn't silently overwrite an earlier
+    download of the same document under an identical filename.
     """
     def setUp(self):
         self.lookups = make_tds_lookup_set()
@@ -251,16 +252,16 @@ class PdfDownloadFilenameTests(TestCase):
         # e.g. 'inline; filename="TDS-0001_rev_01.pdf"'
         return response['Content-Disposition'].split('filename="')[1].rstrip('"')
 
-    def test_filename_falls_back_to_tds_number_with_no_doc_number_or_customer(self):
+    def test_filename_has_no_rev_suffix_before_any_edit(self):
         # This factory payload sets neither tds_doc_number nor customer_id.
         response = self.client.get(self._pdf_url())
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             self._content_disposition_filename(response),
-            f'TDS-{self.tds_number}_rev_01.pdf',
+            f'TDS-{self.tds_number}.pdf',
         )
 
-    def test_filename_rev_increments_after_a_post_download_edit(self):
+    def test_filename_gains_rev_01_after_a_post_download_edit(self):
         # First download marks first_downloaded_at, opening the "issued"
         # window (see TDSInput.first_downloaded_at) so the next edit below
         # actually snapshots a TDSRevision and bumps current_revision.
@@ -274,7 +275,7 @@ class PdfDownloadFilenameTests(TestCase):
         response = self.client.get(self._pdf_url())
         self.assertEqual(
             self._content_disposition_filename(response),
-            f'TDS-{self.tds_number}_rev_02.pdf',
+            f'TDS-{self.tds_number}_rev_01.pdf',
         )
 
     def test_filename_uses_tds_doc_number_when_set(self):
@@ -286,7 +287,7 @@ class PdfDownloadFilenameTests(TestCase):
         response = self.client.get(f"/api/tds/{create_response.data['tds_id']}/pdf")
         self.assertEqual(
             self._content_disposition_filename(response),
-            'RTPH-TDS-2026-001_rev_01.pdf',
+            'RTPH-TDS-2026-001.pdf',
         )
 
     def test_filename_uses_customer_name_when_no_doc_number(self):
@@ -299,19 +300,20 @@ class PdfDownloadFilenameTests(TestCase):
         response = self.client.get(f"/api/tds/{create_response.data['tds_id']}/pdf")
         self.assertEqual(
             self._content_disposition_filename(response),
-            'Galadari Brothers_rev_01.pdf',
+            'Galadari Brothers.pdf',
         )
 
 
 class RevisionPdfFilenameTests(TestCase):
     """
     GET /api/tds/{id}/revisions/{n}/pdf should name the file the same way as
-    the live-document download (pdf_service.tds_filename_base + "_rev_NN"),
-    with NN = the stored (0-indexed) TDSRevision.revision_number + 1 -- e.g.
-    the first-ever snapshot (revision_number=0, representing the document's
-    original/first revision, taken right before the edit that created it)
-    downloads as "..._rev_01.pdf", matching the live document's own "_rev_02"
-    after that same edit (see PdfDownloadFilenameTests above).
+    the live-document download: base name + "_rev_NN" ONLY once NN > 0 (see
+    pdf_service.revision_pdf_filename). revision_number 0 is the snapshot
+    taken right before the FIRST edit -- i.e. the document's original,
+    pre-edit-history version -- so it downloads with no suffix, exactly like
+    the live document did before that edit happened (see
+    PdfDownloadFilenameTests.test_filename_has_no_rev_suffix_before_any_edit).
+    A later revision_number (1, 2, ...) does get the "_rev_NN" suffix.
     """
     def setUp(self):
         self.lookups = make_tds_lookup_set()
@@ -323,23 +325,48 @@ class RevisionPdfFilenameTests(TestCase):
         create_response = self.client.post(TDS_CREATE_URL, payload, format='json')
         assert create_response.status_code == 201, create_response.data
         self.tds_id = create_response.data['tds_id']
+        self.payload = payload
 
         # First download marks first_downloaded_at (see PdfDownloadFilenameTests),
         # opening the window where the next edit snapshots a TDSRevision.
         self.client.get(f'/api/tds/{self.tds_id}/pdf')
 
-        edited_payload = dict(payload)
-        edited_payload['belt_width_mm'] = int(edited_payload['belt_width_mm']) + 100
-        update_response = self.client.patch(f'/api/tds/{self.tds_id}', edited_payload, format='json')
-        assert update_response.status_code == 200, update_response.data
-
     def _content_disposition_filename(self, response):
         return response['Content-Disposition'].split('filename="')[1].rstrip('"')
 
-    def test_revision_zero_downloads_as_rev_01(self):
+    def _edit(self, width_delta):
+        payload = dict(self.payload)
+        payload['belt_width_mm'] = int(payload['belt_width_mm']) + width_delta
+        response = self.client.patch(f'/api/tds/{self.tds_id}', payload, format='json')
+        assert response.status_code == 200, response.data
+
+    def test_revision_zero_has_no_rev_suffix(self):
+        self._edit(100)  # creates revision_number=0 (the pre-edit snapshot)
+
         response = self.client.get(f'/api/tds/{self.tds_id}/revisions/0/pdf')
         self.assertEqual(response.status_code, 200, response.content[:500])
         self.assertEqual(
             self._content_disposition_filename(response),
+            'RTPH-TDS-2026-002.pdf',
+        )
+
+    def test_revision_one_downloads_as_rev_01(self):
+        self._edit(100)  # -> revision_number=0
+        self._edit(200)  # -> revision_number=1
+
+        response = self.client.get(f'/api/tds/{self.tds_id}/revisions/1/pdf')
+        self.assertEqual(response.status_code, 200, response.content[:500])
+        self.assertEqual(
+            self._content_disposition_filename(response),
             'RTPH-TDS-2026-002_rev_01.pdf',
+        )
+
+    def test_live_document_matches_latest_revision_number_after_edits(self):
+        self._edit(100)  # current_revision -> 1
+        self._edit(200)  # current_revision -> 2
+
+        response = self.client.get(f'/api/tds/{self.tds_id}/pdf')
+        self.assertEqual(
+            self._content_disposition_filename(response),
+            'RTPH-TDS-2026-002_rev_02.pdf',
         )

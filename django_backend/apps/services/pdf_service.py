@@ -108,6 +108,44 @@ def tds_filename_base(tds: TDSInput) -> str:
     return safe_customer or f"TDS-{tds.tds_number}"
 
 
+def tds_filename(tds: TDSInput, doc_suffix: str = '') -> str:
+    """
+    Full download filename for the LIVE (current) state of a TDS: its
+    tds_filename_base(), an optional document-type marker (doc_suffix,
+    e.g. "_QAP" so a TDS and its QAP don't collide on the same name), and a
+    "_rev_NN" revision suffix -- but ONLY once the record has actually been
+    edited at least once. current_revision counts edits made after the
+    first real download (0 = never edited), so a document with no revision
+    history yet gets a plain filename instead of a misleading "_rev_00" on
+    something that was never actually revised.
+
+    Used for the single TDS download (pdf_views.py), the QAP download
+    (qap_views.py), and each belt's per-file name inside a batch export
+    (batch_export_views.py) -- one place so all three apply the exact same
+    "when does the rev suffix appear" rule instead of drifting independently
+    the way the TDS/QAP/revision filenames previously had.
+    """
+    base = tds_filename_base(tds)
+    rev = tds.current_revision or 0
+    rev_part = f"_rev_{rev:02d}" if rev > 0 else ""
+    return f"{base}{doc_suffix}{rev_part}.pdf"
+
+
+def revision_pdf_filename(tds: TDSInput, revision_number: int) -> str:
+    """
+    Download filename for one specific PAST revision (revisions_views.py) --
+    distinct from tds_filename() because this targets an explicit historical
+    revision_number regardless of what the live record's current_revision is
+    now. revision_number 0 is the snapshot taken right before the first
+    edit (the document's original version), so it gets no suffix, matching
+    tds_filename()'s same "no suffix until an edit happened" rule.
+    """
+    base = tds_filename_base(tds)
+    if revision_number == 0:
+        return f"{base}.pdf"
+    return f"{base}_rev_{revision_number:02d}.pdf"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Data classes
 # ─────────────────────────────────────────────────────────────────────────────

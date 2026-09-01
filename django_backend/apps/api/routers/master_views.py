@@ -371,6 +371,37 @@ def get_belt_rating(request, rating_id):
     return Response(_belt_rating_full(rating))
 
 
+@cache_page(CACHE_TTL_SECONDS)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def resolve_belt_ratings(request):
+    """
+    GET /api/belt-ratings/resolve?rating=1000/5
+
+    Find every BeltRating across ALL fabric types whose rating_name ends
+    with the given bare "<kN>/<plies>" number (e.g. "1000/5") -- used by
+    generate-tds.js's belt-description paste-parser to figure out which
+    Fabric Type a pasted rating belongs to when Fabric Type hasn't been
+    selected yet.
+
+    This only exists because the display convention strips the fabric-code
+    prefix off rating_name (see calculations.strip_fabric_prefix) -- before
+    that, the pasted text carried its own fabric code as a leading word and
+    no cross-fabric search was needed. rating_name's format guarantees the
+    number is always the exact suffix after "<fabric_code> ", so an
+    iendswith match on " <rating>" can't accidentally match a different
+    number sharing a substring (e.g. querying "1000/5" cannot match a stored
+    "1000/50" -- the trailing digit differs).
+    """
+    rating_text = (request.query_params.get('rating') or '').strip()
+    if not rating_text:
+        raise ValidationError({'detail': 'rating query parameter is required.'})
+
+    matches = list(BeltRating.objects.filter(rating_name__iendswith=f" {rating_text}"))
+    matches.sort(key=lambda r: _rating_sort_key(r.rating_name))
+    return Response([_belt_rating_brief(r) for r in matches])
+
+
 def _customer_search_tier(name, search_lc):
     """
     0 = name starts with the query, 1 = some word in the name starts with it

@@ -272,6 +272,25 @@ def parse_belt_rating(rating_name: str) -> tuple:
     return float(m.group(1)), int(m.group(2))
 
 
+def strip_fabric_prefix(rating_name: str) -> str:
+    """
+    Return just the "<kN>/<plies>" portion of a BeltRating.rating_name
+    (format: "<fabric_code> <kN>/<plies>", e.g. "EP 1000/5" -> "1000/5"),
+    dropping the leading fabric-code token.
+
+    Fabric Type is always its own selected field alongside a belt rating, so
+    repeating the fabric code inside the rating text is redundant to show —
+    this is purely a display-layer strip; BeltRating.rating_name itself is
+    never modified in the DB, and parse_belt_rating() above doesn't need or
+    use the prefix either. Mirrored in frontend/js/generate-tds.js and
+    frontend/js/search-tds.js (`stripFabricPrefix()`) — keep the three in
+    sync if this format ever changes.
+    """
+    if not rating_name:
+        return rating_name
+    return _re.sub(r'^\S+\s+', '', rating_name.strip())
+
+
 def auto_select_fabric_style(fabric_type_id: int, kn: float, plies: int):
     """
     Server-side fabric style selection — the single source of truth for both

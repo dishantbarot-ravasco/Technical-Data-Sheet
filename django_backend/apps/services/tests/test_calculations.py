@@ -20,7 +20,7 @@ from apps.services.calculations import (
     validate_international_shipping_fields, get_container_constraints,
     belt_weight_per_metre, belt_gross_weight_per_metre, total_belt_weight,
     reel_diameter_circular, reel_diameter_twin, reel_diameter_elliptical,
-    reel_diameter, parse_belt_rating, auto_select_fabric_style,
+    reel_diameter, parse_belt_rating, strip_fabric_prefix, auto_select_fabric_style,
     step_length_mm, get_splice_buffer, splice_length_mm,
     total_extra_length_m, is1891_sampling_count, get_sampling_count,
     ENDLESS_MAX_BELT_LENGTH_M,
@@ -143,6 +143,32 @@ class PureMathTests(TestCase):
     def test_parse_belt_rating_none_raises(self):
         with self.assertRaises(ValueError):
             parse_belt_rating(None)
+
+    # ── strip_fabric_prefix ───────────────────────────────────────────────────
+
+    def test_strip_fabric_prefix_removes_leading_fabric_code(self):
+        self.assertEqual(strip_fabric_prefix('EP 1000/5'), '1000/5')
+
+    def test_strip_fabric_prefix_handles_different_fabric_codes(self):
+        self.assertEqual(strip_fabric_prefix('NN 630/4'), '630/4')
+        self.assertEqual(strip_fabric_prefix('Steel 800/2'), '800/2')
+
+    def test_strip_fabric_prefix_bare_rating_is_unchanged(self):
+        # Already-stripped input (no leading word + space) is a no-op.
+        self.assertEqual(strip_fabric_prefix('1000/5'), '1000/5')
+
+    def test_strip_fabric_prefix_none_and_empty(self):
+        self.assertIsNone(strip_fabric_prefix(None))
+        self.assertEqual(strip_fabric_prefix(''), '')
+
+    def test_strip_fabric_prefix_does_not_touch_rating_name_parsing(self):
+        # parse_belt_rating() must give the same result whether or not the
+        # prefix is present -- confirms the display-layer strip can never
+        # affect the kN/plies math.
+        self.assertEqual(
+            parse_belt_rating(strip_fabric_prefix('EP 1000/5')),
+            parse_belt_rating('EP 1000/5'),
+        )
 
     # ── step length lookup table ─────────────────────────────────────────────
 

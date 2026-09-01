@@ -12,6 +12,7 @@
  *   getBootstrap      - load all master-data dropdowns in one call
  *   getStandards / getPurposes / getBeltTypes / getBrands / getFabricTypes
  *   getReelTypes / getPackingTypes / getCoverGrades / getFabricStyles / getBeltRatings
+ *   resolveBeltRatings
  *   getCustomers / createCustomer / updateCustomer
  *   tdsLookup / getDimensionalSpecs
  *   listTDS / getTDS / createTDS / createBatch / approveTDS / declineTDS / deleteTDS
@@ -207,6 +208,19 @@ export const getFabricStyles = (fabricTypeId) =>
 export const getBeltRatings = (fabricTypeId) =>
   apiFetch(`/fabric-types/${fabricTypeId}/belt-ratings`);
 
+/**
+ * Find every belt rating across ALL fabric types matching a bare
+ * "<kN>/<plies>" number (e.g. "1000/5") -- used by the belt-description
+ * paste-parser (liveParseBeltDescription() in generate-tds.js) to figure
+ * out which Fabric Type a pasted rating belongs to when Fabric Type hasn't
+ * been selected yet (the displayed/pasted rating text no longer carries its
+ * own fabric-code prefix -- see stripFabricPrefix()).
+ * @param {string} ratingText - Bare rating, e.g. "1000/5"
+ * @returns {Promise<Array>} [{id, fabric_type_id, rating_name}, ...]
+ */
+export const resolveBeltRatings = (ratingText) =>
+  apiFetch(`/belt-ratings/resolve?rating=${encodeURIComponent(ratingText)}`);
+
 /* ══════════════════════════════════════════════════════════
    SECTION: Customers
 ══════════════════════════════════════════════════════════ */
@@ -356,10 +370,16 @@ export async function downloadRevisionPdf(id, revisionNum, tdsNumber, opts = {})
   // (this used "-revNN", the server used "_rev_NN") and would again the next
   // time either changed independently. Same fix as downloadPdf() above:
   // trust the server's Content-Disposition, and use this template only if
-  // the header is somehow missing.
+  // the header is somehow missing. revision_number 0 (the original,
+  // pre-first-edit snapshot) has no suffix, matching
+  // pdf_service.revision_pdf_filename()'s same rule.
   const cd = res.headers.get('Content-Disposition') || '';
   const match = /filename="?([^";]+)"?/i.exec(cd);
-  const filename = match ? match[1] : `TDS-${tdsNumber}_rev_${String(Number(revisionNum) + 1).padStart(2, '0')}.pdf`;
+  const revNum = Number(revisionNum);
+  const fallbackName = revNum === 0
+    ? `TDS-${tdsNumber}.pdf`
+    : `TDS-${tdsNumber}_rev_${String(revNum).padStart(2, '0')}.pdf`;
+  const filename = match ? match[1] : fallbackName;
 
   const a    = document.createElement('a');
   a.href     = url;

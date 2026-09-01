@@ -29,6 +29,7 @@ import logging
 from datetime import date
 
 from django.db import transaction
+from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
@@ -43,7 +44,7 @@ from apps.core.models import (
 from apps.api.permissions import IsCreator
 from apps.services.calculations import (
     belt_weight_per_metre, parse_belt_rating, auto_select_fabric_style,
-    validate_endless_belt_length,
+    validate_endless_belt_length, strip_fabric_prefix,
 )
 from apps.services.splicing_service import compute_splicing
 from apps.services.packing_service import compute_packing
@@ -137,7 +138,7 @@ def _fetch_carcass_eav(belt_rating_id: int):
     return carcass, interply
 
 
-def _belt_description(width, rating_name, top, bottom, grade_code, edge,
+def _belt_description(width, fabric_code, rating_name, top, bottom, grade_code, edge,
                        belt_type_name, construction_type='Open-End'):
     """
     Canonical belt description shown on the TDS PDF header.
@@ -146,9 +147,19 @@ def _belt_description(width, rating_name, top, bottom, grade_code, edge,
     bare number, e.g. "...X 6.0 X 3.0mm X..." - inconsistent with every other
     dimension in the string, which always states its unit).
 
-    No separate fabric-code field: rating_name already starts with it (e.g.
-    'EP 1000/5' - see BeltRating.rating_name's format), so including both
-    used to render as a duplicated "EP X EP 1000/5".
+    Fabric Type is shown as its OWN field ("...X EP X 1000/5 X...") rather
+    than concatenated into the rating text ("...X EP 1000/5 X..."): earlier
+    this dropped the fabric_code parameter entirely and relied on
+    rating_name already starting with it (e.g. 'EP 1000/5' -- see
+    BeltRating.rating_name's format) to avoid the duplicated "EP X EP
+    1000/5" that resulted from passing both. That still left the rating
+    itself showing as "EP 1000/5" everywhere it was displayed/printed,
+    which was later found to be the actual thing that needed removing --
+    fixed by stripping the prefix from rating_name (strip_fabric_prefix())
+    and printing the fabric code separately instead, so the information
+    isn't lost, just no longer glued onto the rating number. Mirrors the
+    same change in the single-belt form's updateBeltDescription() in
+    js/generate-tds.js.
 
     End type mirrors the single-belt form's updateBeltDescription() in
     js/generate-tds.js: Open-End belts show just the belt type name, Endless
@@ -158,7 +169,7 @@ def _belt_description(width, rating_name, top, bottom, grade_code, edge,
     """
     belt_type_label = f"Endless {belt_type_name}" if construction_type == 'Endless' else belt_type_name
     return (
-        f"{width}mm X {rating_name} X "
+        f"{width}mm X {fabric_code} X {strip_fabric_prefix(rating_name)} X "
         f"{top}mm X {bottom}mm X {grade_code} X {edge} X {belt_type_label}"
     )
 
@@ -447,6 +458,7 @@ def create_batch(request):
             # Belt description string
             description = _belt_description(
                 width              = b['belt_width_mm'],
+                fabric_code        = _fabric_type_cache[b['fabric_type_id']].fabric_code,
                 rating_name        = rating.rating_name,
                 top                = top_cover_mm,
                 bottom             = bottom_cover_mm,
@@ -652,7 +664,7 @@ def get_batch(request, batch_id):
             "belt_length_m":        float(t.belt_length_m) if t.belt_length_m else None,
             "belt_type":            t.belt_type.belt_type  if t.belt_type_id  else None,
             "cover_grade":          t.cover_grade.grade_code if t.cover_grade_id else None,
-            "belt_rating":          t.belt_rating.rating_name if t.belt_rating_id else None,
+            "belt_rating":          strip_fabric_prefix(t.belt_rating.rating_name) if t.belt_rating_id else None,
             "fabric_code":          t.fabric_type.fabric_code if t.fabric_type_id else None,
             "num_plies":            t.num_plies,
             "top_cover_mm":         float(t.top_cover_mm)        if t.top_cover_mm        else None,
@@ -699,13 +711,22 @@ def _resolve_belt_line(line, standard_id, line_num, errors):
             f"please check the fabric code (e.g. EP, NN, Steel)"
         )
 
-    # Rating → BeltRating by rating_name, scoped to the resolved fabric
+    # Rating → BeltRating by rating_name, scoped to the resolved fabric.
+    # Accepts either the full "EP 1000/5" (legacy) or the bare "1000/5"
+    # (current display convention -- see strip_fabric_prefix()) since fabric
+    # is already resolved separately above, making the prefix redundant to
+    # require here too. Matches on the SUFFIX (" <rating_text>") rather than
+    # reconstructing "<fabric_code> <rating_text>" -- rating_name's leading
+    # word is a convention, not a hard constraint tying it to
+    # FabricType.fabric_code, so rebuilding and exact-matching that string
+    # could silently fail to match a real row whose prefix happens to differ
+    # from the fabric's own code field.
     rating_text = (line.get('rating') or '').strip()
     rating_obj  = None
     if fabric_obj:
-        rating_obj = BeltRating.objects.filter(
-            rating_name__iexact=rating_text,
-            fabric_type_id=fabric_obj.id,
+        rating_obj = BeltRating.objects.filter(fabric_type_id=fabric_obj.id).filter(
+            Q(rating_name__iexact=rating_text) |
+            Q(rating_name__iendswith=f" {rating_text}")
         ).first()
         if not rating_obj:
             row_errors.append(
@@ -853,7 +874,9 @@ def text_import_batch(request):
           "line_num":  <int>,
           "width":     "<int>",     // belt_width_mm
           "fabric":    "<str>",     // FabricType.fabric_code  (case-insensitive)
-          "rating":    "<str>",     // BeltRating.rating_name  (case-insensitive)
+          "rating":    "<str>",     // bare "<kN>/<plies>" (e.g. "400/3") or the
+                                     // full BeltRating.rating_name (e.g. "EP 400/3")
+                                     // -- both accepted, case-insensitive
           "top":       "<float>",   // top_cover_mm
           "bottom":    "<float>",   // bottom_cover_mm
           "grade":     "<str>",     // CoverGrade.grade_code   (case-insensitive)
@@ -988,7 +1011,7 @@ def text_import_batch(request):
 
         for i, b in enumerate(resolved_belts):
             row = f"belts[{i}]"
-            rating      = BeltRating.objects.get(pk=b['belt_rating_id'])
+            rating      = BeltRating.objects.select_related('fabric_type').get(pk=b['belt_rating_id'])
             cover_grade = CoverGrade.objects.get(pk=b['cover_grade_id'])
             belt_type   = BeltType.objects.get(pk=b['belt_type_id'])
 
@@ -1020,6 +1043,7 @@ def text_import_batch(request):
 
             description = _belt_description(
                 width              = b['belt_width_mm'],
+                fabric_code        = rating.fabric_type.fabric_code,
                 rating_name        = rating.rating_name,
                 top                = top_cover_mm,
                 bottom             = bottom_cover_mm,

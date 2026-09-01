@@ -24,7 +24,7 @@ from rest_framework import status
 
 from apps.core.models import TDSInput
 from apps.services.qap_service import resolve_qap_template, build_qap_context
-from apps.services.pdf_service import tds_filename_base
+from apps.services.pdf_service import tds_filename
 from apps.services.pdf_renderer import render_qap_html, render_qap_pdf
 
 logger = logging.getLogger(__name__)
@@ -104,10 +104,10 @@ def generate_qap_pdf(request, tds_id):
         error_html = "<html><body><h2>QAP PDF generation failed</h2><p>Please try again or contact support.</p></body></html>"
         return HttpResponse(error_html, content_type='text/html; charset=utf-8', status=500)
 
-    # Same base-name convention as the TDS PDF (doc number, else customer
-    # name, else "TDS-<number>") plus a "_QAP" suffix so it doesn't collide
-    # with that TDS's own PDF download in the same folder.
-    filename = f"{tds_filename_base(tds)}_QAP.pdf"
+    # Same convention as the TDS PDF itself (base name + conditional
+    # "_rev_NN" -- see tds_filename()'s docstring), with a "_QAP" marker so
+    # it doesn't collide with that TDS's own PDF download in the same folder.
+    filename = tds_filename(tds, doc_suffix='_QAP')
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response

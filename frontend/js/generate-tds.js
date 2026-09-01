@@ -63,7 +63,7 @@ import {
 import {
   getBootstrap,
   getCoverGrades,
-  getFabricStyles, getBeltRatings,
+  getFabricStyles, getBeltRatings, resolveBeltRatings,
   createCustomer, updateCustomer, searchCustomers,
   tdsLookup, createTDS, updateTDS, getTDS, createBatch, downloadPdf, getParameters,
   getDimensionalSpecs, getShippingConstraints,
@@ -81,6 +81,20 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+}
+
+/**
+ * Strip the leading fabric-code token off a BeltRating.rating_name
+ * ("EP 1000/5" -> "1000/5"). Fabric Type is always its own separately
+ * selected field alongside a belt rating, so repeating the fabric code
+ * inside the rating text is redundant to show. Mirrors
+ * apps/services/calculations.py::strip_fabric_prefix() and the copy in
+ * frontend/js/search-tds.js — keep all three in sync if this format ever
+ * changes. rating_name itself (server-side, in the DB) is never modified;
+ * this only affects what's displayed/typed on the client.
+ */
+function stripFabricPrefix(ratingName) {
+  return (ratingName || '').trim().replace(/^\S+\s+/, '');
 }
 
 /**
@@ -652,8 +666,11 @@ async function loadBeltRatings(fabricTypeId) {
       getFabricStyles(fabricTypeId),
     ]);
     if (myGen !== _loadBeltRatingsGen) return;   // a newer call has since started
+    // Display just "1000/5", not "EP 1000/5" -- Fabric Type is already the
+    // dropdown right above this one, so the fabric-code prefix on every
+    // option here would just repeat what's already selected.
     ratingSel.innerHTML = '<option value="">- Select Belt Rating -</option>' +
-      ratings.map(r => `<option value="${r.id}">${r.rating_name}</option>`).join('');
+      ratings.map(r => `<option value="${r.id}">${stripFabricPrefix(r.rating_name)}</option>`).join('');
     styleSel.innerHTML = '<option value="">- None -</option>' +
       styles.map(s => `<option value="${s.id}">${s.style_name}</option>`).join('');
   } catch (err) {
@@ -795,9 +812,11 @@ function _normalizeBeltDescForCompare(s) {
 /**
  * Auto-assemble the belt description string from the current form values.
  * Format: {width}mm X {fabric} X {rating} X {top}mm X {bottom}mm X {grade} X {edge} X {construction} {belt type}
- * Example: "600mm X EP X EP 1000/5 X 5mm X 2mm X H X Cut Edge X Open End Flat Belt"
+ * Example: "600mm X EP X 1000/5 X 5mm X 2mm X H X Cut Edge X Open End Flat Belt"
+ * (rating shown bare, e.g. "1000/5" not "EP 1000/5" -- see stripFabricPrefix() --
+ * fabric is its own separate token instead, not glued onto the rating number)
  *
- * Requires at minimum: width, belt rating, top cover, and bottom cover.
+ * Requires at minimum: width, fabric type, belt rating, top cover, and bottom cover.
  * Clears the description field if any required field is missing.
  * Called on every relevant field change so the field stays up to date.
  */
@@ -807,7 +826,8 @@ function updateBeltDescription() {
   _setBeltDescMode(false);
 
   const w  = val('belt-width-mm')     || '';
-  const br = selectedText('belt-rating-id');   // 'EP 1000/5' - already carries the fabric code
+  const ft = selectedText('fabric-type-id');   // 'EP', 'NN', etc.
+  const br = selectedText('belt-rating-id');   // '1000/5' - loadBeltRatings() already strips the fabric-code prefix
   const tc = val('top-cover-mm')      || '';
   const bc = val('bottom-cover-mm')   || '';
   const cg = selectedText('cover-grade-id');   // 'H', 'M', etc.
@@ -815,8 +835,10 @@ function updateBeltDescription() {
   const ct = val('construction-type') || 'Open-End';  // 'Open-End' or 'Endless'
   const bt = selectedText('belt-type-id');             // 'Flat Belt'
 
-  // Require at minimum: width, rating, top/bottom cover
-  if (!w || !br || br === '- Select Belt Rating -' || br === 'Select fabric first' || !tc || !bc) {
+  const ft_clean = (ft === '- Select Fabric Type -' || !ft) ? '' : ft;
+
+  // Require at minimum: width, fabric type, rating, top/bottom cover
+  if (!w || !ft_clean || !br || br === '- Select Belt Rating -' || br === 'Select fabric first' || !tc || !bc) {
     set('belt-description', '');
     return;
   }
@@ -829,10 +851,14 @@ function updateBeltDescription() {
   const btLabel = (bt && bt !== '- Select Belt Type -') ? bt : 'Flat Belt';
   const beltTypeStr = ct === 'Endless' ? `Endless ${btLabel}` : btLabel;
 
-  // Format: 1200mm X EP 400/3 X 6.0mm X 3.0mm X H X Cut Edge X Flat Belt
-  // No separate fabric-code field: `br` (Belt Rating) already starts with it.
+  // Format: 1200mm X EP X 400/3 X 6.0mm X 3.0mm X H X Cut Edge X Flat Belt
+  // Fabric Type (`ft_clean`) and Belt Rating (`br`) are two separate tokens
+  // now -- `br` never carries a fabric-code prefix itself (Belt Rating's
+  // own dropdown/description already strips it), so the fabric code isn't
+  // lost, just no longer glued onto the rating number.
   const parts = [
     `${w}mm`,
+    ft_clean,
     br,
     `${tc}mm`,
     `${bc}mm`,
@@ -891,13 +917,27 @@ let _liveParseFabricType = null;
  * user who already knows that format for pasting many belts doesn't have to
  * learn a second one for a single belt:
  *
- *   width X rating X top X bottom X grade X edge X end X type X length
+ *   width X fabric X rating X top X bottom X grade X edge X end X type X length
  *     [X bot_plies X bob_plies [X carcass_mm]]
  *
- * No separate fabric field: `rating` (e.g. "EP 400/3") already starts with
- * the fabric code, so it's derived from rating's leading word instead.
+ * `fabric` and `rating` are separate tokens ("EP" and "400/3", not the old
+ * combined "EP 400/3") -- Belt Rating's own dropdown/description never
+ * carries the fabric-code prefix itself (see stripFabricPrefix()), so
+ * gluing the two back together into one token would just reintroduce the
+ * duplication this format previously had to remove ("EP X EP 400/3").
  *
- * Example: 1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300
+ * Example: 1200 X EP X 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300
+ *
+ * If `fabric` is omitted (e.g. a shorter legacy-style line, or the user just
+ * hasn't typed it yet), Fabric Type falls back to whichever value is
+ * already selected, or -- if that's empty too -- resolveBeltRatings() asks
+ * the server which fabric type(s) have a belt rating matching `rating`'s
+ * bare number, auto-selecting only if exactly one fabric type matches (an
+ * ambiguous/unmatched number is left for the user to resolve manually, same
+ * graceful-degradation as every other as-yet-unmatched token here). A
+ * legacy pasted rating that still has the old combined "EP 400/3" format
+ * (no separate fabric token at all) is also accepted, via the original
+ * leading-word derivation.
  *
  * Unlike the batch importer (which only parses once a full line is pasted),
  * this runs on every keystroke (see the 'input' listener in wireEvents) and
@@ -920,13 +960,9 @@ async function liveParseBeltDescription() {
   // splits a field in half.
   const tokens = raw.split(/\s+X\s+/i).map(t => t.trim());
   const [
-    width, rating, top, bottom, grade, edge, endType, beltType,
+    width, fabric, rating, top, bottom, grade, edge, endType, beltType,
     length, botPlies, bobPlies, carcassMm,
   ] = tokens;
-  // Fabric code is rating's leading word (e.g. "EP 400/3" → "EP") - rating_name
-  // always starts with it (see BeltRating.rating_name's DB format).
-  const fabric = rating ? rating.trim().split(/\s+/)[0] : '';
-
   const isNum = (s) => s != null && s !== '' && !isNaN(parseFloat(s));
 
   // ── Width / Top / Bottom / Length — plain numbers, safe to fill live ────
@@ -935,20 +971,58 @@ async function liveParseBeltDescription() {
   if (isNum(bottom)) set('bottom-cover-mm', bottom);
   if (isNum(length)) set('belt-length-m',  length);
 
-  // ── Fabric Type — must resolve before Belt Rating (ratings are per-fabric) ─
-  if (fabric) {
-    const ftValue = _findOptionValueByText('fabric-type-id', fabric);
-    if (ftValue && ftValue !== _liveParseFabricType) {
-      _liveParseFabricType = ftValue;
-      set('fabric-type-id', ftValue);
-      await loadBeltRatings(ftValue);   // populates belt-rating-id + fabric-style-id
-      if (myGen !== _liveParseGen) return;   // a newer keystroke has since run its own parse
-    }
-  }
-
-  // ── Belt Rating (depends on Fabric Type's options, loaded just above) ────
+  // ── Fabric Type + Belt Rating ─────────────────────────────────────────────
   if (rating) {
-    const brValue = _findOptionValueByText('belt-rating-id', rating);
+    const bareRating = stripFabricPrefix(rating);
+    const currentFabricValue = val('fabric-type-id');
+
+    if (fabric) {
+      // Explicit fabric token -- the fast, common path: just match it, no
+      // network round trip needed.
+      const ftValue = _findOptionValueByText('fabric-type-id', fabric);
+      if (ftValue && ftValue !== _liveParseFabricType) {
+        _liveParseFabricType = ftValue;
+        set('fabric-type-id', ftValue);
+        await loadBeltRatings(ftValue);   // populates belt-rating-id + fabric-style-id
+        if (myGen !== _liveParseGen) return;   // a newer keystroke has since run its own parse
+      }
+    } else if (!currentFabricValue) {
+      // No explicit fabric token (short/legacy-style line) and nothing
+      // selected yet -- fall back to the old combined-rating derivation,
+      // then the cross-fabric server search, same as before `fabric`
+      // existed as its own token.
+      const hasLegacyPrefix = bareRating !== rating.trim();
+      if (hasLegacyPrefix) {
+        const legacyFabric = rating.trim().split(/\s+/)[0];
+        const ftValue = _findOptionValueByText('fabric-type-id', legacyFabric);
+        if (ftValue && ftValue !== _liveParseFabricType) {
+          _liveParseFabricType = ftValue;
+          set('fabric-type-id', ftValue);
+          await loadBeltRatings(ftValue);
+          if (myGen !== _liveParseGen) return;
+        }
+      } else {
+        try {
+          const matches = await resolveBeltRatings(bareRating);
+          if (myGen !== _liveParseGen) return;   // a newer keystroke has since run its own parse
+          const distinctFabricTypes = [...new Set(matches.map(m => m.fabric_type_id))];
+          if (distinctFabricTypes.length === 1) {
+            const ftValue = String(distinctFabricTypes[0]);
+            _liveParseFabricType = ftValue;
+            set('fabric-type-id', ftValue);
+            await loadBeltRatings(ftValue);
+            if (myGen !== _liveParseGen) return;
+          }
+        } catch (err) {
+          // Network hiccup -- non-fatal, same philosophy as the rest of this
+          // function: just leave Fabric Type/Belt Rating unfilled for now.
+        }
+      }
+    }
+
+    // Depends on Fabric Type's options being loaded, either from just above
+    // or from an earlier call/manual selection.
+    const brValue = _findOptionValueByText('belt-rating-id', bareRating);
     if (brValue) set('belt-rating-id', brValue);
   }
 

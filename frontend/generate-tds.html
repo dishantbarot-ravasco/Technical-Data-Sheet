@@ -548,12 +548,12 @@
                 <span id="belt-desc-auto-badge" class="badge-auto">AUTO</span>
                 <span style="font-size:11px;color:var(--text-muted);font-weight:400;
                              text-transform:none;letter-spacing:0;margin-left:6px;">
-                  width X rating X top X bottom X grade X edge X end X type X length [X bot X bob [X carcass]]
+                  width X fabric X rating X top X bottom X grade X edge X end X type X length [X bot X bob [X carcass]]
                 </span>
               </label>
               <input type="text" id="belt-description" class="finp auto-field"
-                     placeholder="e.g. 1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300 X 1 X 1 X 5.4" />
-              <div class="form-hint" id="belt-desc-hint">Auto-fills live, type here to enter your own, same format as the Multiple Belts paste box, and the rest of the form fills in live as you type</div>
+                     placeholder="e.g. 1200 X EP X 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300 X 1 X 1 X 5.4" />
+              <div class="form-hint" id="belt-desc-hint">Auto-fills live, type here to enter your own; fabric and rating are separate (e.g. EP X 400/3, not EP 400/3); the rest of the form fills in live as you type</div>
             </div>
           </div>
 
@@ -606,66 +606,72 @@
                   </tr>
                   <tr style="background:#f8f9fc;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">2</td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Rating</td>
-                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">EP 400/3</td>
-                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Rating name as in master data, fabric code included (e.g. EP 315/3, EP 630/4)</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Fabric Type</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">EP</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Fabric code as in master data (e.g. EP, NN, Steel)</td>
                   </tr>
                   <tr style="background:#fff;">
                     <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">3</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Rating</td>
+                    <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">400/3</td>
+                    <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Just the number, no fabric code (e.g. 315/3, 630/4) - fabric is field 2 above</td>
+                  </tr>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">4</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Top Cover (mm)</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">6</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Carrying side cover thickness in millimetres (e.g. 4, 6, 8, 10)</td>
                   </tr>
-                  <tr style="background:#f8f9fc;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">4</td>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">5</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Bottom Cover (mm)</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">3</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Pulley side cover thickness in millimetres (e.g. 2, 3, 4)</td>
                   </tr>
-                  <tr style="background:#fff;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">5</td>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">6</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Cover Grade</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">H</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Grade code from the selected standard (e.g. H, D, L)</td>
                   </tr>
-                  <tr style="background:#f8f9fc;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">6</td>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">7</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Edge Type</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Cut</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;"><strong>Cut</strong> or <strong>Moulded</strong></td>
                   </tr>
-                  <tr style="background:#fff;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">7</td>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">8</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">End Type</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Open-End</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;"><strong>Open-End</strong> or <strong>Endless</strong></td>
                   </tr>
-                  <tr style="background:#f8f9fc;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">8</td>
+                  <tr style="background:#fff;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">9</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Type</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">Flat</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Belt type as in master data (e.g. Flat, Chevron)</td>
                   </tr>
-                  <tr style="background:#fff;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">9</td>
+                  <tr style="background:#f8f9fc;">
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#1e3a5f;">10</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;">Belt Length (m)</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">300</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Total belt length in metres (e.g. 100, 250, 500)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">10</td>
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">11</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOT Plies <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-top plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">11</td>
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">12</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">BOB Plies <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">0</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Breaker-on-bottom plies. Omit or leave blank to use default (0)</td>
                   </tr>
                   <tr style="background:#FFF8E6;">
-                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">12</td>
+                    <td style="padding:5px 8px;text-align:center;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:700;color:#7a5000;">13</td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-weight:600;color:#7a5000;">Carcass (mm) <span style="font-weight:400;font-size:11.5px;">(optional)</span></td>
                     <td style="padding:5px 8px;border-right:1px solid #e8edf5;border-bottom:1px solid #e8edf5;font-family:monospace;color:#1e6a2f;">5.4</td>
                     <td style="padding:5px 8px;border-bottom:1px solid #e8edf5;color:#555;">Per-belt carcass thickness override. Leave blank to auto-calculate from rating</td>
@@ -676,8 +682,8 @@
                 <strong style="color:#1e3a5f;">Example line:</strong>
                 <code style="font-family:monospace;font-size:11px;color:#7a5000;background:#FFF8E6;
                              border:1px solid #E8C060;border-radius:3px;padding:3px 8px;margin-left:6px;">
-                  1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300</code>
-                <span style="color:#888;margin-left:8px;">- fields 10–12 omitted (all use defaults)</span>
+                  1200 X EP X 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300</code>
+                <span style="color:#888;margin-left:8px;">- fields 11–13 omitted (all use defaults)</span>
               </div>
             </div>
           </div>
@@ -689,7 +695,7 @@
                            text-transform:none;letter-spacing:0;margin-left:6px;">- one belt per line</span>
             </label>
             <textarea id="multi-belt-text" class="finp" rows="6"
-              placeholder="1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300&#10;900 X EP 315/3 X 5 X 3 X H X Cut X Open-End X Flat X 250&#10;1200 X EP 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300 X 1 X 1 X 5.4"></textarea>
+              placeholder="1200 X EP X 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300&#10;900 X EP X 315/3 X 5 X 3 X H X Cut X Open-End X Flat X 250&#10;1200 X EP X 400/3 X 6 X 3 X H X Cut X Open-End X Flat X 300 X 1 X 1 X 5.4"></textarea>
           </div>
 
           <!-- Shared fabric override -->
@@ -1612,32 +1618,31 @@
         var parts   = line.split(/\s+X\s+/i).map(function(p){ return p.trim(); });
         var lineNum = i + 1;
 
-        if (parts.length < 9) {
-          errors.push('Line ' + lineNum + ': needs at least 9 fields (got ' + parts.length
+        if (parts.length < 10) {
+          errors.push('Line ' + lineNum + ': needs at least 10 fields (got ' + parts.length
             + ') - check that fields are separated by X');
           return;
         }
 
         var width    = parts[0];
-        var rating   = parts[1];
-        var top      = parts[2];
-        var bottom   = parts[3];
-        var grade    = parts[4];
-        var edge     = parts[5];
-        var endType  = parts[6];
-        var beltType = parts[7];
-        var length   = parts[8];
-        var botPlies = (parts[9]  || '').trim() || '0';
-        var bobPlies = (parts[10] || '').trim() || '0';
-        // Optional per-belt carcass override (field 12)
-        var carcassMm = (parts[11] || '').trim() || null;
-        // Fabric code is rating's leading word (e.g. "EP 400/3" -> "EP") -
-        // rating_name always starts with it, so there's no separate field.
-        var fabric = rating ? rating.trim().split(/\s+/)[0] : '';
+        var fabric   = parts[1];
+        var rating   = parts[2];
+        var top      = parts[3];
+        var bottom   = parts[4];
+        var grade    = parts[5];
+        var edge     = parts[6];
+        var endType  = parts[7];
+        var beltType = parts[8];
+        var length   = parts[9];
+        var botPlies = (parts[10] || '').trim() || '0';
+        var bobPlies = (parts[11] || '').trim() || '0';
+        // Optional per-belt carcass override (field 13)
+        var carcassMm = (parts[12] || '').trim() || null;
 
         var rowErrs = [];
         if (!width  || isNaN(parseFloat(width)))  rowErrs.push('Belt Width (mm) must be a number');
-        if (!rating)                               rowErrs.push('Belt Rating is required (e.g. EP 400/3)');
+        if (!fabric)                               rowErrs.push('Fabric Type is required (e.g. EP, NN, Steel)');
+        if (!rating)                               rowErrs.push('Belt Rating is required (e.g. 400/3)');
         if (!top    || isNaN(parseFloat(top)))     rowErrs.push('Top Cover (mm) must be a number');
         if (!bottom || isNaN(parseFloat(bottom)))  rowErrs.push('Bottom Cover (mm) must be a number');
         if (!grade)                                rowErrs.push('Cover Grade is required - must be a valid grade for the selected standard (e.g. H, D, L)');

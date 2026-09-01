@@ -34,6 +34,19 @@ function escapeHtml(value) {
   }[c]));
 }
 
+/**
+ * Strip the leading fabric-code token off a BeltRating.rating_name
+ * ("EP 1000/5" -> "1000/5") for display. Mirrors
+ * apps/services/calculations.py::strip_fabric_prefix() and the copy in
+ * frontend/js/generate-tds.js — keep all three in sync if this format ever
+ * changes. Deliberately NOT applied to the keyword-search filter below
+ * (matching against the raw rating_name), so searching for either the
+ * fabric code ("EP") or the bare number ("1000/5") both still work.
+ */
+function stripFabricPrefix(ratingName) {
+  return (ratingName || '').trim().replace(/^\S+\s+/, '');
+}
+
 // Redirect to login if not authenticated
 const session = await requireAuth();
 if (session) populateNavUser();
@@ -217,7 +230,7 @@ function renderTable() {
             <td class="td-muted">${new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
             <td>${t.customer?.customer_name ? escapeHtml(t.customer.customer_name) : '<span class="td-muted">-</span>'}</td>
             <td><span class="badge badge-muted" style="font-size:11px;">${escapeHtml(stdShort(t.standard?.standard_name))}</span></td>
-            <td class="td-muted" style="font-size:11px;">${escapeHtml(t.belt_rating?.rating_name) || '-'}</td>
+            <td class="td-muted" style="font-size:11px;">${escapeHtml(stripFabricPrefix(t.belt_rating?.rating_name)) || '-'}</td>
             <td class="td-muted" style="font-size:12px;">${t.belt_width_mm} mm × ${parseFloat(t.belt_length_m).toFixed(0)} m</td>
             <td>
               <div class="table-actions">
@@ -456,11 +469,12 @@ function dash(v, suffix='') {
 function populateModal(t) {
   document.getElementById('modal-title').textContent  = `TDS-${t.tds_number}`;
   document.getElementById('d-tds-number').textContent = t.tds_number;
-  // +1: current_revision counts edits made since the first real download (0
-  // for a never-edited record), not "which revision is this" -- the document
-  // itself is always at least on its first/original revision. Matches the
-  // same +1 applied to the downloaded filename (pdf_views.py::generate_pdf).
-  document.getElementById('d-revision').textContent   = 'Rev ' + String((t.current_revision ?? 0) + 1).padStart(2, '0');
+  // current_revision counts edits made since the first real download -- 0
+  // means never edited (still its original version, no revision history
+  // yet), matching the "no suffix until an edit has happened" rule on the
+  // downloaded filename (pdf_views.py::generate_pdf).
+  document.getElementById('d-revision').textContent   =
+    (t.current_revision ?? 0) === 0 ? 'Original' : 'Rev ' + String(t.current_revision).padStart(2, '0');
   document.getElementById('d-date').textContent       = new Date(t.tds_date).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('d-standard').textContent   = t.standard?.standard_name || '-';
   document.getElementById('d-purpose').textContent    = t.purpose?.purpose_type   || '-';
@@ -471,7 +485,7 @@ function populateModal(t) {
   document.getElementById('d-length').textContent     = dash(parseFloat(t.belt_length_m).toFixed(1), ' m');
   document.getElementById('d-construction').textContent= t.construction_type || '-';
   document.getElementById('d-edge').textContent       = t.edge_construction  || '-';
-  document.getElementById('d-rating').textContent     = t.belt_rating?.rating_name || '-';
+  document.getElementById('d-rating').textContent     = stripFabricPrefix(t.belt_rating?.rating_name) || '-';
   document.getElementById('d-fabric').textContent     = t.fabric_type?.fabric_code || '-';
   document.getElementById('d-grade').textContent      = t.cover_grade?.grade_code  || '-';
   document.getElementById('d-plies').textContent      = dash(t.num_plies);
@@ -517,15 +531,14 @@ async function populateHistoryTab(tdsId) {
     list.innerHTML = revisions.map(r => {
       const editor = r.edited_by?.full_name || r.edited_by?.email || 'Unknown user';
       const when   = r.edited_at ? new Date(r.edited_at).toLocaleString('en-IN') : '-';
-      // Display only: +1 so this reads "Rev 01" for the first-ever snapshot
-      // instead of "Rev 00" (see the matching comment on d-revision above).
-      // data-rev below stays the raw, un-offset value -- that's the actual
-      // key used to fetch/download this revision.
-      const rev    = String(r.revision_number + 1).padStart(2, '0');
+      // revision_number 0 is the snapshot taken right before the first edit
+      // -- the document's original version, matching the "Original" label
+      // on d-revision above and the "no suffix" rule on its filename.
+      const rev = r.revision_number === 0 ? 'Original' : 'Rev ' + String(r.revision_number).padStart(2, '0');
       return `
         <div class="history-row" data-rev="${r.revision_number}" style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div style="font-weight:600;color:var(--text);">Rev ${rev} - edited by ${escapeHtml(editor)}</div>
+            <div style="font-weight:600;color:var(--text);">${rev} - edited by ${escapeHtml(editor)}</div>
             <button class="btn btn-outline btn-sm history-download" data-rev="${r.revision_number}"
                     title="Download this revision's spec sheet as a PDF" style="flex-shrink:0;">⬇ Download</button>
           </div>
