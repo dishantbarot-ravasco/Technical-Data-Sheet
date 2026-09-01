@@ -323,6 +323,9 @@
                        color:var(--navy);font-weight:700;">
           ⬇ Download All PDFs (ZIP)
         </button>
+        <a id="splicing-manual-link" href="/manuals/Operational_Maintenance_Manual_1.pdf"
+           download="Splicing_Operational_Maintenance_Manual.pdf" class="btn btn-outline btn-sm"
+           style="display:none;">📄 Download Splicing Manual</a>
         <a href="generate-tds.html" id="btn-back-to-generator" class="btn btn-ghost btn-sm">← Back to Generator</a>
         <a href="search-tds.html"   class="btn btn-primary btn-sm">View All TDS</a>
       </div>
@@ -470,20 +473,7 @@
       };
     })();
 
-    /* ── Splicing manual download helper ─────────────────── */
-    /* Triggered when the user downloads any TDS (single or ZIP)
-       that has splicing required, so the manual is always at hand. */
-    function _downloadSplicingManual() {
-      var a = document.createElement('a');
-      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
-      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    /* Tracks whether the loaded batch has splicing_required = true.
+/* Tracks whether the loaded batch has splicing_required = true.
        Set by renderBatch(); read by goToPreview() so the splicing
        URL param is forwarded to tds-preview.html for each record. */
     var _batchSplicingRequired = false;
@@ -519,6 +509,13 @@
       const batch   = data.batch   || {};
       const records = data.tds_records || [];
       _batchSplicingRequired = !!batch.splicing_required;
+      // A real, user-clicked link -- not an auto-triggered download -- since
+      // silently firing a second unrequested download alongside the one the
+      // user actually asked for is the exact "tricks visitors into
+      // downloading software" pattern Google Safe Browsing flags, regardless
+      // of the file's actual (legitimate, first-party) content.
+      document.getElementById('splicing-manual-link').style.display =
+        _batchSplicingRequired ? '' : 'none';
       const count   = data.count   || records.length;
       const id      = batch.batch_id;
 
@@ -799,8 +796,6 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            /* Auto-download the splicing manual alongside the ZIP */
-            if (splicingRequired) _downloadSplicingManual();
             finishAndGoHome('Batch ZIP downloaded.', 5000);
           } catch (e) {
             alert('Download error: ' + e.message);

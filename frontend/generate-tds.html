@@ -1305,6 +1305,9 @@
                   style="background:var(--gold-pale);border-color:var(--gold-border);color:var(--navy);font-weight:700;">
             ⬇ Download All PDFs (ZIP)
           </button>
+          <a id="bs-splicing-manual-link" href="/manuals/Operational_Maintenance_Manual_1.pdf"
+             download="Splicing_Operational_Maintenance_Manual.pdf" class="btn btn-outline btn-sm"
+             style="display:none;">📄 Download Splicing Manual</a>
           <a href="search-tds.html" class="btn btn-primary btn-sm">View TDS Records</a>
           <button class="btn btn-ghost btn-sm" id="btn-batch-again"
                   onclick="location.reload()">Generate Another Batch</button>
@@ -1915,19 +1918,7 @@
     var _bsCustomerName       = '';
     var _bsSplicingRequired   = false;
 
-    /* Same manual auto-download tds-multi-preview.html triggers alongside
-       any ZIP/Merged download when the batch has splicing_required = true. */
-    function _bsDownloadSplicingManual() {
-      var a = document.createElement('a');
-      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
-      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    function _showBatchSuccess(result) {
+function _showBatchSuccess(result) {
       document.getElementById('tds-form-wrap').style.display  = 'none';
       document.getElementById('form-footer-bar').style.display = 'none';
       document.getElementById('batch-success-panel').style.display = '';
@@ -1940,6 +1931,13 @@
       _bsRecords          = records;
       _bsCustomerName     = result.customer_name || '';
       _bsSplicingRequired = !!batch.splicing_required;
+      // A real, user-clicked link -- not an auto-triggered download -- since
+      // silently firing a second unrequested download alongside the one the
+      // user actually asked for is the exact "tricks visitors into
+      // downloading software" pattern Google Safe Browsing flags, regardless
+      // of the file's actual (legitimate, first-party) content.
+      document.getElementById('bs-splicing-manual-link').style.display =
+        _bsSplicingRequired ? '' : 'none';
 
       document.getElementById('bs-batch-id').textContent = '#' + (batchId || '-');
       document.getElementById('bs-count').textContent    = result.count || records.length;
@@ -2067,7 +2065,6 @@
           }
           var blob = await resp.blob();
           _bsSaveBlob(blob, _bsFilenameFromResponse(resp, 'Batch_' + _bsBatchId + '.zip'));
-          if (_bsSplicingRequired) _bsDownloadSplicingManual();
         } catch (e) {
           alert('Download error: ' + e.message);
         } finally {
@@ -2100,7 +2097,6 @@
           }
           var blob = await resp.blob();
           _bsSaveBlob(blob, _bsFilenameFromResponse(resp, 'Batch_' + _bsBatchId + '_Merged.zip'));
-          if (_bsSplicingRequired) _bsDownloadSplicingManual();
         } catch (e) {
           alert('Download error: ' + e.message);
         } finally {

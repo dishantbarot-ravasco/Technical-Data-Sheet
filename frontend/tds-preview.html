@@ -215,6 +215,10 @@
 
     <div class="action-feedback" id="action-feedback">
       <span>✓</span><span id="feedback-msg"></span>
+      <a id="splicing-manual-link" href="/manuals/Operational_Maintenance_Manual_1.pdf"
+         download="Splicing_Operational_Maintenance_Manual.pdf" style="display:none;margin-left:8px;">
+        📄 Download Splicing Manual
+      </a>
     </div>
 
     <!-- ── QAP pre-download: PO / Enquiry popup ───────────────────────
@@ -333,18 +337,7 @@
     const backBtn = document.getElementById('btn-back');
     if (backBtn && tdsId) backBtn.href = `generate-tds.html?edit=${tdsId}`;
 
-    /* ── Splicing manual auto-download ──────────────────────────────────── */
-    function _downloadSplicingManual() {
-      const a = document.createElement('a');
-      a.href     = '/manuals/Operational_Maintenance_Manual_1.pdf';
-      a.download = 'Splicing_Operational_Maintenance_Manual.pdf';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    if (!tdsId) { window.location.href = 'generate-tds.html'; }
+if (!tdsId) { window.location.href = 'generate-tds.html'; }
     document.getElementById('tds-number-display').textContent = tdsNumber;
 
     // Set copy-type radio to match URL param (or 'customer' default)
@@ -643,6 +636,14 @@
       fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       document.getElementById('btn-download-save').disabled = true;
       document.getElementById('btn-print-save').disabled    = true;
+      // A real, user-clicked link -- not an auto-triggered download -- since
+      // silently firing a second unrequested download alongside the one the
+      // user actually asked for is the exact "tricks visitors into
+      // downloading software" pattern Google Safe Browsing flags, regardless
+      // of the file's actual (legitimate, first-party) content.
+      if (tdsHasSplicing) {
+        document.getElementById('splicing-manual-link').style.display = 'inline';
+      }
       setTimeout(() => { window.location.href = 'home.html'; }, delay);
     }
 
@@ -652,9 +653,6 @@
       btn.disabled = true; btn.innerHTML = 'Downloading…';
       try {
         await downloadPdf(tdsId, tdsDocNumber, getOptsFromIframe());
-        /* Auto-download the splicing manual alongside the TDS PDF when
-           this TDS has splicing required. Not triggered for Print. */
-        if (tdsHasSplicing) _downloadSplicingManual();
         finishAndGoHome('TDS-' + tdsDocNumber + ' downloaded.', 5000);
       } catch (err) {
         showToast('Download failed: ' + err.message, 'error');

@@ -483,6 +483,54 @@ the same day.
   reject in a browser console against the running dev server and confirming the warning fires
   (no JS test harness exists in this repo).
 
+## Google Safe Browsing suspension incident (2026-09-01)
+
+Production (`https://tds-automation-0gvh.onrender.com`) got flagged by Google Safe Browsing /
+Web Risk ("tries to trick visitors into sharing personal info or downloading software"), which
+Render escalated into an account suspension (lifted once, but Render states a second flag on this
+same service means a permanent suspension). Root cause identified and fixed: **three separate
+places silently fired a second, unrequested file download immediately after the user's own
+explicit download click** —
+
+- `frontend/tds-preview.html`'s `_downloadSplicingManual()` (single-TDS download)
+- `frontend/tds-multi-preview.html`'s `_downloadSplicingManual()` (batch ZIP download)
+- `frontend/generate-tds.html`'s `_bsDownloadSplicingManual()` (batch success panel's ZIP/Merged
+  download buttons)
+
+All three built a hidden `<a>`, set `.download`, and called `.click()` synthetically to push
+`manuals/Operational_Maintenance_Manual_1.pdf` onto the user right after their actual requested
+download completed, whenever the TDS/batch had `splicing_required = true`. The file itself is a
+legitimate first-party PDF — this was never actual malware — but a synthetic-click-triggered,
+unrequested second download is *exactly* the mechanism real drive-by-download phishing sites use,
+and it's what Safe Browsing's classifier for "downloading software" pattern-matches on, regardless
+of the file's real content or intent. **Any hidden-anchor + programmatic `.click()` used to push a
+file onto the user without them clicking a real, visible link is a Safe Browsing risk on this
+app** — don't reintroduce this pattern for any future "also grab this related file" feature.
+
+Fixed by replacing the auto-click in all three with a real, visible, user-clicked link that only
+appears when relevant, added to each page's existing persistent post-download UI: `tds-preview.html`'s
+`#action-feedback` banner, `tds-multi-preview.html`'s `.action-bar`, and `generate-tds.html`'s
+`#batch-success-panel` button row — each gets a `#splicing-manual-link` /
+`#bs-splicing-manual-link` `<a href="/manuals/..." download="...">` that's `display:none` by
+default and revealed (`style.display = ''`) only when splicing is required, instead of being
+auto-invoked. No JS test harness exists in this repo — verified via `javascript_tool` against the
+running dev server that all three pages still load with no console errors and the link elements
+exist/toggle correctly.
+
+**Also checked and ruled out** (Google's warning covers both "sharing personal info" and
+"downloading software", so both were audited): the Google OAuth "Sign in with Google" flow
+(`django_backend/apps/api/routers/google_oauth_views.py`) does a real server-side redirect to
+`accounts.google.com` via `google-auth-oauthlib`, requests only minimal `openid/email/profile`
+scopes, and the frontend button (`frontend/index.html`) is a plain link with standard styling —
+no fake Google-branded credential form. No third-party/injected scripts exist anywhere in
+`frontend/` other than `fonts.googleapis.com`. `pdf_service.py` only ever embeds the per-user
+signature image as a base64 data URI *inside* generated PDF HTML, never serves it standalone. No
+leftover test/demo/phishing-mimicking pages exist. If Safe Browsing flags the site again after
+this fix, the OAuth consent screen's verification status in Google Cloud Console (is the app
+verified? what's listed as "Authorized domains") is the next thing to check, followed by whether
+the flag is purely a shared-`*.onrender.com`-subdomain reputation issue unrelated to this app's
+own code (a custom domain would sidestep that, but wasn't an option at the time of this incident).
+
 ## Known future work / deferred proposals (v2 candidates)
 
 These were discussed across past sessions but deliberately not built yet — either genuinely
