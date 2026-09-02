@@ -4,13 +4,24 @@ services:
   - type: web
     name: tds-automation
     runtime: python
-    # UPGRADED (Ravasco Workspace/Render Pro): was 'free'. The free web-service
-    # plan spins down on idle and gives shared/limited CPU — fine for
-    # development, not for a system people rely on daily. Verify 'pro' is the
-    # exact plan slug currently shown in the Render dashboard for this
-    # service before applying this blueprint (Render's plan names/tiers can
-    # change independently of this file).
-    plan: pro
+    # DOWNGRADED 2026-09-02 (from 'pro' to 'starter'): 'pro' was set 2026-09-01
+    # purely to move off 'free' (which spins down on idle and gives
+    # shared/limited CPU — unacceptable for daily production use), not because
+    # this app was measured to need Pro-tier resources. A week of real Render
+    # metrics (2026-08-26 to 2026-09-02, api.render.com/v1/metrics/memory)
+    # showed peak memory of 361MB and peak CPU of 0.185 vCPU against Pro's
+    # 4GB/2vCPU — comfortably inside Starter's 512MB/0.5vCPU cap (peak was 70%
+    # of the 512MB limit, so headroom exists but isn't huge). Starter doesn't
+    # spin down like Free does, so it keeps the property that mattered for the
+    # original upgrade. Cuts the monthly cost from ~$85/mo to ~$7/mo for this
+    # service. If memory usage climbs past ~450MB in Render's Metrics tab
+    # after this change (e.g. from a large batch PDF export — WeasyPrint
+    # rendering is the app's main memory/CPU cost, see
+    # apps/api/routers/batch_export_views.py's module docstring), revert to
+    # 'pro'. Verify the plan slug shown in the Render dashboard before
+    # reapplying this blueprint (Render's plan names/tiers can change
+    # independently of this file).
+    plan: starter
     buildCommand: chmod +x build.sh && ./build.sh
     startCommand: cd django_backend && gunicorn config.wsgi:application --workers 2 --bind 0.0.0.0:$PORT --timeout 120 --log-level info
     # ── Environment variables ───────────────────────────────────────────────────

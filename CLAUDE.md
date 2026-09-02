@@ -531,6 +531,12 @@ verified? what's listed as "Authorized domains") is the next thing to check, fol
 the flag is purely a shared-`*.onrender.com`-subdomain reputation issue unrelated to this app's
 own code (a custom domain would sidestep that, but wasn't an option at the time of this incident).
 
+**Resolved 2026-09-02**: Google Search Console's automated review confirmed
+`https://tds-automation-0gvh.onrender.com/` no longer contains links to harmful sites or
+downloads, and the browser warning was cleared. This closes the loop on the fix above — no
+further action needed unless the site gets flagged again, in which case see the "next things to
+check" list at the end of the previous paragraph.
+
 ## Known future work / deferred proposals (v2 candidates)
 
 These were discussed across past sessions but deliberately not built yet — either genuinely
